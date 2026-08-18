@@ -10,8 +10,7 @@ import {
   IdentityProviderUnavailableError,
 } from "@/lib/identity/gateway";
 import { resolvePostLoginDestination } from "@/lib/identity/readiness";
-
-const SESSION_COOKIE = "rfx_session";
+import { SESSION_COOKIE_NAME } from "@/lib/identity/session-gateway";
 
 function noStore<T>(body: T, status: number) {
   return NextResponse.json(body, {
@@ -85,7 +84,7 @@ export async function POST(request: NextRequest) {
       { state: "authenticated", nextPath },
       200,
     );
-    response.cookies.set(SESSION_COOKIE, result.sessionToken, {
+    response.cookies.set(SESSION_COOKIE_NAME, result.sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
