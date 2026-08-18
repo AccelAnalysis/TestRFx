@@ -19,7 +19,8 @@ export async function GET(request: NextRequest) {
   const recipientOrganization = request.nextUrl.searchParams.get("recipientOrganization");
   if (recipientOrganization) {
     try {
-      return NextResponse.json({ recipientPolicy: await getReferralPolicy(recipientOrganization) });
+      const actor = resolveExchangeActor(request.headers);
+      return NextResponse.json({ recipientPolicy: await getReferralPolicy(recipientOrganization, actor) });
     } catch (error) {
       return errorResponse(error);
     }
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     workflows: Object.values(sharedWorkflowDefinitions),
     services: Object.values(sharedServiceDefinitions),
     persistence: exchangeDatabaseConfigured() ? "postgresql" : "unconfigured",
-    actorResolution: "trusted auth/BFF headers",
+    actorResolution: "trusted Identity/BFF actor context + organization-membership verification",
   });
 }
 
@@ -49,14 +50,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const actor = resolveExchangeActor(request.headers);
-    const execution = await executeSharedWorkflow({
-      workflow,
-      lens: body.lens,
-      recordPublicId: body.recordId,
-      source: body.source ?? "action-rail",
-      actor,
-      payload: body.payload ?? {},
-    });
+    const execution = await executeSharedWorkflow({ workflow, lens: body.lens, recordPublicId: body.recordId, source: body.source ?? "action-rail", actor, payload: body.payload ?? {} });
     return NextResponse.json({ accepted: true, durable: true, execution }, { status: 201 });
   } catch (error) {
     return errorResponse(error);
