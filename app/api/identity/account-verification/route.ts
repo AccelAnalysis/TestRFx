@@ -11,6 +11,11 @@ import {
   createReferenceVerificationToken,
   verifyReferenceVerificationToken,
 } from "@/lib/identity/account-verification-token";
+import {
+  createOnboardingSessionToken,
+  ONBOARDING_SESSION_COOKIE,
+  ONBOARDING_SESSION_TTL_SECONDS,
+} from "@/lib/identity/onboarding-session";
 
 export const dynamic = "force-dynamic";
 
@@ -51,12 +56,34 @@ export async function POST(request: NextRequest) {
       return noStore({ state: "invalid", message: "This verification link is invalid." }, 400);
     }
 
-    return noStore({
+    const onboardingSession = createOnboardingSessionToken(
+      result.payload.email,
+      result.payload.context.displayName,
+    );
+    if (!onboardingSession) {
+      return noStore(
+        {
+          state: "configuration_error",
+          message: "Verified onboarding sessions are not configured for this environment.",
+        },
+        503,
+      );
+    }
+
+    const response = noStore({
       state: "verified",
       email: result.payload.email,
       context: result.payload.context,
       nextPath: buildOnboardingContinuation(result.payload.context),
     });
+    response.cookies.set(ONBOARDING_SESSION_COOKIE, onboardingSession, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: ONBOARDING_SESSION_TTL_SECONDS,
+    });
+    return response;
   }
 
   if (body.action === "request" || body.action === "resend" || body.action === "change_email") {
