@@ -28,13 +28,19 @@ function scopeLabel(scope: string) {
 export function MenuSurface({
   onClose,
   context = referenceMenuContext,
+  initialSectionId,
 }: {
   onClose: () => void;
   context?: MenuViewerContext;
+  initialSectionId?: MenuSectionId;
 }) {
-  const [activeSectionId, setActiveSectionId] = useState<MenuSectionId | undefined>();
+  const [activeSectionId, setActiveSectionId] = useState<MenuSectionId | undefined>(initialSectionId);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const activeSection = activeSectionId ? menuSectionById[activeSectionId] : undefined;
+
+  useEffect(() => {
+    setActiveSectionId(initialSectionId);
+  }, [initialSectionId]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {

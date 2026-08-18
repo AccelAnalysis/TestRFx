@@ -3,6 +3,7 @@ export type CapabilityWorkflowMode =
   | "ai-amacs"
   | "capability-evidence"
   | "capability-gaps"
+  | "publish-updates"
   | "match-rfx"
   | "refer";
 
@@ -11,6 +12,7 @@ export function isCapabilityWorkflowMode(value: string): value is CapabilityWork
     || value === "ai-amacs"
     || value === "capability-evidence"
     || value === "capability-gaps"
+    || value === "publish-updates"
     || value === "match-rfx"
     || value === "refer";
 }

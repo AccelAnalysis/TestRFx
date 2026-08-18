@@ -23,6 +23,16 @@ ALTER TABLE referrals ADD COLUMN IF NOT EXISTS source_lens text;
 ALTER TABLE referrals ADD COLUMN IF NOT EXISTS note text;
 ALTER TABLE referrals ADD COLUMN IF NOT EXISTS completed_at timestamptz;
 
+-- The Resources source explicitly requires the referral flow to surface the recipient's
+-- referral policy / fee before creation. Keep those values flexible rather than inventing
+-- a fee formula in the chassis; the commercial service owns the contents of these JSON fields.
+CREATE TABLE IF NOT EXISTS organization_referral_policies (
+  organization_id uuid PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  policy jsonb NOT NULL DEFAULT '{}'::jsonb,
+  fee jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS referral_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   referral_id uuid NOT NULL REFERENCES referrals(id) ON DELETE CASCADE,
