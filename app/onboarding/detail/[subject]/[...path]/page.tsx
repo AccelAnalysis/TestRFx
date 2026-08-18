@@ -4,6 +4,7 @@ import {
   getOnboardingDetailDefinition,
   getOnboardingDetailNode,
   isOnboardingDetailSubject,
+  listOnboardingStaticDetailPaths,
   sanitizeInternalDetailHref,
 } from "@/lib/onboarding/detail-surface";
 
@@ -14,6 +15,10 @@ interface NestedDetailPageProps {
 
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+export function generateStaticParams() {
+  return listOnboardingStaticDetailPaths();
 }
 
 export default async function NestedOnboardingDetailPage({ params, searchParams }: NestedDetailPageProps) {
