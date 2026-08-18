@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  MembershipCapacityUnavailableError,
+  publishCapacityStripeEvent,
+} from "@/lib/membership/capacity-gateway";
+import {
   MembershipEntitlementUnavailableError,
   publishMembershipEvent,
 } from "@/lib/membership/entitlement-gateway";
@@ -9,6 +13,7 @@ export const dynamic = "force-dynamic";
 
 const MEMBERSHIP_EVENT_TYPES = new Set([
   "checkout.session.completed",
+  "checkout.session.expired",
   "customer.subscription.created",
   "customer.subscription.updated",
   "customer.subscription.deleted",
@@ -35,7 +40,13 @@ export async function POST(request: NextRequest) {
     return noStore({ error: "Invalid Stripe webhook signature." }, 400);
   }
 
-  const event = JSON.parse(rawBody) as { id?: string; type?: string; data?: unknown };
+  let event: { id?: string; type?: string; data?: unknown };
+  try {
+    event = JSON.parse(rawBody) as { id?: string; type?: string; data?: unknown };
+  } catch {
+    return noStore({ error: "Invalid Stripe event payload." }, 400);
+  }
+
   if (!event.id || !event.type) {
     return noStore({ error: "Invalid Stripe event payload." }, 400);
   }
@@ -45,9 +56,18 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await publishMembershipEvent(event);
+    await Promise.all([
+      publishCapacityStripeEvent(event),
+      publishMembershipEvent(event),
+    ]);
     return noStore({ received: true }, 200);
   } catch (error) {
+    if (error instanceof MembershipCapacityUnavailableError) {
+      return noStore(
+        { error: "RFxchange membership capacity service is not configured." },
+        503,
+      );
+    }
     if (error instanceof MembershipEntitlementUnavailableError) {
       return noStore(
         { error: "RFxchange membership entitlement service is not configured." },
