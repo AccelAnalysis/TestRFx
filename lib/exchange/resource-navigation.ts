@@ -187,7 +187,7 @@ export function resourceNavigationTrail(state: ResourceNavigationState) {
 
 export function resourceNavigationEnabled(node: ResourceNavigationNode, record?: ExchangeRecord) {
   if (node.requiresRecord && (!record || record.type !== "resource")) return false;
-  if (node.audience === "own" && record && !record.ownedByViewer) return false;
-  if (node.audience === "other" && record?.ownedByViewer) return false;
+  if (node.requiresRecord && node.audience === "own" && record && !record.ownedByViewer) return false;
+  if (node.requiresRecord && node.audience === "other" && record?.ownedByViewer) return false;
   return true;
 }
