@@ -171,7 +171,7 @@ const definitions: Record<OnboardingDetailSubject, OnboardingDetailDefinition> =
   account: {
     subject: "account",
     label: "Account & Identity",
-    description: "Create the person-level account and prove control of the selected access method before organization onboarding.",
+    description: "Create the person-level account, preserve source-defined entry context, and prove control of the selected access method before organization onboarding.",
     step: 1,
     totalSteps: 6,
     classification: "required",
@@ -188,6 +188,11 @@ const definitions: Record<OnboardingDetailSubject, OnboardingDetailDefinition> =
         node("resend-verification", "Resend Verification", "Resend an unavailable or expired verification challenge.", "conditional", ["Registration"], verify("resend")),
         node("change-email", "Change Email Address", "Correct the email address and issue a new challenge.", "conditional", ["Registration"], verify("change_email")),
       ]),
+      node("alternate-entry-context", "Alternate Entry Context", "Preserve the Registration source's referral, partner-invite, and event/QR entry context through Identity without promoting it to authorization truth.", "conditional", ["Registration"], registration, [
+        node("referral-link", "Referral Link", "Preserve sponsor/campaign referral context through registration and onboarding.", "conditional", ["Registration"], registration),
+        node("partner-invite", "Partner Invite", "Preserve organization invitation context for later validation and membership resolution.", "conditional", ["Registration"], registration),
+        node("qr-event-registration", "QR Code / Event Registration", "Preserve campaign/event acquisition context through Identity and onboarding.", "conditional", ["Registration"], registration),
+      ]),
     ],
   },
   organization: {
@@ -202,8 +207,10 @@ const definitions: Record<OnboardingDetailSubject, OnboardingDetailDefinition> =
     children: [
       node("basic-user-onboarding", "Basic User Onboarding", "Choose the participant role and organization affiliation path.", "required", ["Onboarding"], organization, [
         node("welcome-role-selection", "Welcome / Role Selection", "Select the participant's organization role/participation context.", "required", ["Onboarding"], profile),
-        node("join-existing-organization", "Join Existing Organization", "Find an existing canonical organization and request or accept membership.", "conditional", ["Onboarding"], organizationMutation("Join existing organization")),
-        node("create-new-organization", "Create New Organization", "Create only when entity resolution does not identify the correct organization.", "conditional", ["Onboarding"], organizationMutation("Create new organization")),
+        node("organization-affiliation-choice", "Organization Affiliation Choice", "Choose whether to join an existing organization or create a new one.", "required", ["Onboarding"], organization, [
+          node("join-existing-organization", "Join Existing Organization", "Find an existing canonical organization and request or accept membership.", "conditional", ["Onboarding"], organizationMutation("Join existing organization")),
+          node("create-new-organization", "Create New Organization", "Create only when entity resolution does not identify the correct organization.", "conditional", ["Onboarding"], organizationMutation("Create new organization")),
+        ]),
       ]),
       node("organization-setup", "Organization Setup", "Follow the Registration source's claim-or-create decision.", "required", ["Registration"], organization, [
         node("claim-existing-organization", "Claim Existing Organization", "Resolve to the existing record and enter the claim/authority path.", "conditional", ["Registration"], organizationMutation("Claim existing organization")),
@@ -269,7 +276,8 @@ const definitions: Record<OnboardingDetailSubject, OnboardingDetailDefinition> =
       node("core-profile-details", "Core Profile Details", "Complete organization overview, contacts, description, and key information.", "required", ["Onboarding"], profile, [
         node("organization-overview", "Organization Overview", "Describe the organization for Exchange participants.", "required", ["Onboarding"], profile),
         node("contacts", "Contacts", "Maintain the primary organization contact separately from the signed-in user's identity.", "required", ["Onboarding"], profile),
-        node("description-key-info", "Description and Key Info", "Complete the descriptive information needed for a useful profile.", "required", ["Onboarding"], profile),
+        node("description", "Description", "Complete the source-defined organization description.", "required", ["Onboarding"], profile),
+        node("key-info", "Key Info", "Complete the remaining source-defined key organization information.", "required", ["Onboarding"], profile),
       ]),
       node("industry-services", "Industry & Services", "Capture industry context and service offerings used by capability enrichment.", "recommended", ["Onboarding"], profile, [
         node("industries-served", "Industries Served", "Identify industries served by the organization.", "recommended", ["Onboarding"], profile),
@@ -292,7 +300,12 @@ const definitions: Record<OnboardingDetailSubject, OnboardingDetailDefinition> =
     sources: ["Onboarding", "Capabilities"],
     workflow: capabilities,
     children: [
-      node("core-profile-details", "Core Profile Details", "Review organization overview, contacts, description, and key information used to seed enrichment.", "required", ["Onboarding"], profile),
+      node("core-profile-details", "Core Profile Details", "Review organization overview, contacts, description, and key information used to seed enrichment.", "required", ["Onboarding"], profile, [
+        node("organization-overview", "Organization Overview", "Review the organization overview used to seed enrichment.", "required", ["Onboarding"], profile),
+        node("contacts", "Contacts", "Review the source-defined organization contacts.", "required", ["Onboarding"], profile),
+        node("description", "Description", "Review the organization description.", "required", ["Onboarding"], profile),
+        node("key-info", "Key Info", "Review key organization information used by enrichment.", "required", ["Onboarding"], profile),
+      ]),
       node("industry-services", "Industry & Services", "Review industries served and service offerings.", "recommended", ["Onboarding"], profile, [
         node("industries-served", "Industries Served", "Review industries served by the organization.", "recommended", ["Onboarding"], profile),
         node("service-offerings", "Service Offerings", "Review service offerings before detailed capability entry.", "recommended", ["Onboarding"], profile),
@@ -302,8 +315,10 @@ const definitions: Record<OnboardingDetailSubject, OnboardingDetailDefinition> =
         node("solutions", "Solutions", "Add the solutions represented by capability claims.", "recommended", ["Onboarding"], capabilities),
       ]),
       node("amacs-mapping", "AMACS Mapping / AI-to-AMACS Assistance", "Use assistance to propose structured AMACS alignment while preserving organization confirmation as a separate truth state.", "recommended", ["Onboarding", "Capabilities"], capabilities, [
-        node("suggest-mapping", "Suggest AMACS Mapping", "Generate or retrieve mapping candidates through the future AMACS service boundary.", "recommended", ["Onboarding", "Capabilities"], capabilities),
-        node("review-confirm-mapping", "Review / Confirm Mapping", "Review and confirm a mapping before it becomes organization-asserted taxonomy truth.", "recommended", ["Onboarding", "Capabilities"], capabilities),
+        node("suggested-mapping", "Suggested Mapping", "Review the AMACS mapping suggested for the organization capability.", "recommended", ["Project", "Capabilities"], capabilities),
+        node("user-confirmed-mapping", "User-confirmed Mapping", "Confirm the organization-asserted AMACS mapping separately from automated inference.", "recommended", ["Project", "Capabilities"], capabilities),
+        node("alternative-mappings", "Alternative Mappings", "Review alternative AMACS mappings where the source/context supports them.", "optional", ["Project"], capabilities),
+        node("mapping-confidence", "Mapping Confidence / Explanation", "Show mapping confidence or explanatory context without presenting it as verification.", "optional", ["Project"], capabilities),
       ]),
       node("evidence-certifications", "Evidence / Certifications", "Support capability claims without treating an upload as independent verification.", "recommended", ["Onboarding", "Capabilities"], capabilities, [
         node("certifications", "Certifications", "Associate relevant certifications with capability claims.", "recommended", ["Onboarding"], capabilities),
