@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { IntelligenceInsightInput, IntelligenceSourceType } from "@/lib/exchange/intelligence";
-import { createIntelligence, getIntelligenceDetail, listIntelligence } from "@/lib/server/intelligence-repository";
+import { createIntelligence, getIntelligenceDetail } from "@/lib/server/intelligence-repository";
+import { searchIntelligence, type IntelligenceDiscoveryLocation, type IntelligenceDiscoveryOwnership, type IntelligenceDiscoverySort } from "@/lib/server/intelligence-search";
 import { requireExchangeActor } from "@/lib/server/exchange-session";
 import { serviceErrorResponse } from "@/lib/server/http-errors";
 
 const sourceTypes = new Set<IntelligenceSourceType>(["exchange-activity", "participant-observation", "external-dataset"]);
+const locations = new Set<IntelligenceDiscoveryLocation>(["all", "mapped", "off-map"]);
+const ownerships = new Set<IntelligenceDiscoveryOwnership>(["all", "mine", "others"]);
+const sorts = new Set<IntelligenceDiscoverySort>(["relevance", "title", "organization", "geography"]);
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -54,8 +58,17 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const response = await listIntelligence(actor, {
+    const locationParam = (params.get("location") ?? "all") as IntelligenceDiscoveryLocation;
+    const ownershipParam = (params.get("ownership") ?? "all") as IntelligenceDiscoveryOwnership;
+    const sortParam = (params.get("sort") ?? "relevance") as IntelligenceDiscoverySort;
+    const response = await searchIntelligence(actor, {
       query,
+      geography: params.get("geo") ?? "",
+      location: locations.has(locationParam) ? locationParam : "all",
+      ownership: ownerships.has(ownershipParam) ? ownershipParam : "all",
+      tags: params.getAll("tag"),
+      trackedOnly: params.get("tracked") === "1",
+      sort: sorts.has(sortParam) ? sortParam : "relevance",
       offset: Number(params.get("offset") ?? 0),
       limit: Number(params.get("limit") ?? 24),
     });
