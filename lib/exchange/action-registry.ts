@@ -1,41 +1,104 @@
 import type { ExchangeLens, ExchangeRecord, LensAction, LensActionOwnership, LensActionToggle, LensActionTrigger } from "./contracts";
+
 type ActionSpec = { id: string; label: string; icon: string; trigger: LensActionTrigger; operational?: boolean; unavailableReason?: string; requiresRecord?: boolean; toggle?: LensActionToggle; };
-const unavailable = { rfxCreate: "RFx creation plugs into this governed action position.", rfxManage: "RFx management plugs into this governed action position.", rfxRespond: "Response/submission workflow plugs into this governed action position.", rfxTeam: "Teaming and collaboration plug into this governed action position." } as const;
+function spec(id: string, label: string, icon: string, trigger: LensActionTrigger, options: Omit<ActionSpec, "id" | "label" | "icon" | "trigger"> = {}): ActionSpec { return { id, label, icon, trigger, ...options }; }
+
 const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }> = {
-  rfx: { own: [
-    { id: "create-rfx", label: "Create RFx", icon: "+", trigger: "modal", operational: false, unavailableReason: unavailable.rfxCreate },
-    { id: "manage-rfx", label: "Manage", icon: "✎", trigger: "menu", operational: false, unavailableReason: unavailable.rfxManage, requiresRecord: true },
-    { id: "invite-team", label: "Invite Team", icon: "◎", trigger: "workflow", operational: false, unavailableReason: unavailable.rfxTeam, requiresRecord: true },
-    { id: "watch", label: "Watch", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
-  ], other: [
-    { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true },
-    { id: "respond", label: "Respond", icon: "↵", trigger: "modal", operational: false, unavailableReason: unavailable.rfxRespond, requiresRecord: true },
-    { id: "team", label: "Team", icon: "◎", trigger: "workflow", operational: false, unavailableReason: unavailable.rfxTeam, requiresRecord: true },
-    { id: "watch", label: "Watch", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
-  ]},
-  resources: { own: [
-    { id: "offer-resource", label: "Offer", icon: "+", trigger: "modal" }, { id: "edit-resource", label: "Edit", icon: "✎", trigger: "modal", requiresRecord: true }, { id: "share", label: "Share", icon: "↗", trigger: "direct", requiresRecord: true }, { id: "archive-resource", label: "Archive", icon: "▣", trigger: "workflow", requiresRecord: true },
-  ], other: [
-    { id: "request-resource", label: "Request", icon: "+", trigger: "modal", requiresRecord: true }, { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true }, { id: "share", label: "Share", icon: "↗", trigger: "direct", requiresRecord: true }, { id: "save", label: "Save", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "save" },
-  ]},
-  intelligence: { own: [
-    { id: "add-insight", label: "Add Insight", icon: "+", trigger: "modal" }, { id: "edit-insight", label: "Edit Insight", icon: "✎", trigger: "modal", requiresRecord: true }, { id: "compare", label: "Compare", icon: "⇄", trigger: "workflow", requiresRecord: true }, { id: "track", label: "Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "track" },
-  ], other: [
-    { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true }, { id: "add-note", label: "Add Note", icon: "◌", trigger: "modal", requiresRecord: true }, { id: "compare", label: "Compare", icon: "⇄", trigger: "workflow", requiresRecord: true }, { id: "follow-track", label: "Follow / Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "follow" },
-  ]},
-  capabilities: { own: [
-    { id: "manage-capabilities", label: "Manage Capabilities", icon: "✎", trigger: "workflow", requiresRecord: true },
-    { id: "ai-amacs", label: "AI → AMACS", icon: "✦", trigger: "workflow", requiresRecord: true },
-    { id: "capability-evidence", label: "Add / Edit Evidence", icon: "✓", trigger: "workflow", requiresRecord: true },
-    { id: "capability-gaps", label: "Capability Gaps", icon: "▥", trigger: "workflow", requiresRecord: true },
-  ], other: [
-    { id: "view", label: "View Capabilities", icon: "◉", trigger: "detail", requiresRecord: true },
-    { id: "match-rfx", label: "Match to RFx", icon: "◇", trigger: "workflow", requiresRecord: true },
-    { id: "refer", label: "Refer", icon: "↗", trigger: "workflow", requiresRecord: true },
-    { id: "follow", label: "Save / Follow", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "follow" },
-  ]},
+  rfx: {
+    own: [
+      spec("create-rfx", "Create RFx", "+", "modal"),
+      spec("manage-rfx", "Manage", "✎", "menu", { requiresRecord: true }),
+      spec("invite-team", "Invite Team", "◎", "modal", { requiresRecord: true }),
+      spec("watch", "Watch", "☆", "direct", { requiresRecord: true, toggle: "watch" }),
+    ],
+    other: [
+      spec("view", "View Detail", "◉", "menu", { requiresRecord: true }),
+      spec("respond", "Respond", "↵", "modal", { requiresRecord: true }),
+      spec("team", "Team", "◎", "menu", { requiresRecord: true }),
+      spec("watch", "Watch", "☆", "direct", { requiresRecord: true, toggle: "watch" }),
+    ],
+  },
+  resources: {
+    own: [
+      spec("offer-resource", "Offer", "+", "modal"),
+      spec("edit-resource", "Edit", "✎", "menu", { requiresRecord: true }),
+      spec("share", "Share", "↗", "direct", { requiresRecord: true }),
+      spec("archive-resource", "Save / Archive", "▣", "direct", { requiresRecord: true }),
+    ],
+    other: [
+      spec("request-resource", "Request", "+", "modal", { requiresRecord: true }),
+      spec("view", "View Detail", "◉", "menu", { requiresRecord: true }),
+      spec("share", "Share", "↗", "direct", { requiresRecord: true }),
+      spec("save", "Save", "☆", "direct", { requiresRecord: true, toggle: "save" }),
+    ],
+  },
+  intelligence: {
+    own: [
+      spec("add-insight", "Add Insight", "+", "modal"),
+      spec("edit-insight", "Edit Insight", "✎", "menu", { requiresRecord: true }),
+      spec("compare", "Compare", "⇄", "modal", { requiresRecord: true }),
+      spec("track", "Track", "☆", "direct", { requiresRecord: true, toggle: "track" }),
+    ],
+    other: [
+      spec("view", "View Detail", "◉", "menu", { requiresRecord: true }),
+      spec("add-note", "Add Note", "◌", "modal", { requiresRecord: true }),
+      spec("compare", "Compare", "⇄", "modal", { requiresRecord: true }),
+      spec("follow-track", "Follow / Track", "☆", "direct", { requiresRecord: true, toggle: "follow" }),
+    ],
+  },
+  capabilities: {
+    own: [
+      spec("manage-capabilities", "Manage Capabilities", "✎", "menu", { requiresRecord: true }),
+      spec("ai-amacs", "AI → AMACS", "✦", "modal", { requiresRecord: true }),
+      spec("capability-evidence", "Add / Edit Evidence", "✓", "modal", { requiresRecord: true }),
+      spec("capability-gaps", "Capability Gaps", "▥", "direct", { requiresRecord: true }),
+    ],
+    other: [
+      spec("view", "View Capabilities", "◉", "menu", { requiresRecord: true }),
+      spec("match-rfx", "Match to RFx", "◇", "modal", { requiresRecord: true }),
+      spec("refer", "Refer", "↗", "direct", { requiresRecord: true }),
+      spec("follow", "Save / Follow", "☆", "direct", { requiresRecord: true, toggle: "follow" }),
+    ],
+  },
 };
-function toAction(spec: ActionSpec, position: 1 | 2 | 3 | 4, ownership: LensActionOwnership, record?: ExchangeRecord): LensAction { const applicable = spec.requiresRecord ? Boolean(record) : true; return { id: spec.id, position, label: spec.label, icon: spec.icon, trigger: spec.trigger, ownership, visible: true, applicable, authorized: true, operational: spec.operational ?? true, prerequisitesSatisfied: true, requiresRecord: spec.requiresRecord, toggle: spec.toggle, unavailableReason: !applicable ? "Select a record to use this action." : spec.unavailableReason }; }
-export function resolveLensActions(lens: ExchangeLens, record?: ExchangeRecord): LensAction[] { const ownership: LensActionOwnership = record?.ownedByViewer ? "own" : "other"; const specs = registry[lens][ownership === "own" ? "own" : "other"]; const actions = specs.map((spec, index) => toAction(spec, (index + 1) as 1 | 2 | 3 | 4, ownership, record)); if (actions.length !== 4 || new Set(actions.map((item) => item.position)).size !== 4) throw new Error(`Lens ${lens} must resolve exactly four governed action positions.`); return actions; }
-export function isLensActionEnabled(action: LensAction) { return action.visible && action.operational && action.applicable && action.authorized && action.prerequisitesSatisfied; }
-export function getLensActionUnavailableReason(action: LensAction) { if (!action.visible) return "This action is hidden in the current context."; if (!action.operational) return action.unavailableReason ?? "This workflow is not operational yet."; if (!action.applicable) return action.unavailableReason ?? "This action does not apply to the current selection."; if (!action.authorized) return action.unavailableReason ?? "Your current organization role is not authorized for this action."; if (!action.prerequisitesSatisfied) return action.unavailableReason ?? "Complete the required prerequisite before using this action."; return undefined; }
+
+function toAction(specification: ActionSpec, position: 1 | 2 | 3 | 4, ownership: LensActionOwnership, record?: ExchangeRecord): LensAction {
+  const applicable = specification.requiresRecord ? Boolean(record) : true;
+  return {
+    id: specification.id,
+    position,
+    label: specification.label,
+    icon: specification.icon,
+    trigger: specification.trigger,
+    ownership,
+    visible: true,
+    applicable,
+    authorized: true,
+    operational: specification.operational ?? true,
+    prerequisitesSatisfied: true,
+    requiresRecord: specification.requiresRecord,
+    toggle: specification.toggle,
+    unavailableReason: !applicable ? "Select a record to use this action." : specification.unavailableReason,
+  };
+}
+
+export function resolveLensActions(lens: ExchangeLens, record?: ExchangeRecord): LensAction[] {
+  const ownership: LensActionOwnership = record?.ownedByViewer ? "own" : "other";
+  const specifications = registry[lens][ownership === "own" ? "own" : "other"];
+  const actions = specifications.map((item, index) => toAction(item, (index + 1) as 1 | 2 | 3 | 4, ownership, record));
+  if (actions.length !== 4 || new Set(actions.map((item) => item.position)).size !== 4) throw new Error(`Lens ${lens} must resolve exactly four governed action positions.`);
+  return actions;
+}
+
+export function isLensActionEnabled(action: LensAction) {
+  return action.visible && action.operational && action.applicable && action.authorized && action.prerequisitesSatisfied;
+}
+
+export function getLensActionUnavailableReason(action: LensAction) {
+  if (!action.visible) return "This action is hidden in the current context.";
+  if (!action.operational) return action.unavailableReason ?? "This workflow is not operational yet.";
+  if (!action.applicable) return action.unavailableReason ?? "This action does not apply to the current selection.";
+  if (!action.authorized) return action.unavailableReason ?? "Your current organization role is not authorized for this action.";
+  if (!action.prerequisitesSatisfied) return action.unavailableReason ?? "Complete the required prerequisite before using this action.";
+  return undefined;
+}
