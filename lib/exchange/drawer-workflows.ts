@@ -22,6 +22,7 @@ export interface DrawerWorkflowNode {
   label: string;
   kind: DrawerWorkflowNodeKind;
   description?: string;
+  disabledReason?: string;
   execution?: DrawerWorkflowExecution;
   children?: DrawerWorkflowNode[];
 }
@@ -38,9 +39,28 @@ const referralBranch = (id: string, label: string): DrawerWorkflowNode => ({
   description: "Cross-lens referral workflow from the source record context.",
   children: [
     { id: `${id}-compose`, label: "Referral modal", kind: "modal", execution: { kind: "shared", workflow: "refer" } },
-    { id: `${id}-policy`, label: "Recipient referral policy / fee", kind: "menu", description: "Review the recipient organization's configured referral policy and fee; no fee is invented when none is configured." },
+    { id: `${id}-policy`, label: "Recipient referral policy / fee", kind: "menu", description: "Review the recipient organization's published referral policy and fee; RFxchange does not invent one when none is configured." },
     { id: `${id}-track`, label: "Track in Menu > Referrals Management", kind: "handoff", execution: { kind: "menu", destination: "referrals" } },
   ],
+});
+
+const intelligenceOutcomeBranch = (id: string): DrawerWorkflowNode => ({
+  id,
+  label: "Shared Intelligence outcomes",
+  kind: "outcome",
+  children: [
+    { id: `${id}-decision-support`, label: "Decision Support", kind: "outcome", execution: { kind: "outcome" } },
+    { id: `${id}-matching`, label: "Opportunity / Capability Matching", kind: "outcome", execution: { kind: "outcome" } },
+    referralBranch(`${id}-referral`, "Referral Trigger (Cross-Lens)"),
+    { id: `${id}-save-watch-return`, label: "Save / Watch / Return to Exchange", kind: "outcome", execution: { kind: "outcome" } },
+  ],
+});
+
+const capabilityOutcomeBranch = (id: string): DrawerWorkflowNode => ({
+  id,
+  label: "Shared Capabilities outcomes",
+  kind: "outcome",
+  children: outcomes("Capability visibility", "Requirement-to-capability matching", "Teaming / referral opportunities", "Capability intelligence inputs"),
 });
 
 const rfxOwn: ActionTree = {
@@ -94,7 +114,14 @@ const rfxOther: ActionTree = {
       ] },
       { id: "rfx-view-team", label: "Team / Join / Collaborate", kind: "menu", execution: { kind: "shared", workflow: "team" } },
       { id: "rfx-view-watch", label: "Watch / Follow", kind: "action", execution: { kind: "shared", workflow: "watch" } },
+      {
+        id: "rfx-view-match",
+        label: "Match",
+        kind: "action",
+        disabledReason: "Production RFx matching requires the AMACS-backed matching service; deterministic reference scoring is not used as match truth.",
+      },
       referralBranch("rfx-view-refer", "Refer Relevant Organization"),
+      { id: "rfx-view-save", label: "Save", kind: "action", execution: { kind: "shared", workflow: "save" } },
       { id: "rfx-view-outcome", label: "Outcome", kind: "outcome", children: outcomes("Saved", "Submitted", "Teamed", "Referred") },
     ],
   },
@@ -128,49 +155,72 @@ const resourcesOther: ActionTree = {
 };
 
 const intelligenceOwn: ActionTree = {
-  "add-insight": { id: "intel-add", label: "Add Insight", kind: "modal", execution: { kind: "intelligence", workflow: "add" }, children: [{ id: "intel-add-updated", label: "Insight record updated", kind: "outcome", execution: { kind: "outcome" } }] },
-  "edit-insight": { id: "intel-edit", label: "Edit Insight", kind: "menu", execution: { kind: "intelligence", workflow: "edit" }, children: [{ id: "intel-edit-updated", label: "Insight record updated", kind: "outcome", execution: { kind: "outcome" } }] },
+  "add-insight": { id: "intel-add", label: "Add Insight", kind: "modal", execution: { kind: "intelligence", workflow: "add" }, children: [
+    { id: "intel-add-updated", label: "Insight record updated", kind: "outcome", execution: { kind: "outcome" } },
+    intelligenceOutcomeBranch("intel-add-outcomes"),
+  ] },
+  "edit-insight": { id: "intel-edit", label: "Edit Insight", kind: "menu", execution: { kind: "intelligence", workflow: "edit" }, children: [
+    { id: "intel-edit-updated", label: "Insight record updated", kind: "outcome", execution: { kind: "outcome" } },
+    intelligenceOutcomeBranch("intel-edit-outcomes"),
+  ] },
   compare: { id: "intel-compare", label: "Compare", kind: "modal", execution: { kind: "intelligence", workflow: "compare" }, children: [
     { id: "intel-compare-analysis", label: "Analyze patterns / compare intelligence", kind: "outcome", execution: { kind: "outcome" } },
-    referralBranch("intel-referral-trigger", "Referral Trigger (Cross-Lens)"),
+    intelligenceOutcomeBranch("intel-compare-outcomes"),
   ] },
-  track: { id: "intel-track", label: "Track", kind: "action", execution: { kind: "shared", workflow: "track" }, children: [{ id: "intel-track-outcome", label: "Follow changes / watch intelligence activity", kind: "outcome", execution: { kind: "outcome" } }] },
+  track: { id: "intel-track", label: "Track", kind: "action", execution: { kind: "shared", workflow: "track" }, children: [
+    { id: "intel-track-outcome", label: "Follow changes / watch intelligence activity", kind: "outcome", execution: { kind: "outcome" } },
+    intelligenceOutcomeBranch("intel-track-outcomes"),
+  ] },
 };
 
 const intelligenceOther: ActionTree = {
   view: { id: "intel-view", label: "View Insight Detail", kind: "menu", execution: { kind: "detail" }, children: [
     { id: "intel-review-context", label: "Review intelligence context", kind: "outcome", execution: { kind: "outcome" } },
-    referralBranch("intel-view-referral", "Referral Trigger (Cross-Lens)"),
+    intelligenceOutcomeBranch("intel-view-outcomes"),
   ] },
-  "add-note": { id: "intel-note", label: "Add Note", kind: "modal", execution: { kind: "intelligence", workflow: "note" }, children: [{ id: "intel-note-outcome", label: "Contribute note or commentary", kind: "outcome", execution: { kind: "outcome" } }] },
+  "add-note": { id: "intel-note", label: "Add Note", kind: "modal", execution: { kind: "intelligence", workflow: "note" }, children: [
+    { id: "intel-note-outcome", label: "Contribute note or commentary", kind: "outcome", execution: { kind: "outcome" } },
+    intelligenceOutcomeBranch("intel-note-outcomes"),
+  ] },
   compare: { id: "intel-compare-other", label: "Compare", kind: "modal", execution: { kind: "intelligence", workflow: "compare" }, children: [
     { id: "intel-compare-external", label: "Compare external intelligence", kind: "outcome", execution: { kind: "outcome" } },
-    referralBranch("intel-compare-referral", "Referral Trigger (Cross-Lens)"),
+    intelligenceOutcomeBranch("intel-compare-other-outcomes"),
   ] },
-  "follow-track": { id: "intel-follow", label: "Follow / Track", kind: "action", execution: { kind: "shared", workflow: "follow" }, children: [{ id: "intel-monitor", label: "Monitor updates and changes", kind: "outcome", execution: { kind: "outcome" } }] },
+  "follow-track": { id: "intel-follow", label: "Follow / Track", kind: "action", execution: { kind: "shared", workflow: "follow" }, children: [
+    { id: "intel-monitor", label: "Monitor updates and changes", kind: "outcome", execution: { kind: "outcome" } },
+    intelligenceOutcomeBranch("intel-follow-outcomes"),
+  ] },
 };
 
+const capabilityUnavailable = "This child is source-defined but needs the production Capabilities/AMACS service. RFxchange does not substitute the deterministic reference profile for production truth.";
+
 const capabilitiesOwn: ActionTree = {
-  "manage-capabilities": { id: "cap-manage", label: "Manage Capabilities", kind: "menu", execution: { kind: "capability", workflow: "manage-capabilities" }, children: [
-    { id: "cap-manage-amacs", label: "AI → AMACS Mapping", kind: "modal", execution: { kind: "capability", workflow: "ai-amacs" } },
-    { id: "cap-manage-evidence", label: "Add / Edit Evidence", kind: "modal", execution: { kind: "capability", workflow: "capability-evidence" } },
-    { id: "cap-manage-gaps", label: "Identify Capability Gaps", kind: "action", execution: { kind: "capability", workflow: "capability-gaps" } },
-    { id: "cap-manage-publish", label: "Save / Publish updates", kind: "action", description: "The source requires publication after capability management; execution remains owned by the canonical capability service." },
+  "manage-capabilities": { id: "cap-manage", label: "Manage Capabilities", kind: "menu", children: [
+    { id: "cap-manage-amacs", label: "AI → AMACS Mapping", kind: "modal", disabledReason: capabilityUnavailable },
+    { id: "cap-manage-evidence", label: "Add / Edit Evidence", kind: "modal", disabledReason: "Evidence metadata exists in the schema, but the production object-storage/evidence command service is not connected; the reference evidence screen is not used as a write service." },
+    { id: "cap-manage-gaps", label: "Identify Capability Gaps", kind: "action", disabledReason: capabilityUnavailable },
+    { id: "cap-manage-publish", label: "Save / Publish updates", kind: "action", disabledReason: "Capability publication is source-defined but the production publication command service is not connected in this drawer pass." },
+    capabilityOutcomeBranch("cap-manage-outcomes"),
   ] },
-  "ai-amacs": { id: "cap-amacs", label: "AI → AMACS Mapping", kind: "modal", execution: { kind: "capability", workflow: "ai-amacs" } },
-  "capability-evidence": { id: "cap-evidence", label: "Add / Edit Evidence", kind: "modal", execution: { kind: "capability", workflow: "capability-evidence" } },
-  "capability-gaps": { id: "cap-gaps", label: "Capability Gaps", kind: "action", execution: { kind: "capability", workflow: "capability-gaps" } },
+  "ai-amacs": { id: "cap-amacs", label: "AI → AMACS Mapping", kind: "modal", disabledReason: capabilityUnavailable },
+  "capability-evidence": { id: "cap-evidence", label: "Add / Edit Evidence", kind: "modal", disabledReason: "Connect the production evidence/object-storage service before enabling capability evidence writes." },
+  "capability-gaps": { id: "cap-gaps", label: "Capability Gaps", kind: "action", disabledReason: capabilityUnavailable },
 };
 
 const capabilitiesOther: ActionTree = {
   view: { id: "cap-view", label: "View Capabilities", kind: "menu", execution: { kind: "detail" }, children: [
     { id: "cap-view-evidence", label: "Capability detail / supporting evidence", kind: "detail", execution: { kind: "detail" } },
+    capabilityOutcomeBranch("cap-view-outcomes"),
   ] },
-  "match-rfx": { id: "cap-match", label: "Match to RFx / requirement", kind: "modal", execution: { kind: "capability", workflow: "match-rfx" } },
+  "match-rfx": { id: "cap-match", label: "Match to RFx / requirement", kind: "modal", disabledReason: capabilityUnavailable, children: [capabilityOutcomeBranch("cap-match-outcomes")] },
   refer: { id: "cap-refer", label: "Refer", kind: "action", execution: { kind: "shared", workflow: "refer" }, children: [
     { id: "cap-refer-handoff", label: "Cross-lens referral workflow", kind: "handoff", execution: { kind: "shared", workflow: "refer" } },
+    capabilityOutcomeBranch("cap-refer-outcomes"),
   ] },
-  follow: { id: "cap-follow", label: "Save / Follow", kind: "action", execution: { kind: "shared", workflow: "follow" }, children: [{ id: "cap-watchlist", label: "Watchlist / saved organizations", kind: "outcome", execution: { kind: "outcome" } }] },
+  follow: { id: "cap-follow", label: "Save / Follow", kind: "action", execution: { kind: "shared", workflow: "follow" }, children: [
+    { id: "cap-watchlist", label: "Watchlist / saved organizations", kind: "outcome", execution: { kind: "outcome" } },
+    capabilityOutcomeBranch("cap-follow-outcomes"),
+  ] },
 };
 
 const trees: Record<ExchangeLens, OwnershipTree> = {
