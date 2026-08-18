@@ -19,6 +19,18 @@ export interface IntelligenceActivityEvent {
   occurredAt: string;
 }
 
+export interface IntelligenceDiscoveryRequest {
+  query?: string;
+  geography?: string;
+  location?: "all" | "mapped" | "off-map";
+  ownership?: "all" | "mine" | "others";
+  tags?: string[];
+  trackedOnly?: boolean;
+  sort?: "relevance" | "title" | "organization" | "geography";
+  offset?: number;
+  limit?: number;
+}
+
 export class IntelligenceServiceError extends Error {
   code?: string;
   status: number;
@@ -42,9 +54,26 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   return payload as T;
 }
 
-export function listIntelligenceRecords(options: { query?: string; offset?: number; limit?: number } = {}) {
+export function listIntelligenceRecords(options: IntelligenceDiscoveryRequest = {}) {
+  // Universal Search is encoded in the Exchange URL. Carry those filters into the
+  // authenticated service so pagination/counts are computed on the same result set.
+  const current = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const params = new URLSearchParams();
-  if (options.query?.trim()) params.set("q", options.query.trim());
+  const query = options.query?.trim() ?? current.get("q")?.trim() ?? "";
+  const geography = options.geography?.trim() ?? current.get("geo")?.trim() ?? "";
+  const location = options.location ?? (current.get("location") === "mapped" || current.get("location") === "off-map" ? current.get("location") as "mapped" | "off-map" : "all");
+  const ownership = options.ownership ?? (current.get("ownership") === "mine" || current.get("ownership") === "others" ? current.get("ownership") as "mine" | "others" : "all");
+  const tags = options.tags ?? current.getAll("tag").filter(Boolean);
+  const sortFromUrl = current.get("sort");
+  const sort = options.sort ?? (sortFromUrl === "title" || sortFromUrl === "organization" || sortFromUrl === "geography" ? sortFromUrl : "relevance");
+
+  if (query) params.set("q", query);
+  if (geography) params.set("geo", geography);
+  if (location !== "all") params.set("location", location);
+  if (ownership !== "all") params.set("ownership", ownership);
+  for (const tag of tags) if (tag.trim()) params.append("tag", tag.trim());
+  if (options.trackedOnly) params.set("tracked", "1");
+  if (sort !== "relevance") params.set("sort", sort);
   params.set("offset", String(options.offset ?? 0));
   params.set("limit", String(options.limit ?? 24));
   return requestJson<IntelligenceListResponse>(`/api/exchange/intelligence?${params}`);
