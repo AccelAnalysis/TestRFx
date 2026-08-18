@@ -81,9 +81,9 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
           <span>Exchange ready</span>
         </div>
         <p className="eyebrow">RFxchange registration</p>
-        <h1>Account identity created</h1>
+        <h1>Registration ready for verification</h1>
         <p className="muted">
-          <strong>{accepted.email}</strong> is ready for the account-verification step. Your acquisition, referral, invitation, organization, membership, geography, and requested-record context remains available to downstream onboarding when supplied.
+          <strong>{accepted.email}</strong> is ready for the account-verification handoff. Your acquisition, referral, invitation, organization, membership, geography, and requested-record context remains available to downstream onboarding when supplied.
         </p>
         <div className={styles.statusPanel}>
           <strong>Next: verify your email</strong>
@@ -152,7 +152,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
             aria-describedby={errors.email ? "email-error" : "email-help"}
             required
           />
-          <small id="email-help" className={styles.help}>This becomes your canonical RFxchange identity email.</small>
+          <small id="email-help" className={styles.help}>This becomes your canonical RFxchange identity email after verification and production identity persistence are connected.</small>
           {errors.email ? <small id="email-error" className={styles.error}>{errors.email}</small> : null}
         </label>
 
@@ -178,7 +178,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
         {errors.form ? <div className={styles.formError} role="alert">{errors.form}</div> : null}
 
         <button className="button button-primary button-full" type="submit" disabled={submitting}>
-          {submitting ? "Creating account…" : "Continue"}
+          {submitting ? "Creating registration…" : "Continue"}
         </button>
       </form>
 
