@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import { ExchangeForbiddenError, ExchangeUnauthorizedError } from "./actor";
 import { ExchangeServiceUnavailableError } from "./database";
+import { ExchangeInvalidInputError } from "./resource-input";
 import { ExchangeConflictError, ExchangeNotFoundError } from "./resource-service";
 
 export function exchangeServiceErrorResponse(error: unknown) {
+  if (error instanceof ExchangeInvalidInputError) {
+    return NextResponse.json({ error: error.message, code: "invalid_request" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
   if (error instanceof ExchangeUnauthorizedError) {
     return NextResponse.json({ error: error.message, code: "unauthorized" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
