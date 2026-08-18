@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS intelligence_sources (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   intelligence_record_id uuid NOT NULL REFERENCES intelligence_records(id) ON DELETE CASCADE,
   source_label text NOT NULL,
-  source_type text NOT NULL CHECK (source_type IN ('exchange-activity', 'participant-observation', 'external-dataset')),
+  source_type text NOT NULL,
   publisher text,
   source_uri text,
   coverage jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -24,6 +24,25 @@ CREATE TABLE IF NOT EXISTS intelligence_sources (
   retrieved_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+
+-- Replace the earlier reference-build source constraint. NOT VALID preserves historical provenance
+-- if an existing environment contains `reference-dataset` rows, while immediately rejecting that
+-- mock source type for every new/updated row. Once historical rows are cleaned deliberately, the
+-- constraint can be validated without rewriting their meaning automatically.
+ALTER TABLE intelligence_sources DROP CONSTRAINT IF EXISTS intelligence_sources_source_type_check;
+ALTER TABLE intelligence_sources
+  ADD CONSTRAINT intelligence_sources_source_type_check
+  CHECK (source_type IN ('exchange-activity', 'participant-observation', 'external-dataset')) NOT VALID;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM intelligence_sources
+    WHERE source_type NOT IN ('exchange-activity', 'participant-observation', 'external-dataset')
+  ) THEN
+    ALTER TABLE intelligence_sources VALIDATE CONSTRAINT intelligence_sources_source_type_check;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS intelligence_sources_record_idx ON intelligence_sources(intelligence_record_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS intelligence_notes (
@@ -65,5 +84,3 @@ CREATE INDEX IF NOT EXISTS intelligence_relationships_record_idx ON intelligence
 
 -- Comparison is computed from canonical source records and is intentionally not stored as market truth.
 -- Activity events record contribution, edits, notes, comparisons, tracking/following, and referral-trigger actions.
--- Existing deployments that previously admitted a non-production `reference-dataset` source type must remove
--- those rows before applying the stricter source constraint; the runtime never creates that source type.
