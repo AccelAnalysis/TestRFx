@@ -23,9 +23,6 @@ const unavailable = {
   rfxManage: "RFx management plugs into this governed action position.",
   rfxRespond: "Response/submission workflow plugs into this governed action position.",
   rfxTeam: "Teaming and collaboration plug into this governed action position.",
-  resourceOffer: "Resource offer workflow plugs into this governed action position.",
-  resourceEdit: "Resource management plugs into this governed action position.",
-  resourceRequest: "Resource request workflow plugs into this governed action position.",
   insightAdd: "Intelligence contribution plugs into this governed action position.",
   insightEdit: "Intelligence editing plugs into this governed action position.",
   insightNote: "Intelligence notes plug into this governed action position.",
@@ -55,13 +52,13 @@ const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }>
   },
   resources: {
     own: [
-      { id: "offer-resource", label: "Offer", icon: "+", trigger: "modal", operational: false, unavailableReason: unavailable.resourceOffer },
-      { id: "edit-resource", label: "Edit", icon: "✎", trigger: "menu", operational: false, unavailableReason: unavailable.resourceEdit, requiresRecord: true },
+      { id: "offer-resource", label: "Offer", icon: "+", trigger: "modal" },
+      { id: "edit-resource", label: "Edit", icon: "✎", trigger: "modal", requiresRecord: true },
       { id: "share", label: "Share", icon: "↗", trigger: "direct", requiresRecord: true },
-      { id: "save-archive", label: "Save / Archive", icon: "▣", trigger: "workflow", operational: false, unavailableReason: "Resource save/archive lifecycle plugs into this governed action position.", requiresRecord: true },
+      { id: "archive-resource", label: "Archive", icon: "▣", trigger: "workflow", requiresRecord: true },
     ],
     other: [
-      { id: "request-resource", label: "Request", icon: "+", trigger: "modal", operational: false, unavailableReason: unavailable.resourceRequest, requiresRecord: true },
+      { id: "request-resource", label: "Request", icon: "+", trigger: "modal", requiresRecord: true },
       { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true },
       { id: "share", label: "Share", icon: "↗", trigger: "direct", requiresRecord: true },
       { id: "save", label: "Save", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "save" },
@@ -121,11 +118,7 @@ export function resolveLensActions(lens: ExchangeLens, record?: ExchangeRecord):
   const ownership: LensActionOwnership = record?.ownedByViewer ? "own" : "other";
   const specs = registry[lens][ownership === "own" ? "own" : "other"];
   const actions = specs.map((spec, index) => toAction(spec, (index + 1) as 1 | 2 | 3 | 4, ownership, record));
-
-  if (actions.length !== 4 || new Set(actions.map((item) => item.position)).size !== 4) {
-    throw new Error(`Lens ${lens} must resolve exactly four governed action positions.`);
-  }
-
+  if (actions.length !== 4 || new Set(actions.map((item) => item.position)).size !== 4) throw new Error(`Lens ${lens} must resolve exactly four governed action positions.`);
   return actions;
 }
 

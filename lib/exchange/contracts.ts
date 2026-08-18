@@ -19,6 +19,9 @@ export type ExchangeRelationshipState = "saved" | "watched" | "following" | "ref
 export type LensActionTrigger = "detail" | "modal" | "menu" | "direct" | "workflow";
 export type LensActionOwnership = "own" | "other" | "any";
 export type LensActionToggle = "save" | "watch" | "track" | "follow";
+export type ResourceAvailabilityState = "available" | "limited" | "scheduled";
+export type ResourceVisibility = "public-location" | "service-area" | "off-map";
+export type ResourceStatus = "active" | "archived";
 
 export type Coordinates = { lat: number; lng: number };
 export interface MapCamera { center: Coordinates; zoom: number; bearing: number; pitch: number; mode: MapDisplayMode; }
@@ -29,10 +32,21 @@ export interface DrawerQueryState { sort: DrawerSort; location: DrawerLocationFi
 export interface ExchangeCardMedia { kind: ExchangeCardMediaKind; label: string; src?: string; alt?: string; }
 export interface ExchangeCardStatus { label: string; tone?: ExchangeStatusTone; }
 export interface ExchangeCardProjection { eyebrow?: string; media?: ExchangeCardMedia; classifications?: string[]; status?: ExchangeCardStatus; relationships?: ExchangeRelationshipState[]; placement?: ExchangeCardPlacement; distance?: string; }
+export interface ResourceProjection {
+  category: string;
+  availability: ResourceAvailabilityState;
+  availabilityLabel: string;
+  capacity?: string;
+  serviceArea?: string;
+  visibility: ResourceVisibility;
+  terms?: string;
+  status: ResourceStatus;
+  sponsored?: boolean;
+}
 
 export interface ExchangeRecord {
   id: string; type: ExchangeRecordType; title: string; organization: string; summary: string; geography: string; metadata: string[];
-  location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection;
+  location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection; resource?: ResourceProjection;
 }
 
 export interface LensAction {
