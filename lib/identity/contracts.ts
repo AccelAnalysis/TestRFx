@@ -1,4 +1,4 @@
-export type MagicLinkDeliveryMode = "provider" | "reference";
+export type MagicLinkDeliveryMode = "provider";
 
 export interface MagicLinkRequestInput {
   email: string;
