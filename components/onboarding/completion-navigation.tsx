@@ -5,7 +5,7 @@ import {
   type ExchangeReadinessSnapshot,
   type CompletionWorkflowNode,
 } from "@/lib/onboarding/readiness";
-import styles from "./exchange-ready-completion.module.css";
+import styles from "./completion-navigation.module.css";
 
 function pathOnly(href: string | undefined) {
   return href?.split("?")[0] ?? "";
