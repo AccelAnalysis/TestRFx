@@ -29,7 +29,7 @@ export type VerificationEntrySource =
   | "campaign"
   | "unknown";
 
-export interface AccountVerificationContext {
+export type AccountVerificationContext = {
   source?: VerificationEntrySource;
   invitationId?: string;
   referralId?: string;
@@ -39,21 +39,21 @@ export interface AccountVerificationContext {
   geography?: string;
   record?: string;
   returnTo?: string;
-}
+};
 
-export interface VerificationRequestResponse {
+export type VerificationRequestResponse = {
   state: "pending";
   maskedEmail: string;
   expiresInSeconds: number;
   delivery: "sent";
-}
+};
 
-export interface VerificationSuccessResponse {
+export type VerificationSuccessResponse = {
   state: "verified";
   email: string;
   nextPath: string;
   context: AccountVerificationContext;
-}
+};
 
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
