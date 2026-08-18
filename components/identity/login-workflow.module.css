@@ -1,0 +1,14 @@
+.breadcrumbs { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 24px; color: #747981; font-size: 11px; }
+.breadcrumbs > *:not(:last-child)::after { content: "›"; margin-left: 6px; color: #a3a6ac; }
+.breadcrumbs a { color: #2e5eaa; text-decoration: none; }
+.content { display: grid; gap: 14px; }
+.actions { display: grid; gap: 10px; }
+.primary, .secondary { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0 16px; border-radius: 14px; font-weight: 800; text-decoration: none; text-align: center; }
+.primary { border: 1px solid #0b0b0d; background: #0b0b0d; color: #f7f3ea; }
+.secondary { border: 1px solid rgba(37,41,50,.16); background: rgba(255,255,255,.74); color: #252932; }
+.note { margin: 0; padding: 12px 14px; border-radius: 13px; background: rgba(46,94,170,.08); color: #555b64; font-size: 13px; line-height: 1.5; }
+.factorList { display: grid; gap: 8px; }
+.factorButton { min-height: 46px; padding: 0 14px; border: 1px solid rgba(37,41,50,.16); border-radius: 13px; background: white; text-align: left; cursor: pointer; }
+.codeRow { display: grid; gap: 10px; }
+.codeInput { min-height: 50px; padding: 0 14px; border: 1px solid rgba(37,41,50,.16); border-radius: 13px; background: white; font: inherit; }
+.status { margin: 0; color: #626771; line-height: 1.55; }

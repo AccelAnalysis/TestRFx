@@ -1,63 +1,91 @@
 # Identity & Onboarding Shell — Login
 
-Login is the bounded identity gateway between RFxchange acquisition surfaces and authenticated Exchange activity. It authenticates a returning participant, preserves the requested internal destination, establishes the provider/session boundary, and hands authenticated context to the onboarding-readiness resolver.
+Login is the bounded returning-participant gateway between acquisition and the authenticated RFxchange Exchange. It now uses the approved production boundaries rather than the previous reference gateway: Firebase Authentication for identity, Firestore for RFxchange identity/session state, and Microsoft Graph for transactional email delivery.
 
-## Chassis contract
+## Source-derived hierarchy
 
-The Login subsystem owns:
-
-- login entry and safe `returnTo` intent preservation;
-- email normalization and passwordless challenge request UX;
-- magic-link provider boundary and approximately 15-minute challenge lifetime;
-- resend/change-email/error states;
-- MFA/device/session integration points;
-- authenticated-readiness routing into Account Verification, Organization, Geography, Organization Profile, Capability enrichment, Membership access, or the Exchange.
-
-It does **not** own organization creation, geography editing, capability enrichment, membership checkout, or Exchange business logic.
-
-## Flow
+The Login source defines this navigation/workflow tree. `lib/identity/login-navigation.ts` encodes the same parent/child relationships so UI states and recovery paths do not drift into a flat collection of pages.
 
 ```text
-Public / protected entry
-        ↓
-/login?returnTo=/exchange/...
-        ↓
-Email challenge request
-        ↓
-Identity provider sends one-time magic link
-        ↓
-Provider verifies link + optional MFA/device policy
-        ↓
-Session + active organization context
-        ↓
-resolvePostLoginDestination(...)
-        ↓
-Remaining onboarding step OR preserved Exchange destination
+Login
+├── Enter email
+│   ├── Email found
+│   │   └── Send sign-in link
+│   │       └── Check email
+│   │           └── Open magic link
+│   │               ├── Link valid
+│   │               │   └── Authenticate
+│   │               │       ├── Additional verification required
+│   │               │       │   └── MFA / 2FA
+│   │               │       │       └── Verify code
+│   │               │       │           └── Successful login
+│   │               │       └── Successful login
+│   │               │           └── Enter RFxchange
+│   │               ├── Link expired
+│   │               │   └── Request new link → Check email
+│   │               └── Invalid / tampered link → Resend or Support
+│   └── Email not found
+│       └── Choose whether to register
+│           ├── Create account → Registration
+│           └── Return to Marketing
+├── Session states
+│   ├── Active session → Exchange
+│   ├── Remembered device → longer active session
+│   ├── Session timeout → Login
+│   └── Manual logout → Login
+└── Contact support
 ```
 
-## Reference implementation boundary
+The source also names failed outcomes for MFA failure, rate limiting, restricted accounts, and network/server errors. MFA failures stay inside the Verify Code workflow so the enrolled factor can be retried; rate-limited and restricted conditions have concrete routes; network/provider failures stay on the current task with retry and Support rather than inventing a separate product area.
 
-`lib/identity/gateway.ts` currently uses a `ReferenceIdentityGateway`. It deliberately **does not send email, verify a magic-link token, or create an authenticated session**. The UI labels this condition rather than pretending authentication succeeded.
+## Concrete routes
 
-Before production access is enabled, replace that adapter with the selected identity provider and ensure the provider callback:
+- `/login` — email entry and remembered-device choice.
+- `/login/not-found` — Register or return to Marketing.
+- `/login/check-email` — resend or change email.
+- `/login/complete` — Firebase email-link completion, optional MFA, session establishment.
+- `/login/link-expired` — request a replacement link.
+- `/login/link-invalid` — invalid/already-used/tampered recovery.
+- `/login/rate-limited` — abuse-control state.
+- `/login/restricted` — deactivated/suspended state.
+- `/login/session-expired` — inactivity/expiry/revocation recovery.
+- `/login/support` — configured support contact.
+- `/logout` — manual sign-out.
+- `/api/auth/login` — real challenge issuance and Microsoft email delivery.
+- `/api/auth/session` — create, verify/touch, and end the server session.
 
-1. verifies a single-use, expiring challenge server-side;
-2. performs MFA/device policy where required;
-3. establishes a secure server-side session;
-4. loads user, organization membership, role, and permissions;
-5. builds an `IdentityReadinessSnapshot`;
-6. calls `resolvePostLoginDestination` with the preserved safe `returnTo` value.
+## Production services
 
-Do not authorize Exchange access from client-visible flags alone.
+### Firebase Authentication
 
-## Security invariants
+`FirebaseIdentityGateway` looks up the account, rejects disabled identities, generates the Firebase email sign-in action link, and records an RFxchange challenge. The browser completes the link with Firebase Authentication. No password or Firebase credential secret is written into RFxchange domain data.
 
-- `returnTo` only accepts internal `/exchange` and `/onboarding` destinations; external/open redirects fall back to `/exchange`.
-- Login responses must not disclose whether an email belongs to an account.
-- Magic-link tokens must be hashed at rest, short-lived, and single-use.
-- Sessions must be revocable and carry active-organization context separately from the participant identity.
-- Authentication proves identity; authorization and Exchange readiness are separate server-side decisions.
+The RFxchange challenge adds a 15-minute application validity window and is consumed transactionally before a session is created. Firebase also validates its own email action code.
 
-## Persistence target
+### Microsoft transactional email
 
-The reference PostgreSQL schema includes `auth_identities`, `auth_challenges`, and `auth_sessions` alongside `users` and `organization_memberships`. These are persistence contracts, not a claim that the current reference gateway writes to them yet.
+`MicrosoftGraphMailProvider` obtains an application token with the OAuth client-credentials flow and calls Microsoft Graph `users/{sender}/sendMail`. Missing/invalid Microsoft configuration fails the Login request; it never returns a fake delivery success.
+
+### MFA / 2FA
+
+The completion client handles Firebase's `auth/multi-factor-auth-required` state and resolves enrolled TOTP (authenticator-app) or phone/SMS factors. The source image also lists email as a possible MFA-code channel. Firebase Authentication with Identity Platform exposes TOTP and phone factors, not email as a Firebase second-factor ID, so RFxchange does not fabricate an email-MFA implementation.
+
+### Firestore identity and session state
+
+Login resolves `userIdentities/{firebaseUid}` to one RFxchange `userId`, loads `users/{userId}`, and resolves active `organizationMemberships`. Permissions and organization context are therefore server-derived rather than client-supplied.
+
+Server sessions are Firebase session cookies plus server-only `authSessions` records keyed by a digest of the cookie. Every Exchange page load verifies the Firebase session cookie with revocation checking, re-resolves RFxchange identity/membership state, checks account restriction/readiness, and routes incomplete participants into the existing onboarding nodes.
+
+`SessionActivityGuard` checks the active session and only touches activity when the browser has recent interaction. Expired, revoked, or idle sessions route to `/login/session-expired`. `/api/auth/session` DELETE performs manual logout.
+
+## Journey preservation
+
+Login consumes the shared acquisition context (`returnTo`, source, campaign, referral, invitation, organization, membership, geography, record). Session creation sanitizes `returnTo` to internal Exchange/onboarding destinations before redirecting. This preserves notification/deep-link intent without introducing open redirects.
+
+## Security and deployment configuration
+
+The server requires Firebase Admin Application Default Credentials, Firebase Auth web configuration, Microsoft Graph application credentials, the approved sender mailbox, and an application origin. `.env.example` lists the exact settings without including secrets.
+
+Rate limiting is enforced in Firestore. Device/network monitoring records user agent, an optional salted IP hash, and an available country header. Session length, remembered-device duration, idle timeout, and login rate window are deployment policy settings rather than UI constants.
+
+The GitHub Pages build remains a static visual projection. It intentionally does not submit auth requests; real authentication only runs on the server-hosted application.

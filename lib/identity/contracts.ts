@@ -1,26 +1,34 @@
-export type MagicLinkDeliveryMode = "provider" | "reference";
-
 export interface MagicLinkRequestInput {
   email: string;
-  returnTo: string;
+  continueUrl: string;
+  rememberDevice: boolean;
   userAgent?: string;
+  ipAddress?: string;
+  country?: string;
 }
 
 export interface MagicLinkRequestResult {
-  delivery: MagicLinkDeliveryMode;
+  challengeId: string;
   expiresInSeconds: number;
 }
 
 export interface MagicLinkChallengeAccepted {
   status: "challenge_sent";
-  delivery: MagicLinkDeliveryMode;
+  challengeId: string;
   expiresInSeconds: number;
-  returnTo: string;
 }
+
+export type LoginApiErrorCode =
+  | "invalid_request"
+  | "account_not_found"
+  | "account_restricted"
+  | "rate_limited"
+  | "provider_unavailable"
+  | "request_failed";
 
 export interface LoginApiError {
   error: string;
-  code: "invalid_request" | "provider_unavailable" | "request_failed";
+  code: LoginApiErrorCode;
 }
 
 export interface IdentityReadinessSnapshot {
@@ -35,7 +43,17 @@ export interface IdentityReadinessSnapshot {
 }
 
 export interface AuthenticatedIdentityContext {
+  firebaseUid: string;
   userId: string;
   activeOrganizationId?: string;
+  organizationRole?: string;
+  permissions: string[];
   readiness: IdentityReadinessSnapshot;
+}
+
+export interface SessionCreationResult {
+  sessionCookie: string;
+  expiresAt: number;
+  destination: string;
+  identity: AuthenticatedIdentityContext;
 }

@@ -1,120 +1,69 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { AuthEntryContext } from "@/lib/acquisition/auth-entry";
+import { buildIdentityHref, withAuthEntryContext } from "@/lib/acquisition/auth-entry";
 import type { LoginApiError, MagicLinkChallengeAccepted } from "@/lib/identity/contracts";
-import { maskEmail } from "@/lib/identity/login";
+import { LOGIN_EMAIL_STORAGE_KEY } from "@/lib/identity/login";
 import styles from "./login.module.css";
 
-type FlowState = "idle" | "submitting" | "sent" | "error";
+type LoginFlowProps =
+  | { initialContext: AuthEntryContext; initialReturnTo?: never }
+  | { initialContext?: never; initialReturnTo: string };
 
-interface LoginFlowProps {
-  initialReturnTo: string;
-}
-
-export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
+export function LoginFlow(props: LoginFlowProps) {
+  const router = useRouter();
+  const previewOnly = "initialReturnTo" in props;
+  const initialContext: AuthEntryContext = previewOnly ? { returnTo: props.initialReturnTo } : props.initialContext;
   const [email, setEmail] = useState("");
-  const [flowState, setFlowState] = useState<FlowState>("idle");
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
-  const [delivery, setDelivery] = useState<MagicLinkChallengeAccepted["delivery"]>("reference");
-  const [expiresInSeconds, setExpiresInSeconds] = useState(15 * 60);
 
-  const maskedEmail = useMemo(() => maskEmail(email), [email]);
-
-  async function requestMagicLink() {
-    setFlowState("submitting");
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, returnTo: initialReturnTo }),
-      });
-
-      const payload = (await response.json()) as MagicLinkChallengeAccepted | LoginApiError;
-      if (!response.ok || !("status" in payload)) {
-        throw new Error("error" in payload ? payload.error : "Unable to start secure sign-in.");
-      }
-
-      setDelivery(payload.delivery);
-      setExpiresInSeconds(payload.expiresInSeconds);
-      setFlowState("sent");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to start secure sign-in.");
-      setFlowState("error");
-    }
+  if (previewOnly) {
+    return (
+      <div className={styles.statusPanel}>
+        <p>The GitHub Pages projection is static and does not submit authentication requests. Production Firebase Authentication and Microsoft email delivery run only in the server-hosted RFxchange application.</p>
+        <p className={styles.registerPrompt}><Link href="/register">Open registration preview</Link></p>
+      </div>
+    );
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await requestMagicLink();
-  }
-
-  if (flowState === "sent") {
-    const minutes = Math.max(1, Math.round(expiresInSeconds / 60));
-
-    return (
-      <section className={styles.statusPanel} aria-live="polite">
-        <div className={styles.statusIcon} aria-hidden="true">✉</div>
-        <h2>{delivery === "provider" ? "Check your email" : "Sign-in request accepted"}</h2>
-        <p>
-          {delivery === "provider"
-            ? <>We sent a one-time sign-in link to <strong>{maskedEmail}</strong>.</>
-            : <>The chassis validated the request for <strong>{maskedEmail}</strong>. Email delivery is intentionally reference-only until a production identity provider is connected.</>}
-        </p>
-        <p className={styles.statusNote}>Magic links expire after about {minutes} minutes and should be single-use.</p>
-        <button className={styles.primaryButton} type="button" onClick={requestMagicLink}>
-          Resend sign-in link
-        </button>
-        <button
-          className={styles.textButton}
-          type="button"
-          onClick={() => {
-            setFlowState("idle");
-            setMessage("");
-          }}
-        >
-          Use a different email
-        </button>
-      </section>
-    );
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, context: initialContext, rememberDevice }) });
+      const payload = (await response.json()) as MagicLinkChallengeAccepted | LoginApiError;
+      if (!response.ok || !("status" in payload)) {
+        const error = payload as LoginApiError;
+        if (error.code === "account_not_found") return router.push(withAuthEntryContext("/login/not-found", initialContext));
+        if (error.code === "account_restricted") return router.push(withAuthEntryContext("/login/restricted", initialContext));
+        if (error.code === "rate_limited") return router.push(withAuthEntryContext("/login/rate-limited", initialContext));
+        throw new Error(error.error || "Unable to start secure sign-in.");
+      }
+      window.localStorage.setItem(LOGIN_EMAIL_STORAGE_KEY, email.trim().toLowerCase());
+      window.localStorage.setItem("rfx.login.remember", rememberDevice ? "1" : "0");
+      router.push(withAuthEntryContext("/login/check-email", initialContext));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to start secure sign-in.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
     <form className={styles.form} onSubmit={onSubmit} noValidate>
-      <label className={styles.field} htmlFor="login-email">
-        <span>Work email</span>
-        <input
-          id="login-email"
-          name="email"
-          type="email"
-          autoComplete="email"
-          inputMode="email"
-          placeholder="you@company.com"
-          value={email}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => setEmail(event.target.value)}
-          disabled={flowState === "submitting"}
-          required
-          aria-describedby={message ? "login-error" : undefined}
-        />
-      </label>
-
-      {message ? (
-        <p id="login-error" className={styles.error} role="alert">{message}</p>
-      ) : null}
-
-      <button className={styles.primaryButton} type="submit" disabled={flowState === "submitting" || !email.trim()}>
-        {flowState === "submitting" ? "Sending secure link…" : "Continue"}
-      </button>
-
+      <label className={styles.field} htmlFor="login-email"><span>Work email</span><input id="login-email" name="email" type="email" autoComplete="email" inputMode="email" placeholder="you@company.com" value={email} onChange={(event: ChangeEvent<HTMLInputElement>) => setEmail(event.target.value)} disabled={submitting} required aria-describedby={message ? "login-error" : undefined} /></label>
+      <label className={styles.securityNote}><input type="checkbox" checked={rememberDevice} onChange={(event) => setRememberDevice(event.target.checked)} disabled={submitting} />{" "}Remember this device for a longer authenticated session</label>
+      {message ? <p id="login-error" className={styles.error} role="alert">{message} <Link href={withAuthEntryContext("/login/support", initialContext)}>Contact support</Link>.</p> : null}
+      <button className={styles.primaryButton} type="submit" disabled={submitting || !email.trim()}>{submitting ? "Sending secure link…" : "Continue"}</button>
       <div className={styles.formDivider}><span>Passwordless sign-in</span></div>
-      <p className={styles.securityNote}>
-        RFxchange uses a one-time sign-in challenge at this boundary. MFA, device trust, and session policy plug into the same identity gateway when configured.
-      </p>
-      <p className={styles.registerPrompt}>
-        New to RFxchange? <Link href="/register">Create an account</Link>
-      </p>
+      <p className={styles.securityNote}>RFxchange uses a one-time email-link challenge. If your account requires MFA, the enrolled Firebase second factor is verified before a server session is created.</p>
+      <p className={styles.registerPrompt}>New to RFxchange? <Link href={buildIdentityHref("register", initialContext)}>Create an account</Link></p>
     </form>
   );
 }

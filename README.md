@@ -1,36 +1,24 @@
 # TestRFx — RFxchange operating chassis
 
-Reference implementation of the shared RFxchange platform shell. The purpose of this repository is to prove the operating chassis before downstream product areas add full business workflows.
+Reference implementation of the shared RFxchange platform shell. The repository keeps the Public / Acquisition, Identity & Onboarding, and Authenticated Exchange shells distinct while allowing product domains to plug into governed chassis contracts.
 
 ## What is implemented
 
-- Public/acquisition Marketing shell with campaign bar, narrative journey, shared public chrome, audience pages, Founding Membership, footer, and public bottom-matter destinations
-- Acquisition-context capture and query carryover into `/join` and `/signin`, which hand off to the existing Registration/Login shell
-- Identity shell with Login and Registration
-- Guided Onboarding shell boundary
-- Persistent authenticated Exchange composition
-- Provider-neutral full-screen reference map canvas
-- Translucent universal search and floating controls
-- Three-state bottom result drawer with pointer drag and non-gesture controls
-- Four governed lens action positions with progressive availability
-- Shared Zillow-style record card framework
-- Marker-to-card and card-to-marker selection synchronization
-- Shared detail surface with exact in-memory state continuity
-- Deep-linkable lens and record routes
-- Persistent RFx / Resources / Intelligence / Capabilities / Menu bottom navigation
-- Cross-lens Menu utility surface
-- Seeded records including owned, external, located, and off-map examples
-- Normalized Exchange API boundary
-- PostgreSQL/PostGIS reference schema
-- Responsive desktop composition and mobile safe-area support
-- Reduced-motion and keyboard-accessible control paths
+- Public/acquisition Marketing shell with campaign context and Login/Register handoff
+- Production Login boundary using Firebase Authentication, Firestore-backed RFxchange identity/session state, and Microsoft Graph transactional email
+- Passwordless email-link flow with 15-minute RFxchange challenge validity, resend/change-email, cross-device email confirmation, Firebase TOTP/SMS MFA handling, remembered-device sessions, inactivity timeout, revocation checks, and manual logout
+- Source-derived hierarchical Login workflow and concrete recovery routes for not-found, expired/invalid link, rate limiting, restricted accounts, and support
+- Server-side post-login readiness routing through Account Verification, Organization, Geography, Organization Profile, Capability enrichment, Membership, and Exchange-ready completion
+- Registration and guided Onboarding shell boundaries
+- Persistent authenticated Exchange composition with RFx / Resources / Intelligence / Capabilities / Menu
+- Provider-neutral map, search, drawer, cards, detail, and action contracts
+- GitHub Pages static preview projection that does not pretend to execute server authentication
 
-## Architecture
+## Identity configuration
 
-RFxchange is organized as three shells: Public / Acquisition, Identity & Onboarding, and the Authenticated Exchange. RFx, Resources, Intelligence, and Capabilities are **lenses over one Exchange**, not separate applications. Menu is a utility surface.
+Copy `.env.example` into the deployment configuration. Firebase Admin uses Application Default Credentials on Firebase App Hosting / Google Cloud. Browser Firebase configuration uses the `NEXT_PUBLIC_FIREBASE_*` variables. Microsoft Graph delivery requires the tenant/client credentials and approved RFxchange sender mailbox.
 
-- [`docs/architecture/PLATFORM_SHELL.md`](docs/architecture/PLATFORM_SHELL.md) — authenticated operating chassis
-- [`docs/architecture/MARKETING_SHELL.md`](docs/architecture/MARKETING_SHELL.md) — Public / Acquisition → Marketing structure and handoff contract
+The active Login architecture is documented in [`docs/identity-login.md`](docs/identity-login.md).
 
 ## Run locally
 
@@ -39,7 +27,7 @@ npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000` for Marketing or jump directly to `http://localhost:3000/exchange/rfx` for the reference Exchange.
+Then open `http://localhost:3000`. Real Login requires configured Firebase and Microsoft services; missing configuration produces an explicit service failure rather than a simulated success.
 
 ## Validation
 
@@ -48,8 +36,10 @@ npm run typecheck
 npm run build
 ```
 
-GitHub Actions runs both commands on pull requests and pushes to `main` and `agent/**` branches.
+GitHub Actions runs both commands on pull requests and pushes to `main` and `agent/**` branches. The separate Pages workflow produces a static visual preview and removes runtime-only APIs from its ephemeral build workspace.
 
-## Intentional boundaries
+## Architecture boundary
 
-This chassis does **not** claim production completion for authentication, durable acquisition analytics, legal policy content, RFx response/team workflows, AMACS evidence, resource transactions, intelligence datasets, referrals/payments, notifications, or real map tiles. Those capabilities plug into the contracts already established here.
+RFx, Resources, Intelligence, and Capabilities are lenses over one Exchange; Menu is a cross-lens utility surface. Authentication proves who the participant is. RFxchange authorization and onboarding readiness are resolved server-side from the participant's RFxchange identity and organization memberships before Exchange access.
+
+`db/schema.sql` remains historical/reference PostgreSQL/PostGIS chassis provenance. The active Login implementation follows the approved Firebase Authentication + Firestore runtime direction rather than adding new PostgreSQL authentication state.
