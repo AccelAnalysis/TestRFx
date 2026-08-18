@@ -53,7 +53,7 @@ returnTo
 
 `returnTo` is accepted only for internal onboarding/Exchange paths and is preserved for later onboarding. Verification itself still routes a newly verified participant to the organization stage.
 
-A registration or invitation implementation should hand off to this route after creating a pending account. The verification module must not create an organization or grant an invited role itself.
+A Registration or invitation implementation should hand off to this route after a real pending account exists. The verification module must not create an organization or grant an invited role itself.
 
 ## UI states
 
@@ -77,11 +77,11 @@ organization
 onboarding
 ```
 
-The page also has an explicit `configuration_error` state so production cannot silently fall back to a development token secret.
+The page also has an explicit `configuration_error` state. A missing production provider is shown as unavailable; the application does not create a local verification success path.
 
 ## API boundary
 
-The reference application boundary is:
+The application boundary is:
 
 ```text
 POST /api/identity/account-verification
@@ -89,58 +89,55 @@ POST /api/identity/account-verification
 
 Request actions:
 
-- `request` — issue a new verification challenge for a pending account email.
-- `resend` — issue a replacement challenge after resend policy is satisfied.
-- `change_email` — issue against the replacement email; production persistence must revoke/supersede outstanding challenges for the previous email.
-- `verify` — validate a verification token and return the next onboarding path.
+- `request` — request a verification challenge for a pending account email.
+- `resend` — request a replacement challenge.
+- `change_email` — request against a corrected/replacement account email.
+- `verify` — validate the provider token and return the next onboarding path.
 
-The current repository supplies a signed reference-token adapter so the UI/API contract can be exercised without coupling the chassis to an email vendor or authentication product. Outside production, the API returns a reference verification link instead of claiming that an email was actually delivered.
+The route delegates challenge creation, delivery, validation, expiration, and consumption to the configured Identity verification provider.
 
-Production must replace the reference delivery path with a real delivery service and durable challenge repository.
-
-## Token contract
-
-Reference tokens are:
-
-- single-purpose (`rfxchange-account-email-verification`),
-- time bounded,
-- HMAC signed,
-- opaque to UI business logic,
-- validated server-side,
-- rejected when malformed, tampered with, expired, or not configured.
-
-`ACCOUNT_VERIFICATION_SECRET` is required in production. The development fallback is deliberately unavailable when `NODE_ENV=production`.
-
-The stateless reference adapter cannot guarantee one-time consumption by itself. One-time use, resend throttling, supersession, and revocation are persistence concerns and are represented by `db/identity-verification.sql`.
-
-## Production persistence
-
-`db/identity-verification.sql` extends the chassis data foundation with:
+Environment contract:
 
 ```text
-users.email_verified_at
-users.account_status
-normalized unique email index
-email_verification_challenges
+RFXCHANGE_IDENTITY_VERIFICATION_ENDPOINT
+RFXCHANGE_IDENTITY_VERIFICATION_TOKEN        optional provider credential
 ```
 
-Challenge state is explicitly modeled as:
+Provider endpoints must use HTTPS in production.
 
-```text
-issued
-consumed
-expired
-revoked
-superseded
-```
+## No reference-token fallback
 
-Production token handling should store only a cryptographic token hash, never the raw token. Consuming a token must be transactional: lock/resolve the issued challenge, verify it is unexpired and unsuperseded, set `consumed_at`, mark the account email verified, emit the audit event, and resolve the next onboarding step.
+The former non-production HMAC reference token and exposed reference verification URL have been removed.
+
+TestRFx therefore does not claim:
+
+- that an email was delivered when no provider accepted the request;
+- that a challenge was consumed when no provider validated it;
+- that a locally generated token is equivalent to production verification persistence.
+
+If the verification provider is not configured, the API returns `configuration_error` and the UI keeps the participant outside the verified state.
+
+## Provider expectations
+
+The provider behind `RFXCHANGE_IDENTITY_VERIFICATION_ENDPOINT` is expected to enforce the security properties represented by the chassis contract:
+
+- single-purpose verification challenges;
+- bounded expiration;
+- one-time consumption;
+- resend throttling;
+- supersession/revocation when email changes;
+- secure token storage/validation;
+- account-state checks;
+- audit/security events;
+- no sensitive token logging.
+
+`db/identity-verification.sql` remains the canonical relational model if RFxchange owns that persistence directly; an external Identity provider may instead own equivalent durable state. The API contract is intentionally provider-neutral.
 
 ## Duplicate-account boundary
 
-The registration source establishes one account per user email. Account Verification reinforces that contract through a normalized unique email index but does not decide account-merge behavior.
+The Registration source establishes one account per user email. Account Verification reinforces that contract but does not decide account-merge behavior.
 
-Expected upstream behavior:
+Expected upstream behavior remains:
 
 ```text
 email submitted
@@ -151,6 +148,8 @@ normalized account lookup
     ├── verified → sign in
     └── restricted → safe account-state response
 ```
+
+The registration provider, not this UI, is responsible for durable duplicate-account enforcement.
 
 ## Invitation, referral, and campaign context
 
@@ -174,53 +173,28 @@ Role/membership may be established
 
 Controlling an email address is never sufficient to grant an organization role.
 
+The supplied Onboarding source explicitly defines `Validate Invitation → Accept / Join Organization → Set Role / Confirm Access`. Those states are represented in the public Login/Register hierarchy, but no dedicated invitation service exists in TestRFx yet; the application does not simulate successful invitation acceptance.
+
 ## On success
 
-Account Verification is complete when:
-
-- the canonical user account exists,
-- the primary account email is verified,
-- the durable verification challenge is consumed in production,
-- the account is not blocked from proceeding,
-- authenticated onboarding context can be established,
-- the onboarding router can resolve the next required step.
+Account Verification is complete only when the configured verification provider returns a verified state and the onboarding router can continue safely.
 
 The default continuation in the current platform structure is **Organization selection / creation**. A returning participant should resume the actual incomplete onboarding stage rather than repeat completed work.
 
 ## Security and operational integration points
 
-Production integrations belong behind the verification API contract:
+The verification provider/API boundary owns or integrates:
 
-- account repository / identity provider,
-- challenge persistence and transaction handling,
-- email delivery provider and templates,
-- resend rate limiting and abuse protection,
-- session establishment / rotation,
-- security and audit events,
-- onboarding-state service,
-- invitation/referral validation,
-- observability and delivery telemetry.
+- pending account / identity repository;
+- challenge persistence and transactional consumption;
+- email delivery provider and templates;
+- resend rate limiting and abuse protection;
+- account status;
+- security/audit events;
+- onboarding-state service;
+- delivery telemetry.
 
-MFA remains a separate authentication concern. Email verification answers “does this participant control this account email?”; MFA answers “can this authenticated participant satisfy an additional factor?”
-
-## Events
-
-The eventual event vocabulary should include:
-
-```text
-AccountCreated
-VerificationRequested
-VerificationDeliveryQueued
-VerificationResent
-VerificationEmailChanged
-VerificationFailed
-VerificationExpired
-EmailVerified
-InvitationContextRestored
-OnboardingResumed
-```
-
-Sensitive token values must never be written to analytics, audit logs, or observability payloads.
+Invitation/referral validation remains downstream. MFA remains a separate Login authentication concern. Email verification answers “does this participant control this account email?”; MFA answers “can this authenticated participant satisfy an additional factor?”
 
 ## Chassis rule
 
