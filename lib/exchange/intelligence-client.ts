@@ -13,6 +13,12 @@ import type {
   IntelligenceReferralResult,
 } from "./intelligence";
 
+export interface IntelligenceActivityEvent {
+  id: string;
+  eventName: string;
+  occurredAt: string;
+}
+
 export class IntelligenceServiceError extends Error {
   code?: string;
   status: number;
@@ -75,4 +81,9 @@ export async function getIntelligenceMatchCandidates(recordId: string) {
 
 export function createIntelligenceReferral(recordId: string, input: IntelligenceReferralInput) {
   return requestJson<IntelligenceReferralResult>(`/api/exchange/intelligence/${encodeURIComponent(recordId)}/referrals`, { method: "POST", body: JSON.stringify(input) });
+}
+
+export async function getIntelligenceActivity(recordId: string) {
+  const response = await requestJson<{ events: IntelligenceActivityEvent[] }>(`/api/exchange/intelligence/${encodeURIComponent(recordId)}/activity`);
+  return response.events;
 }
