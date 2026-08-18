@@ -1,0 +1,48 @@
+.context {
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(247, 243, 234, 0.62);
+}
+
+.context > strong {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.context dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.context dl > div {
+  display: grid;
+  grid-template-columns: minmax(0, 110px) 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.context dt {
+  color: #747982;
+  font-size: 11px;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.context dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--graphite);
+  font-size: 12px;
+}
+
+.actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
