@@ -241,6 +241,7 @@ export function registrationWorkflowHref(
   const params = registrationContextSearchParams(context);
   if (registrationId) params.set("registration", registrationId);
   const query = params.toString();
-  const pathname = `/register/${path.map((part) => encodeURIComponent(part)).join("/")}`;
+  const basePath = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+  const pathname = `${basePath}/register/${path.map((part) => encodeURIComponent(part)).join("/")}`;
   return query ? `${pathname}?${query}` : pathname;
 }
