@@ -37,6 +37,14 @@ CREATE UNIQUE INDEX IF NOT EXISTS organization_memberships_one_primary_idx
   ON organization_memberships(user_id)
   WHERE is_primary AND status = 'active';
 
+CREATE TABLE IF NOT EXISTS platform_user_roles (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role text NOT NULL CHECK (role IN ('platform_admin')),
+  permissions jsonb NOT NULL DEFAULT '[]'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, role)
+);
+
 CREATE TABLE IF NOT EXISTS organization_invitations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
@@ -104,3 +112,5 @@ COMMENT ON TABLE organization_onboarding_state IS
   'Durable resume state for Organization Selection / Creation. Browser session storage is not authoritative.';
 COMMENT ON TABLE organization_invitations IS
   'Organization invitation tokens are stored only as SHA-256 hashes; raw tokens must not be persisted.';
+COMMENT ON TABLE platform_user_roles IS
+  'Platform-level authorization for exceptional onboarding workflows such as competing organization-claim review.';
