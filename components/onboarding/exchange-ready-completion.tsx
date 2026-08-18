@@ -32,7 +32,6 @@ function ReadinessRow({ item }: { item: ReadinessItem }) {
         <p>{item.description}</p>
         <div className={extras.itemActions}>
           <Link href={item.href}>{satisfied ? "Review workflow" : item.blocking ? "Resolve now" : "Continue enrichment"}</Link>
-          {item.detailHref ? <Link href={item.detailHref}>Review details</Link> : null}
         </div>
       </div>
       <span className={styles.itemValue}>{item.value ?? statusLabels[item.status]}</span>
