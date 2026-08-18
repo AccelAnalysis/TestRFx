@@ -43,16 +43,24 @@ export async function GET(request: NextRequest) {
       summary: { total: response.total, mapped: response.mapped, offMap: response.offMap },
       actions: lensDefinitions[lens].actions(records[0]),
       nextCursor: null,
-      serviceMode: "reference",
+      serviceMode: "reference-development",
     });
   }
 
   try {
     let actorOrganizationId: string | undefined;
+    let actorUserId: string | undefined;
     if (process.env.RFXCHANGE_TRUST_IDENTITY_HEADERS === "1") {
-      try { actorOrganizationId = (await resolveServerActor(request)).organizationId; } catch { actorOrganizationId = undefined; }
+      try {
+        const actor = await resolveServerActor(request);
+        actorOrganizationId = actor.organizationId;
+        actorUserId = actor.userId;
+      } catch {
+        actorOrganizationId = undefined;
+        actorUserId = undefined;
+      }
     }
-    const page = await listExchangeRecords({ lens, state, cursor, limit: Number.isFinite(limit) ? limit : 40, actorOrganizationId });
+    const page = await listExchangeRecords({ lens, state, cursor, limit: Number.isFinite(limit) ? limit : 40, actorOrganizationId, actorUserId });
     return NextResponse.json({
       lens,
       state,
