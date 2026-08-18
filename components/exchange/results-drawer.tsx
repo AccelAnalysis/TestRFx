@@ -14,15 +14,15 @@ export interface ResultsDrawerProps {
   state: DrawerState; onStateChange: (state: DrawerState) => void; lens: ExchangeLens; lensLabel: string;
   records: ExchangeRecord[]; totalAvailableCount?: number; selectedRecordId?: string; actions: LensAction[];
   activeActionIds?: string[]; onAction?: (action: LensAction) => void; emptyMessage: string; resultContext?: string;
-  query: DrawerQueryState; onQueryChange: (query: DrawerQueryState) => void; onSelect: (id: string) => void;
-  onOpen: (id: string) => void; onToggleSave: (id: string) => void; resultStatus?: DrawerResultStatus;
+  query: DrawerQueryState; onQueryChange: (query: DrawerQueryState) => void; onFilter: () => void; activeFilterCount?: number;
+  onSelect: (id: string) => void; onOpen: (id: string) => void; onToggleSave: (id: string) => void; resultStatus?: DrawerResultStatus;
   hasMore?: boolean; loadingMore?: boolean; onLoadMore?: () => void; onRetry?: () => void;
 }
 
 export function ResultsDrawer({
   state, onStateChange, lens, lensLabel, records, totalAvailableCount, selectedRecordId, actions, activeActionIds = [], onAction,
-  emptyMessage, resultContext, query, onQueryChange, onSelect, onOpen, onToggleSave, resultStatus = "ready", hasMore = false,
-  loadingMore = false, onLoadMore, onRetry,
+  emptyMessage, resultContext, query, onQueryChange, onFilter, activeFilterCount = 0, onSelect, onOpen, onToggleSave,
+  resultStatus = "ready", hasMore = false, loadingMore = false, onLoadMore, onRetry,
 }: ResultsDrawerProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -69,7 +69,10 @@ export function ResultsDrawer({
         aria-label={stateLabel[state]} aria-controls={listId} aria-expanded={state !== "peek"}><span /></button>
       <div className={styles.header}>
         <div className={styles.headingBlock}><p className={styles.eyebrow}>{lensLabel}</p><h2>{resultHeading}</h2><p className={styles.resultContext} aria-live="polite">{resultContext ?? `${breakdown.mapped} mapped · ${breakdown.offMap} off-map`}{resultStatus === "refreshing" ? " · Refreshing…" : ""}</p></div>
-        <div className={styles.headerActions}><label className={styles.sortControl}><span className="sr-only">Sort results</span><select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results"><option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option></select></label></div>
+        <div className={styles.headerActions}>
+          <label className={styles.sortControl}><span className="sr-only">Sort results</span><select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results"><option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option></select></label>
+          <button className={`${styles.filterButton} ${activeFilterCount ? styles.filterButtonActive : ""}`} type="button" onClick={onFilter} aria-label={activeFilterCount ? `Filter results, ${activeFilterCount} active` : "Filter results"}>Filter{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>
+        </div>
       </div>
       {records.length > 0 ? <ActionRail actions={actions} activeActionIds={activeActionIds} onAction={onAction} /> : null}
       <div className={styles.list} id={listId} ref={listRef} role="feed" aria-busy={resultStatus === "loading" || resultStatus === "refreshing" || loadingMore} onScroll={(event) => { scrollByLens.current[lens] = event.currentTarget.scrollTop; }}>
