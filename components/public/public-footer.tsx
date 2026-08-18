@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConversionLink } from "@/components/marketing/acquisition-context";
 import {
   PUBLIC_DESTINATIONS,
   PUBLIC_FOOTER_GROUPS,
@@ -18,12 +19,16 @@ export function PublicFooter() {
         </div>
         <div className={styles.footerGrid}>
           {PUBLIC_FOOTER_GROUPS.map((group) => (
-            <section className={styles.footerGroup} key={group.label}>
+            <section className={styles.footerGroup} key={group.id}>
               <h2>{group.label}</h2>
               <nav aria-label={`${group.label} footer links`}>
                 {group.destinationIds.map((destinationId) => {
                   const destination = PUBLIC_DESTINATIONS[destinationId];
-                  return (
+                  return destination.kind === "identity-entry" ? (
+                    <ConversionLink href={destination.href} key={destinationId}>
+                      {destination.label}
+                    </ConversionLink>
+                  ) : (
                     <Link href={destination.href} key={destinationId}>
                       {destination.label}
                     </Link>
@@ -36,7 +41,7 @@ export function PublicFooter() {
       </div>
       <div className={styles.footerBottom}>
         <span>© {new Date().getFullYear()} RFxchange</span>
-        <span>Public / Acquisition Shell</span>
+        <span>Public / Acquisition → Identity → Exchange</span>
       </div>
     </footer>
   );
