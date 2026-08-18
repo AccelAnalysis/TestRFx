@@ -1,17 +1,10 @@
-import OrganizationSelectionClient from "./OrganizationSelectionClient";
-import {
-  organizationContextFromSearchParams,
-  organizationStepFromSearchParams,
-} from "@/lib/onboarding/organization";
+import { Suspense } from "react";
+import OrganizationSelectionRoute from "./OrganizationSelectionRoute";
 
-export default async function OrganizationSelectionPage({
-  searchParams,
-}: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const params = await searchParams;
-  const context = organizationContextFromSearchParams(params);
-  const initialStep = organizationStepFromSearchParams(params, context);
-
-  return <OrganizationSelectionClient initialContext={context} initialStep={initialStep} />;
+export default function OrganizationSelectionPage() {
+  return (
+    <Suspense fallback={<main className="identity-shell"><section className="identity-card"><p className="eyebrow">Organization setup</p><h1>Loading organization workflow…</h1></section></main>}>
+      <OrganizationSelectionRoute />
+    </Suspense>
+  );
 }
