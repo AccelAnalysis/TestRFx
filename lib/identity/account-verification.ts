@@ -33,6 +33,7 @@ export interface AccountVerificationContext {
   referralId?: string;
   campaignId?: string;
   returnTo?: string;
+  displayName?: string;
 }
 
 export interface VerificationTokenPayload {
@@ -80,10 +81,10 @@ export function maskEmail(value: string): string {
   return `${visible}${"•".repeat(Math.max(3, Math.min(6, local.length - visible.length)))}@${domain}`;
 }
 
-function boundedValue(value: unknown): string | undefined {
+function boundedValue(value: unknown, maxLength = 240): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 240) return undefined;
+  if (!trimmed || trimmed.length > maxLength) return undefined;
   return trimmed;
 }
 
@@ -110,19 +111,20 @@ export function sanitizeVerificationContext(value: unknown): AccountVerification
     source: allowedSources.includes(source as VerificationEntrySource)
       ? (source as VerificationEntrySource)
       : undefined,
-    invitationId: boundedValue(raw.invitationId),
+    invitationId: boundedValue(raw.invitationId, 500),
     referralId: boundedValue(raw.referralId),
     campaignId: boundedValue(raw.campaignId),
     returnTo: returnTo && isInternalReturnPath(returnTo) ? returnTo : undefined,
+    displayName: boundedValue(raw.displayName, 160),
   };
 }
 
 export function buildOnboardingContinuation(context: AccountVerificationContext): string {
-  const params = new URLSearchParams({ stage: "organization" });
+  const params = new URLSearchParams({ step: context.invitationId ? "invitation.review" : "welcome" });
   if (context.source) params.set("source", context.source);
   if (context.invitationId) params.set("invitation", context.invitationId);
   if (context.referralId) params.set("referral", context.referralId);
   if (context.campaignId) params.set("campaign", context.campaignId);
   if (context.returnTo) params.set("returnTo", context.returnTo);
-  return `/onboarding?${params.toString()}`;
+  return `/onboarding/organization?${params.toString()}`;
 }
