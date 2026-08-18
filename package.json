@@ -10,8 +10,10 @@
     "amacs:import": "node scripts/import-amacs-release.mjs"
   },
   "dependencies": {
+    "maplibre-gl": "^5.24.0",
     "next": "^16.2.0",
     "pg": "^8.22.0",
+    "postgres": "^3.4.9",
     "react": "^19.2.1",
     "react-dom": "^19.2.1"
   },
