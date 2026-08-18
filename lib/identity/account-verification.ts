@@ -49,8 +49,6 @@ export interface VerificationRequestResponse {
   state: "pending";
   maskedEmail: string;
   expiresInSeconds: number;
-  referenceDelivery: boolean;
-  verificationPath?: string;
 }
 
 export interface VerificationSuccessResponse {
