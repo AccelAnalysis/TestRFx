@@ -31,6 +31,7 @@ type ResultRow = {
   created_at: string;
   resource_category: string | null;
   resource_availability: unknown;
+  resource_capacity: unknown;
   resource_visibility: string | null;
   resource_terms: unknown;
   resource_archived_at: string | null;
@@ -57,7 +58,7 @@ function resourceProjection(row: ResultRow): ResourceProjection | undefined {
   if (row.record_type !== "resource") return undefined;
   const availability = jsonString(row.resource_availability, "state");
   const availabilityLabel = jsonString(row.resource_availability, "label") ?? availability ?? "Available";
-  const capacity = jsonString(row.resource_availability, "capacity");
+  const capacity = jsonString(row.resource_capacity, "label");
   const serviceArea = jsonString(row.resource_availability, "serviceArea");
   const terms = jsonString(row.resource_terms, "text");
   const allowedAvailability = availability === "limited" || availability === "scheduled" ? availability : "available";
@@ -150,7 +151,7 @@ export async function listExchangeRecords(input: {
   }
   if (input.state.filters.geography.trim()) {
     values.push(input.state.filters.geography.trim());
-    where.push(`COALESCE(l.label, '') ILIKE '%' || $${values.length} || '%'`);
+    where.push(`COALESCE(l.label, r.availability->>'serviceArea', '') ILIKE '%' || $${values.length} || '%'`);
   }
   if (input.state.filters.location === "mapped") where.push("l.point IS NOT NULL");
   if (input.state.filters.location === "off-map") where.push("l.point IS NULL");
@@ -176,7 +177,7 @@ export async function listExchangeRecords(input: {
   }
 
   const orderBy = input.state.sort === "title" ? "er.title ASC, er.public_id ASC"
-    : input.state.sort === "geography" ? "COALESCE(l.label, '') ASC, er.title ASC"
+    : input.state.sort === "geography" ? "COALESCE(l.label, r.availability->>'serviceArea', '') ASC, er.title ASC"
       : searchParam ? `ts_rank_cd(er.search_document, websearch_to_tsquery('english', ${searchParam})) DESC, er.updated_at DESC, er.public_id ASC`
         : "er.updated_at DESC, er.public_id ASC";
 
@@ -185,11 +186,11 @@ export async function listExchangeRecords(input: {
   const offsetParam = `$${values.length}`;
   const sql = `
     SELECT er.public_id AS id, er.record_type, er.title, o.name AS organization, er.organization_id,
-           er.summary, l.label AS geography,
+           er.summary, COALESCE(l.label, CASE WHEN er.record_type = 'resource' THEN r.availability->>'serviceArea' END) AS geography,
            CASE WHEN l.point IS NULL THEN NULL ELSE ST_Y(l.point::geometry) END AS latitude,
            CASE WHEN l.point IS NULL THEN NULL ELSE ST_X(l.point::geometry) END AS longitude,
            er.metadata, er.status, er.created_at,
-           r.category AS resource_category, r.availability AS resource_availability,
+           r.category AS resource_category, r.availability AS resource_availability, r.capacity AS resource_capacity,
            r.visibility AS resource_visibility, r.terms AS resource_terms, r.archived_at AS resource_archived_at,
            ${relationshipSelect},
            COUNT(*) OVER()::int AS total_count,
