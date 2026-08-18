@@ -1,4 +1,4 @@
-import type { ExchangeCardProjection, ExchangeLens, ExchangeRecord, ExchangeRecordType, ExchangeSearchState, ResourceProjection } from "@/lib/exchange/contracts";
+import type { ExchangeCardProjection, ExchangeLens, ExchangeRecord, ExchangeRecordType, ExchangeRelationshipState, ExchangeSearchState, ResourceProjection } from "@/lib/exchange/contracts";
 import { queryDatabase } from "./postgres";
 
 const recordTypeByLens: Record<ExchangeLens, ExchangeRecordType> = {
@@ -34,6 +34,7 @@ type ResultRow = {
   resource_visibility: string | null;
   resource_terms: unknown;
   resource_archived_at: string | null;
+  relationship_kinds: string[] | null;
   total_count: number;
   mapped_count: number;
 };
@@ -73,13 +74,23 @@ function resourceProjection(row: ResultRow): ResourceProjection | undefined {
   };
 }
 
+function relationshipStates(row: ResultRow, ownedByViewer: boolean): ExchangeRelationshipState[] {
+  const relationships = new Set<ExchangeRelationshipState>();
+  if (ownedByViewer) relationships.add("owned");
+  for (const kind of row.relationship_kinds ?? []) {
+    if (kind === "saved") relationships.add("saved");
+    if (kind === "watching" || kind === "tracking") relationships.add("watched");
+    if (kind === "following") relationships.add("following");
+  }
+  return [...relationships];
+}
+
 function cardProjection(row: ResultRow, metadata: string[], ownedByViewer: boolean): ExchangeCardProjection {
-  const relationship = ownedByViewer ? ["owned" as const] : [];
   return {
     eyebrow: row.record_type === "rfx" ? "RFx" : row.record_type === "resource" ? "Resource" : row.record_type === "intelligence" ? "Intelligence" : "Capability",
     classifications: metadata.slice(0, 3),
     status: { label: row.status, tone: row.status === "active" || row.status === "open" ? "success" : "neutral" },
-    relationships: relationship,
+    relationships: relationshipStates(row, ownedByViewer),
     placement: "organic",
   };
 }
@@ -97,6 +108,7 @@ function toRecord(row: ResultRow, actorOrganizationId?: string): ExchangeRecord 
     metadata,
     location: row.latitude !== null && row.longitude !== null ? { lat: Number(row.latitude), lng: Number(row.longitude) } : undefined,
     ownedByViewer,
+    saved: (row.relationship_kinds ?? []).includes("saved"),
     card: cardProjection(row, metadata, ownedByViewer),
     resource: resourceProjection(row),
   };
@@ -122,17 +134,19 @@ export async function listExchangeRecords(input: {
   cursor?: string;
   limit?: number;
   actorOrganizationId?: string;
+  actorUserId?: string;
 }): Promise<ExchangeResultsPage> {
   const limit = Math.min(Math.max(input.limit ?? 40, 1), 100);
   const offset = decodeCursor(input.cursor);
   const type = recordTypeByLens[input.lens];
   const values: unknown[] = [type];
   const where = ["er.record_type = $1::exchange_record_type", "er.status <> 'deleted'"];
+  let searchParam: string | undefined;
 
   if (input.state.query.trim()) {
     values.push(input.state.query.trim());
-    const index = values.length;
-    where.push(`(er.search_document @@ websearch_to_tsquery('english', $${index}) OR o.name ILIKE '%' || $${index} || '%' OR er.metadata::text ILIKE '%' || $${index} || '%')`);
+    searchParam = `$${values.length}`;
+    where.push(`(er.search_document @@ websearch_to_tsquery('english', ${searchParam}) OR o.name ILIKE '%' || ${searchParam} || '%' OR er.metadata::text ILIKE '%' || ${searchParam} || '%')`);
   }
   if (input.state.filters.geography.trim()) {
     values.push(input.state.filters.geography.trim());
@@ -152,9 +166,18 @@ export async function listExchangeRecords(input: {
     where.push(`er.metadata::text ILIKE '%' || $${values.length} || '%'`);
   }
 
+  let relationshipSelect = "'{}'::text[] AS relationship_kinds";
+  let relationshipJoin = "";
+  if (input.actorUserId) {
+    values.push(input.actorUserId);
+    const actorUserParam = `$${values.length}`;
+    relationshipSelect = "COALESCE(rel.kinds, '{}'::text[]) AS relationship_kinds";
+    relationshipJoin = `LEFT JOIN LATERAL (SELECT array_agg(rr.relationship_kind ORDER BY rr.relationship_kind) AS kinds FROM record_relationships rr WHERE rr.exchange_record_id = er.id AND rr.user_id = ${actorUserParam}::uuid) rel ON TRUE`;
+  }
+
   const orderBy = input.state.sort === "title" ? "er.title ASC, er.public_id ASC"
     : input.state.sort === "geography" ? "COALESCE(l.label, '') ASC, er.title ASC"
-      : input.state.query.trim() ? "ts_rank_cd(er.search_document, websearch_to_tsquery('english', $2)) DESC, er.updated_at DESC, er.public_id ASC"
+      : searchParam ? `ts_rank_cd(er.search_document, websearch_to_tsquery('english', ${searchParam})) DESC, er.updated_at DESC, er.public_id ASC`
         : "er.updated_at DESC, er.public_id ASC";
 
   values.push(limit, offset);
@@ -168,12 +191,14 @@ export async function listExchangeRecords(input: {
            er.metadata, er.status, er.created_at,
            r.category AS resource_category, r.availability AS resource_availability,
            r.visibility AS resource_visibility, r.terms AS resource_terms, r.archived_at AS resource_archived_at,
+           ${relationshipSelect},
            COUNT(*) OVER()::int AS total_count,
            COUNT(*) FILTER (WHERE l.point IS NOT NULL) OVER()::int AS mapped_count
       FROM exchange_records er
       JOIN organizations o ON o.id = er.organization_id
       LEFT JOIN locations l ON l.id = er.location_id
       LEFT JOIN resources r ON r.exchange_record_id = er.id
+      ${relationshipJoin}
      WHERE ${where.join(" AND ")}
      ORDER BY ${orderBy}
      LIMIT ${limitParam} OFFSET ${offsetParam}`;
