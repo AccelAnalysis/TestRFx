@@ -1,16 +1,35 @@
 import Link from "next/link";
+import { LoginFlow } from "@/components/identity/LoginFlow";
+import { sanitizeReturnTo } from "@/lib/identity/login";
+import styles from "@/components/identity/login.module.css";
 
-export default function LoginPage() {
+interface LoginPageProps {
+  searchParams: Promise<{ returnTo?: string | string[] }>;
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const rawReturnTo = Array.isArray(params.returnTo) ? params.returnTo[0] : params.returnTo;
+  const returnTo = sanitizeReturnTo(rawReturnTo);
+
   return (
-    <main className="identity-shell">
-      <section className="identity-card">
-        <p className="eyebrow">RFxchange</p>
-        <h1>Welcome back</h1>
-        <p className="muted">Reference identity shell. Authentication is intentionally not wired in this chassis PR.</p>
-        <label>Email<input type="email" placeholder="you@company.com" /></label>
-        <label>Password<input type="password" placeholder="••••••••" /></label>
-        <Link className="button button-primary button-full" href="/exchange">Continue to Exchange</Link>
-        <p className="identity-footer">New here? <Link href="/register">Create an account</Link></p>
+    <main className={styles.shell}>
+      <section className={styles.card} aria-labelledby="login-title">
+        <div className={styles.brandRow}>
+          <span className={styles.brandMark} aria-hidden="true">RF</span>
+          <span>RFxchange</span>
+        </div>
+        <p className={styles.eyebrow}>Identity &amp; onboarding</p>
+        <h1 id="login-title" className={styles.title}>Sign in to the Exchange</h1>
+        <p className={styles.copy}>
+          Secure access for registered participants. Your intended Exchange destination is preserved through authentication and readiness checks.
+        </p>
+        <LoginFlow initialReturnTo={returnTo} />
+        <div className={styles.metaLinks}>
+          <Link href="/">Back to RFxchange</Link>
+          <span aria-hidden="true">·</span>
+          <span>One identity across every Exchange lens</span>
+        </div>
       </section>
     </main>
   );
