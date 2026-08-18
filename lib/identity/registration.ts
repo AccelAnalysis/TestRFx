@@ -1,4 +1,4 @@
-export type RegistrationEntrySource =
+export type RegistrationEntryKind =
   | "direct"
   | "marketing"
   | "campaign"
@@ -8,12 +8,16 @@ export type RegistrationEntrySource =
   | "login_recovery";
 
 export type RegistrationEntryContext = {
-  source: RegistrationEntrySource;
-  sourceDetail?: string;
-  campaign?: string;
-  referralCode?: string;
-  invitationCode?: string;
+  entryKind: RegistrationEntryKind;
   returnTo?: string;
+  source?: string;
+  campaign?: string;
+  referral?: string;
+  invitation?: string;
+  organization?: string;
+  membership?: string;
+  geography?: string;
+  record?: string;
 };
 
 export type RegistrationSubmission = {
@@ -45,7 +49,7 @@ export type RegistrationValidationResult =
 
 type SearchParamsLike = Record<string, string | string[] | undefined>;
 
-const supportedSources = new Set<RegistrationEntrySource>([
+const supportedKinds = new Set<RegistrationEntryKind>([
   "direct",
   "marketing",
   "campaign",
@@ -54,48 +58,61 @@ const supportedSources = new Set<RegistrationEntrySource>([
   "event_qr",
   "login_recovery",
 ]);
+const authEntryPaths = new Set(["/auth", "/signin", "/join", "/login", "/register"]);
+const internalOrigin = "https://rfxchange.invalid";
+const contextKeys = ["source", "campaign", "referral", "invitation", "organization", "membership", "geography", "record"] as const;
 
 function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function clean(value: unknown, maxLength = 160) {
+function clean(value: unknown, maxLength = 180) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
 function safeReturnTo(value: unknown) {
-  const candidate = clean(value, 240);
-  return candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : undefined;
+  const candidate = clean(value, 500);
+  if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//")) return undefined;
+
+  try {
+    const destination = new URL(candidate, internalOrigin);
+    if (destination.origin !== internalOrigin || authEntryPaths.has(destination.pathname)) return undefined;
+    return `${destination.pathname}${destination.search}${destination.hash}`;
+  } catch {
+    return undefined;
+  }
 }
 
-function normalizedSource(value: string | undefined): RegistrationEntrySource {
-  if (value && supportedSources.has(value as RegistrationEntrySource)) {
-    return value as RegistrationEntrySource;
-  }
-  return "direct";
+function normalizedKind(value: unknown): RegistrationEntryKind {
+  const candidate = clean(value);
+  return supportedKinds.has(candidate as RegistrationEntryKind) ? candidate as RegistrationEntryKind : "direct";
+}
+
+function deriveEntryKind(context: Omit<RegistrationEntryContext, "entryKind">, requestedKind?: unknown): RegistrationEntryKind {
+  if (context.invitation) return "partner_invitation";
+  if (context.referral) return "referral";
+  if (context.campaign) return "campaign";
+  const explicit = normalizedKind(requestedKind);
+  if (explicit !== "direct") return explicit;
+  return context.source === "marketing" ? "marketing" : "direct";
 }
 
 export function registrationContextFromSearchParams(params: SearchParamsLike): RegistrationEntryContext {
-  const invitationCode = clean(single(params.invite));
-  const referralCode = clean(single(params.referral));
-  const campaign = clean(single(params.campaign));
-  const sourceParam = clean(single(params.source));
-
-  const source: RegistrationEntrySource = invitationCode
-    ? "partner_invitation"
-    : referralCode
-      ? "referral"
-      : campaign
-        ? "campaign"
-        : normalizedSource(sourceParam || undefined);
+  const context = {
+    returnTo: safeReturnTo(single(params.returnTo)),
+    source: clean(single(params.source)) || undefined,
+    campaign: clean(single(params.campaign)) || undefined,
+    referral: clean(single(params.referral)) || undefined,
+    invitation: clean(single(params.invitation) ?? single(params.invite), 500) || undefined,
+    organization: clean(single(params.organization)) || undefined,
+    membership: clean(single(params.membership)) || undefined,
+    geography: clean(single(params.geography)) || undefined,
+    record: clean(single(params.record)) || undefined,
+  };
 
   return {
-    source,
-    ...(sourceParam && sourceParam !== source ? { sourceDetail: sourceParam } : {}),
-    ...(campaign ? { campaign } : {}),
-    ...(referralCode ? { referralCode } : {}),
-    ...(invitationCode ? { invitationCode } : {}),
-    ...(safeReturnTo(single(params.returnTo)) ? { returnTo: safeReturnTo(single(params.returnTo)) } : {}),
+    entryKind: deriveEntryKind(context, single(params.entryKind)),
+    ...context,
   };
 }
 
@@ -104,22 +121,23 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function sanitizeContext(value: unknown): RegistrationEntryContext {
-  if (!isRecord(value)) return { source: "direct" };
+  if (!isRecord(value)) return { entryKind: "direct" };
 
-  const source = normalizedSource(clean(value.source) || undefined);
-  const sourceDetail = clean(value.sourceDetail);
-  const campaign = clean(value.campaign);
-  const referralCode = clean(value.referralCode);
-  const invitationCode = clean(value.invitationCode);
-  const returnTo = safeReturnTo(value.returnTo);
+  const context = {
+    returnTo: safeReturnTo(value.returnTo),
+    source: clean(value.source) || undefined,
+    campaign: clean(value.campaign) || undefined,
+    referral: clean(value.referral) || undefined,
+    invitation: clean(value.invitation, 500) || undefined,
+    organization: clean(value.organization) || undefined,
+    membership: clean(value.membership) || undefined,
+    geography: clean(value.geography) || undefined,
+    record: clean(value.record) || undefined,
+  };
 
   return {
-    source,
-    ...(sourceDetail ? { sourceDetail } : {}),
-    ...(campaign ? { campaign } : {}),
-    ...(referralCode ? { referralCode } : {}),
-    ...(invitationCode ? { invitationCode } : {}),
-    ...(returnTo ? { returnTo } : {}),
+    entryKind: deriveEntryKind(context, value.entryKind),
+    ...context,
   };
 }
 
@@ -158,5 +176,9 @@ export function validateRegistrationPayload(value: unknown): RegistrationValidat
 export function registrationHandoffHref(registrationId: string, context: RegistrationEntryContext) {
   const params = new URLSearchParams({ step: "account-verification", registration: registrationId });
   if (context.returnTo) params.set("returnTo", context.returnTo);
+  for (const key of contextKeys) {
+    const value = context[key];
+    if (value) params.set(key, value);
+  }
   return `/onboarding?${params.toString()}`;
 }
