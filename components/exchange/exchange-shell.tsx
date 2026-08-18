@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Coordinates, DrawerQueryState, DrawerResultStatus, DrawerState, ExchangeFilters, ExchangeLens, ExchangeRecord, ExchangeSearchState, GeolocationStatus, LensAction, MapDisplayMode, MapViewState, RecentSearch, SavedSearch } from "@/lib/exchange/contracts";
+import type { Coordinates, DrawerQueryState, DrawerResultStatus, DrawerState, ExchangeFilters, ExchangeLens, ExchangeRecord, ExchangeRelationshipState, ExchangeSearchState, GeolocationStatus, LensAction, MapDisplayMode, MapViewState, RecentSearch, SavedSearch } from "@/lib/exchange/contracts";
 import { exchangeSeed } from "@/lib/exchange/seed";
 import { applyExchangeFilters, createExchangeFilters } from "@/lib/exchange/filter";
 import { applyDrawerQuery, createDefaultDrawerQuery } from "@/lib/exchange/drawer";
@@ -47,6 +47,12 @@ type IntelligenceFlow = { mode: IntelligenceWorkflow; recordId?: string };
 type CapabilityFlow = { mode: CapabilityWorkflowMode; recordId: string };
 type DrawerFlow = { root: DrawerWorkflowNode; recordId?: string };
 type RfxFlow = { command: RfxWorkflowCommand; recordId?: string };
+
+function relationshipsWithSaved(record: ExchangeRecord, active: boolean): ExchangeRelationshipState[] {
+  const next: ExchangeRelationshipState[] = (record.card?.relationships ?? []).filter((relationship) => relationship !== "saved");
+  if (active) next.push("saved");
+  return next;
+}
 
 export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initialLens?: ExchangeLens; initialRecordId?: string }) {
   const [lens, setLens] = useState<ExchangeLens>(initialLens);
@@ -191,7 +197,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
       const body = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Save workflow failed.");
       setSavedRecordIds((current) => { const next = new Set(current); if (active) next.delete(recordId); else next.add(recordId); return next; });
-      setRecordsState((current) => current.map((item) => item.id === recordId ? { ...item, saved: !active, card: item.card ? { ...item.card, relationships: (item.card.relationships ?? []).filter((relationship) => relationship !== "saved").concat(!active ? ["saved"] : []) } : item.card } : item));
+      setRecordsState((current) => current.map((item) => item.id === recordId ? { ...item, saved: !active, card: item.card ? { ...item.card, relationships: relationshipsWithSaved(item, !active) } : item.card } : item));
     } catch (error) { setActionNotice(error instanceof Error ? error.message : "Save workflow failed."); }
   }
 
@@ -223,7 +229,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     if (event.workflow === "save") {
       const active = event.payload.active !== false;
       setSavedRecordIds((current) => { const next = new Set(current); if (active) next.add(event.recordId); else next.delete(event.recordId); return next; });
-      setRecordsState((current) => current.map((item) => item.id === event.recordId ? { ...item, saved: active, card: item.card ? { ...item.card, relationships: (item.card.relationships ?? []).filter((relationship) => relationship !== "saved").concat(active ? ["saved"] : []) } : item.card } : item));
+      setRecordsState((current) => current.map((item) => item.id === event.recordId ? { ...item, saved: active, card: item.card ? { ...item.card, relationships: relationshipsWithSaved(item, active) } : item.card } : item));
     }
     if (event.workflow === "watch" || event.workflow === "track" || event.workflow === "follow") {
       const active = event.payload.active !== false;
