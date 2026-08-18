@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "crypto";
+
 export interface ResolvedExchangeActor {
   userId: string;
   organizationId: string;
@@ -12,10 +14,24 @@ export class ExchangeAuthenticationError extends Error {
   }
 }
 
+function sameSecret(left: string, right: string) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
 export function resolveExchangeActor(headers: Headers): ResolvedExchangeActor {
-  // In production these headers must be injected by the trusted RFxchange auth/BFF layer.
-  // Development environment values are server-side only; the request body is never trusted
-  // to choose the actor or organization.
+  // Production actor headers are accepted only when the trusted Identity/BFF layer also
+  // supplies a server-held shared secret. Edge infrastructure must strip user-supplied
+  // x-rfx-* headers and inject these values after session validation.
+  if (process.env.NODE_ENV === "production") {
+    const configuredSecret = process.env.RFXCHANGE_TRUSTED_ACTOR_SECRET;
+    const presentedSecret = headers.get("x-rfx-actor-secret");
+    if (!configuredSecret || !presentedSecret || !sameSecret(configuredSecret, presentedSecret)) {
+      throw new ExchangeAuthenticationError("Trusted RFxchange actor context was not established by the Identity/BFF layer.");
+    }
+  }
+
   const userId = headers.get("x-rfx-user-id") ?? (process.env.NODE_ENV !== "production" ? process.env.RFXCHANGE_DEV_USER_ID : undefined);
   const organizationId = headers.get("x-rfx-organization-id") ?? (process.env.NODE_ENV !== "production" ? process.env.RFXCHANGE_DEV_ORGANIZATION_ID : undefined);
   if (!userId || !organizationId || !uuid.test(userId) || !uuid.test(organizationId)) throw new ExchangeAuthenticationError();
