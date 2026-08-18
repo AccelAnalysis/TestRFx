@@ -117,6 +117,7 @@ export const completionWorkflowTree: readonly CompletionWorkflowGroup[] = [
         checkpointId: "organization_profile",
         children: [
           { id: "core-profile", label: "Core profile details", href: "/onboarding/organization-profile" },
+          { id: "industry-services", label: "Industry & services", href: "/onboarding/organization-profile" },
           { id: "profile-visibility", label: "Visibility preferences", href: "/onboarding/organization-profile", checkpointId: "visibility" },
         ],
       },
