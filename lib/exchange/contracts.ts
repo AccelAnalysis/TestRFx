@@ -22,6 +22,15 @@ export type LensActionToggle = "save" | "watch" | "track" | "follow";
 export type ResourceAvailabilityState = "available" | "limited" | "scheduled";
 export type ResourceVisibility = "public-location" | "service-area" | "off-map";
 export type ResourceStatus = "active" | "archived";
+export type FloatingControlRoute =
+  | "filters"
+  | "filter-geography"
+  | "filter-relationship"
+  | "filter-location"
+  | "filter-placement"
+  | "filter-facets"
+  | "map"
+  | "map-display";
 
 export type Coordinates = { lat: number; lng: number };
 export interface MapCamera { center: Coordinates; zoom: number; bearing: number; pitch: number; mode: MapDisplayMode; }
@@ -65,7 +74,13 @@ export interface ExchangeSearchResponse { lens: ExchangeLens; state: ExchangeSea
 export interface SearchSuggestion { id: string; kind: SearchSuggestionKind; label: string; description: string; query: string; }
 export interface SavedSearch { id: string; name: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
 export interface RecentSearch { id: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
-export interface ExchangeFilters { geography?: string; relationship: RecordRelationshipFilter; mappedOnly: boolean; featuredOnly: boolean; metadata: string[]; }
+export interface ExchangeFilters {
+  geography?: string;
+  relationship: RecordRelationshipFilter;
+  location: SearchLocationMode;
+  featuredOnly: boolean;
+  metadata: string[];
+}
 export interface ExchangeMapState { displayMode: MapDisplayMode; geolocationStatus: GeolocationStatus; viewerLocation?: Coordinates; viewportDirty: boolean; resetKey: number; }
 
 export interface ExchangeViewState {
