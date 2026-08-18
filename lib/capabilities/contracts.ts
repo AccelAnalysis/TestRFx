@@ -30,12 +30,16 @@ export type CapabilityCommand =
 export interface AmacsInterpretationCandidate { conceptId: string; label: string; definition?: string; score: number; source: "amacs-release"; }
 export interface AmacsCandidateResponse { available: boolean; manualPath: true; amacsVersion: string; candidates: AmacsInterpretationCandidate[]; reason?: string; }
 
+export function isLegacyReferenceAmacsNode(nodeId?: string) { return Boolean(nodeId?.startsWith("amacs.reference.")); }
 export function capabilityEvidenceCount(profile: CapabilityOrganizationProfile) { return profile.capabilities.reduce((total, capability) => total + capability.evidence.length, 0); }
-export function capabilityMappedCount(profile: CapabilityOrganizationProfile) { return profile.capabilities.filter((capability) => capability.mappingStatus === "accepted" && capability.amacsNodeId).length; }
+export function capabilityMappedCount(profile: CapabilityOrganizationProfile) { return profile.capabilities.filter((capability) => capability.mappingStatus === "accepted" && capability.amacsNodeId && !isLegacyReferenceAmacsNode(capability.amacsNodeId)).length; }
 export function capabilityProfileToExchangeRecord(profile: CapabilityOrganizationProfile): ExchangeRecord {
   const leadCapability = profile.capabilities[0]?.name ?? "Capability profile";
   const mapped = capabilityMappedCount(profile); const evidence = capabilityEvidenceCount(profile);
-  const searchableCapabilityTerms = profile.capabilities.flatMap((capability) => [capability.name, capability.amacsNodeId ?? "", capability.amacsLabel ?? "", ...capability.specialties]);
+  const searchableCapabilityTerms = profile.capabilities.flatMap((capability) => {
+    const governedMapping = capability.amacsNodeId && !isLegacyReferenceAmacsNode(capability.amacsNodeId) ? [capability.amacsNodeId, capability.amacsLabel ?? ""] : [];
+    return [capability.name, ...governedMapping, ...capability.specialties];
+  });
   return {
     id: profile.exchangeRecordId, type: "capability", title: leadCapability, organization: profile.organizationName, summary: profile.summary, geography: profile.geography,
     metadata: [...searchableCapabilityTerms, ...profile.keywords, ...profile.serviceAreas, `${mapped} AMACS mapped`, `${evidence} evidence items`, `${profile.profileStrength}% profile strength`].filter(Boolean),
