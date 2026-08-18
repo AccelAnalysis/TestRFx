@@ -3,6 +3,7 @@ export type MagicLinkDeliveryMode = "provider";
 export interface MagicLinkRequestInput {
   email: string;
   returnTo: string;
+  callbackUrl: string;
   userAgent?: string;
 }
 
