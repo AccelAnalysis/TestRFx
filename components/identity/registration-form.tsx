@@ -59,7 +59,8 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
       const payload = (await response.json()) as RegistrationAccepted | { errors?: RegistrationFieldErrors; error?: string };
 
       if (!response.ok) {
-        setErrors("errors" in payload && payload.errors ? payload.errors : { form: "Registration could not be completed." });
+        const formError = "error" in payload && payload.error ? payload.error : "Registration could not be completed.";
+        setErrors("errors" in payload && payload.errors ? payload.errors : { form: formError });
         return;
       }
 
@@ -81,13 +82,13 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
           <span>Exchange ready</span>
         </div>
         <p className="eyebrow">RFxchange registration</p>
-        <h1>Registration ready for verification</h1>
+        <h1>Registration created</h1>
         <p className="muted">
-          <strong>{accepted.email}</strong> is ready for the account-verification handoff. Your acquisition, referral, invitation, organization, membership, geography, and requested-record context remains available to downstream onboarding when supplied.
+          <strong>{accepted.email}</strong> is registered with the configured Identity provider and is ready for the account-verification handoff. Your acquisition, referral, invitation, organization, membership, geography, and requested-record context remains available to downstream onboarding when supplied.
         </p>
         <div className={styles.statusPanel}>
           <strong>Next: verify your email</strong>
-          <p>This TestRFx reference adapter establishes the verification handoff; transactional email delivery and persistent identity storage plug into this contract next.</p>
+          <p>Continue into the governed Account Verification workflow. Registration success is only shown after the configured provider returns a real registration identifier.</p>
         </div>
         <Link className="button button-primary button-full" href={accepted.handoffHref}>
           Continue to account verification
@@ -152,7 +153,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
             aria-describedby={errors.email ? "email-error" : "email-help"}
             required
           />
-          <small id="email-help" className={styles.help}>This becomes your canonical RFxchange identity email after verification and production identity persistence are connected.</small>
+          <small id="email-help" className={styles.help}>This becomes your canonical RFxchange identity email after verification.</small>
           {errors.email ? <small id="email-error" className={styles.error}>{errors.email}</small> : null}
         </label>
 
