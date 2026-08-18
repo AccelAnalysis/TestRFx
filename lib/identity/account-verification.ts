@@ -1,4 +1,4 @@
-export const ACCOUNT_VERIFICATION_TTL_SECONDS = 30 * 60;
+export const ACCOUNT_VERIFICATION_TTL_SECONDS = 15 * 60;
 export const ACCOUNT_VERIFICATION_RESEND_COOLDOWN_SECONDS = 60;
 
 export type AccountVerificationState =
