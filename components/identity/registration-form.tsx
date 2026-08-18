@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import type {
-  RegistrationAccepted,
-  RegistrationEntryContext,
-  RegistrationFieldErrors,
+import {
+  registrationLoginHref,
+  type RegistrationAccepted,
+  type RegistrationEntryContext,
+  type RegistrationFieldErrors,
 } from "@/lib/identity/registration";
 import styles from "./registration-form.module.css";
 
@@ -30,8 +31,8 @@ const emptyForm: FormState = {
 };
 
 function contextMessage(context: RegistrationEntryContext) {
-  if (context.invitationCode) return "You arrived through an organization invitation. We’ll preserve that invitation while your identity is verified.";
-  if (context.referralCode) return "You arrived through a referral. We’ll preserve that relationship through onboarding.";
+  if (context.invitation) return "You arrived through an organization invitation. We’ll preserve that invitation while your identity is verified.";
+  if (context.referral) return "You arrived through a referral. We’ll preserve that relationship through onboarding.";
   if (context.campaign) return `You’re joining through the ${context.campaign} campaign.`;
   return null;
 }
@@ -42,6 +43,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [accepted, setAccepted] = useState<RegistrationAccepted | null>(null);
   const entryMessage = contextMessage(initialContext);
+  const loginHref = registrationLoginHref(initialContext);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -81,7 +83,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
         <p className="eyebrow">RFxchange registration</p>
         <h1>Account identity created</h1>
         <p className="muted">
-          <strong>{accepted.email}</strong> is ready for the account-verification step. Your acquisition, referral, or invitation context will remain attached to this registration.
+          <strong>{accepted.email}</strong> is ready for the account-verification step. Your acquisition, referral, invitation, organization, membership, geography, and requested-record context remains available to downstream onboarding when supplied.
         </p>
         <div className={styles.statusPanel}>
           <strong>Next: verify your email</strong>
@@ -90,7 +92,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
         <Link className="button button-primary button-full" href={accepted.handoffHref}>
           Continue to account verification
         </Link>
-        <p className="identity-footer"><Link href="/login">Return to sign in</Link></p>
+        <p className="identity-footer"><Link href={loginHref}>Return to sign in</Link></p>
       </section>
     );
   }
@@ -180,7 +182,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
         </button>
       </form>
 
-      <p className="identity-footer">Already registered? <Link href="/login">Sign in</Link></p>
+      <p className="identity-footer">Already registered? <Link href={loginHref}>Sign in</Link></p>
     </section>
   );
 }
