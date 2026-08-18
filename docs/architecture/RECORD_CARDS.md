@@ -1,21 +1,24 @@
 # RFxchange Record Cards
 
-Record Cards are a shared primitive of the authenticated Exchange chassis. RFx, Resources, Intelligence, and Capabilities provide record content; they do not create separate card systems.
+Record Cards are a shared primitive of the authenticated Exchange chassis. RFx, Resources, Intelligence, and Capabilities provide record content and business workflows; they do not create separate card systems.
 
 ## Governing boundary
 
 **Onboarding builds the record. The Exchange renders the record.**
 
-Identity and onboarding establish organization identity, geography, profile information, capability enrichment, AMACS alignment, evidence, discoverability metadata, and publication readiness. Once published, those domain objects are projected into the shared `ExchangeRecord` contract and rendered by the Exchange card system.
+Identity and onboarding establish organization identity, geography, profile information, capability enrichment, evidence, discoverability metadata, and publication readiness. Once published, domain objects are projected into the shared `ExchangeRecord` contract and rendered by the Exchange card system.
 
-## Review of the first Record Cards build
+## Follow-up review
 
-The first implementation correctly established one shared card component, mapped/off-map behavior, card-to-detail navigation, selected state, placement treatment, and the card/action-rail boundary. The follow-up review found four gaps against the source architecture:
+The first Record Cards implementation correctly established one shared card component, mapped/off-map behavior, selected state, placement treatment, card-to-detail navigation, and the card/action-rail boundary. The follow-up review found missing behavior from the source architecture:
 
 1. record detail was flat and did not carry the source-defined child/grandchild workflow hierarchy;
 2. production Exchange pages and `/api/exchange/results` still depended on deterministic fixture records;
-3. save/watch/track/follow and shared workflow execution used client/reference state rather than authenticated persistence;
-4. Resource and Intelligence forms reported successful reference-session mutations without writing canonical domain tables.
+3. Save/Watch/Track/Follow and shared workflow execution used client/reference state rather than authenticated persistence;
+4. Resource and Intelligence forms reported reference-session mutations instead of writing canonical domain tables;
+5. RFx detail/lifecycle behavior still depended on reference data instead of `rfx_records`, pursuits, and responses;
+6. Capability evidence/publishing did not use the canonical capability record;
+7. Login used a reference identity gateway and did not establish the same runtime session required by the Exchange.
 
 This implementation closes those gaps without adding workflow children not present in the source diagrams.
 
@@ -23,23 +26,22 @@ This implementation closes those gaps without adding workflow children not prese
 
 The shell owns the stable interaction contract:
 
-- canonical record ID and record type;
-- canonical organization identity;
-- title, summary, geography, and domain metadata;
-- optional map coordinates;
+- canonical record ID, record type, and organization identity;
+- title, summary, geography, domain metadata, and optional map coordinates;
 - server-derived own-organization context and access policy;
 - persistent relationship state;
-- card projection for eyebrow, real media, classifications, status, relationships, placement, context, availability, distance, and density;
-- card-to-detail navigation;
-- marker/card selection synchronization;
-- lightweight save/favorite control;
-- activity events used for recently-viewed treatment.
+- card projection for eyebrow, media, classifications, status, relationships, placement, context, availability, distance, and density;
+- standard and compact density;
+- loading, refreshing, error, offline, restricted, and unavailable states;
+- card-to-detail and marker/card selection synchronization;
+- lightweight Save/Favorite control;
+- activity events used for Recently Viewed treatment.
 
-The optional `card` projection keeps display concerns out of raw domain tables while allowing each domain adapter to provide the content the shared card needs.
+Media URLs come from canonical record metadata. Failed media falls back to the domain/category treatment instead of collapsing the card.
 
 ## True hierarchical workflow navigation
 
-Opening a card creates a nested detail-navigation state. The browser URL retains the selected record and a validated `flow` path. Back moves up one hierarchy level before closing the record, so the shell can preserve record, map, search, drawer, and list context.
+Opening a card creates a nested detail-navigation state. The browser URL retains the selected record and a validated `flow` path. Deeper navigation pushes browser history; Back moves up one hierarchy level before closing the record. The shell therefore preserves record, lens, search, map, drawer, and list context.
 
 Only source-defined nodes are represented.
 
@@ -167,26 +169,30 @@ Browse / search organizations
                 └── Capability detail / supporting evidence
 ```
 
-## Real runtime services
+## Production runtime
 
-Production Exchange pages no longer initialize from `exchangeSeed`, `intelligenceSeed`, or capability reference fixtures. They load the canonical PostgreSQL/PostGIS repository. Static fixture records are generated only by the GitHub Pages preview preparation step and are rendered in read-only preview mode.
+Production Exchange pages no longer initialize from `exchangeSeed`, Intelligence fixtures, RFx catalog fixtures, or capability reference profiles. They load the canonical PostgreSQL/PostGIS repository. Fixture records are generated only by the GitHub Pages preparation step and run in read-only preview mode.
 
 The runtime requires:
 
 - `DATABASE_URL` for PostgreSQL/PostGIS;
-- `db/schema.sql` plus domain/shared-workflow/runtime migrations;
+- the canonical, identity, domain, shared-workflow, and runtime SQL migrations;
+- `RFXCHANGE_APP_ORIGIN`;
+- `RFXCHANGE_IDENTITY_DELIVERY_URL` and optional `RFXCHANGE_IDENTITY_DELIVERY_TOKEN` for the production passwordless delivery adapter;
 - an opaque `rfx_session` cookie whose SHA-256 hash resolves to `app_sessions`;
-- a real user and active organization membership.
+- an active user and organization membership.
 
-There is no fake/reference actor fallback. If the database or authenticated session is unavailable, writes fail explicitly instead of mutating client memory.
+Login now creates a single-use database challenge and delegates delivery to the configured production delivery endpoint. The raw challenge and session tokens are never persisted. Consuming the challenge creates the same `rfx_session` used by Exchange repositories and server-authorized workflows.
 
-### Durable record relationships
+Authenticated Exchange routes and `/api/exchange/results` require a valid session and active organization. There is no fake/reference actor fallback and production does not silently replace unavailable services with fixture data.
 
-`record_relationships` and the compatibility `favorites` projection persist Save, Watch, Track, and Follow. Every relationship mutation emits an `activity_events` record. Card context can therefore derive Saved, watched/followed, recently viewed, and unread-alert state from persisted data.
+## Durable record relationships
 
-### Durable shared workflows
+`record_relationships` plus the compatibility `favorites` projection persist Save, Watch, Track, and Follow. Every relationship mutation emits an `activity_events` record. Card context can derive Saved, Watched/Followed, Recently Viewed, and unread-alert state from persisted data.
 
-The shared workflow API persists:
+## Durable shared workflows
+
+The shared workflow service persists:
 
 - share-link executions;
 - referrals and referral events;
@@ -194,19 +200,42 @@ The shared workflow API persists:
 - workflow execution/audit records;
 - relationship mutations.
 
-The matching path does **not** return a fixture score. Until a governed AMACS/matching service is configured, the source-defined Match workflow is shown as unavailable.
+## Durable RFx workflows
 
-### Durable Resources workflows
+The RFx source-defined paths are backed by canonical RFx tables:
 
-Offer, Edit, Request, and Archive write canonical `exchange_records`, `resources`, and `resource_requests` tables. Resource forms remain UI surfaces, but they no longer create `res-local-*` records in React state.
+- Create RFx / Opportunity;
+- Draft / Save / Publish;
+- Update;
+- Close;
+- Respond / Submit;
+- View Responses;
+- Award / Advance;
+- Watch and teaming/referral handoffs.
 
-### Durable Intelligence workflows
+RFx responses write `rfx_responses` and pursuit state writes `rfx_pursuits`. For records whose authoritative issuer requires external submission, RFxchange does not pretend to submit externally: a submitted state requires an external confirmation/reference.
 
-Add Insight, Edit Insight, and Add Note write `exchange_records`, `intelligence_records`, and `intelligence_notes` with authenticated actor/organization context. Reference comparison is removed from production; Compare remains unavailable until the governed analytics/matching service exists.
+`View Responses / Matches` shows real recorded responses. The “Matches” portion remains explicitly unavailable until the governed AMACS/matching provider exists; no deterministic fixture match is substituted.
 
-### Capabilities and RFx lifecycle gaps
+## Durable Resources workflows
 
-The source explicitly requires AMACS mapping, capability evidence/gaps/publishing, and deeper RFx create/respond/lifecycle decisions. The repository has persistence foundations for several of these, but the production command/provider contracts are not complete in this branch. Those actions remain visible with explicit unavailable reasons. They do not simulate success, fabricate AMACS candidates, or generate deterministic matching truth.
+Offer, Edit, Request, and Archive write canonical `exchange_records`, `resources`, and `resource_requests` tables. Resource forms no longer create local `res-local-*` records or use hard-coded reference geography defaults.
+
+## Durable Intelligence workflows
+
+Add Insight, Edit Insight, Add Note, and Track write canonical Intelligence/relationship data with authenticated actor and organization context. Reference comparison was removed from production. Compare remains unavailable until a governed analytics/matching provider exists.
+
+## Durable Capabilities workflows
+
+Capability detail and supporting evidence read the canonical capability record. Add/Edit/Remove Evidence updates `capabilities.evidence` and evidence state; Save/Publish updates the canonical Exchange record and emits activity events. Existing accepted AMACS IDs are preserved exactly as stored.
+
+The following source-defined capability behaviors remain intentionally unavailable because the repository does not contain an authoritative provider for them:
+
+- AI → AMACS Mapping;
+- Identify Capability Gaps;
+- Match to RFx / requirement.
+
+They remain visible in the source-derived hierarchy with explicit unavailable reasons. RFxchange does not synthesize AMACS candidates, gap determinations, or match scores.
 
 ## Located and off-map records
 
@@ -214,11 +243,11 @@ The drawer is authoritative. A record with coordinates participates in marker/ca
 
 ## Sponsored, alert, recommendation, and recently-viewed context
 
-Sponsorship is a placement treatment on a normal Exchange record, not a separate record identity. The card contract also accommodates the source-required recommendation, alert, and recently-viewed contexts. The repository currently derives alerts from unread notifications and recently-viewed state from `activity_events`. It does not fabricate recommendation records; a production recommendation service must provide them before that context appears.
+Sponsorship is a placement treatment on a canonical record, not a separate identity. Alerts derive from unread notifications and Recently Viewed derives from `activity_events`. The contract also supports recommendation context, but production does not fabricate recommendation records; a real recommendation provider must supply them first.
 
 ## Own versus other organization
 
-`ownedByViewer` is derived by the server from the authenticated user's active organization membership. `ExchangeRecord.access` supplies the card/action layer with server-derived policy hints, while authoritative write checks still occur in server services.
+`ownedByViewer` is derived from the authenticated user's active organization membership. `ExchangeRecord.access` supplies server-derived policy hints to the card/action layer, while authoritative write checks remain in server services.
 
 ## Interaction rules
 
@@ -226,29 +255,29 @@ Sponsorship is a placement treatment on a normal Exchange record, not a separate
 - Selecting/focusing a card updates shared selection state.
 - Opening the card launches the shared detail surface without unmounting the Exchange.
 - Returning from detail preserves lens, search, map, drawer, selection, list context, and nested workflow path.
-- Save/favorite is a lightweight record-local control backed by the relationship repository.
-- Primary business workflows remain governed by the action rail and source-derived detail hierarchy.
+- Save/Favorite is a lightweight record-local control backed by the relationship repository.
+- Primary business workflows remain governed by the four-slot action rail and source-derived detail hierarchy.
 - Long-press or gesture-only behavior is never required for a primary workflow.
 - An unavailable production service is presented as unavailable; it is never replaced by fixture success.
 
 ## Runtime flow
 
 ```text
-PostgreSQL / PostGIS domain object
+Authenticated session + active organization
    ↓
-Authenticated repository + policy
+PostgreSQL / PostGIS domain records
+   ↓
+Repository + policy projection
    ↓
 ExchangeRecord + card projection
    ↓
-Exchange Results API
+Shared RecordCard + map selection
    ↓
-Shared RecordCard
+Nested detail workflow tree + action rail
    ↓
-Selection + map + action rail + nested detail navigation
-   ↓
-Authenticated relationship / domain / shared workflow service
+Relationship / RFx / Resource / Intelligence / Capability / shared workflow service
    ↓
 Canonical persistence + activity events
 ```
 
-The card component remains stable as domain workflows mature. New business behavior plugs into the governed repositories, action registry, and source-defined workflow tree rather than forking the shared card shell.
+The card component remains stable as domain capabilities mature. New business behavior plugs into governed repositories, the action registry, and the source-defined workflow tree rather than forking the shared card shell.
