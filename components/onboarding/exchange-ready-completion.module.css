@@ -1,0 +1,564 @@
+.shell {
+  min-height: 100dvh;
+  padding: max(20px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 15% 12%, rgba(46, 94, 170, 0.14), transparent 28%),
+    radial-gradient(circle at 88% 10%, rgba(214, 162, 58, 0.18), transparent 27%),
+    linear-gradient(180deg, #fbf8f1 0%, var(--warm-ivory) 55%, #efece4 100%);
+}
+
+.frame {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.brand {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.035em;
+}
+
+.stepPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(46, 94, 170, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #29466f;
+  font-size: 12px;
+  font-weight: 800;
+  backdrop-filter: blur(12px);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.55fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.heroCard,
+.metricCard,
+.panel,
+.presenceCard,
+.handoffCard {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 16px 44px rgba(11, 11, 13, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.heroCard {
+  padding: clamp(26px, 4vw, 44px);
+  border-radius: 30px;
+}
+
+.eyebrow {
+  margin: 0 0 9px;
+  color: #745312;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.heroCard h1 {
+  max-width: 760px;
+  margin: 0;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.heroCopy {
+  max-width: 720px;
+  margin: 20px 0 0;
+  color: #5c626b;
+  font-size: 16px;
+  line-height: 1.62;
+}
+
+.metricCard {
+  display: grid;
+  align-content: center;
+  gap: 18px;
+  padding: 26px;
+  border-radius: 30px;
+}
+
+.stateBadge {
+  width: fit-content;
+  padding: 8px 11px;
+  border-radius: 999px;
+  background: rgba(59, 123, 87, 0.12);
+  color: #27563c;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.metricRow {
+  display: grid;
+  gap: 8px;
+}
+
+.metricLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: #5b6169;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.metricLabel strong {
+  color: var(--exchange-black);
+  font-size: 20px;
+}
+
+.progress {
+  width: 100%;
+  height: 9px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: #e6e4de;
+}
+
+.progress::-webkit-progress-bar {
+  border-radius: 999px;
+  background: #e6e4de;
+}
+
+.progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--growth-green);
+}
+
+.progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: var(--growth-green);
+}
+
+.profileProgress::-webkit-progress-value {
+  background: var(--rf-gold);
+}
+
+.profileProgress::-moz-progress-bar {
+  background: var(--rf-gold);
+}
+
+.metricNote {
+  margin: 0;
+  color: #73777e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  gap: 18px;
+}
+
+.panel,
+.presenceCard,
+.handoffCard {
+  border-radius: 24px;
+}
+
+.panel {
+  padding: 24px;
+}
+
+.panel + .panel {
+  margin-top: 18px;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.sectionHeading h2,
+.presenceCard h2,
+.handoffCard h2 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.025em;
+}
+
+.sectionHeading p,
+.presenceCard > p,
+.handoffCard > p {
+  margin: 6px 0 0;
+  color: #666b73;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.countPill {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #f0eee8;
+  color: #5e6269;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.itemList {
+  display: grid;
+  gap: 10px;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border: 1px solid rgba(37, 41, 50, 0.1);
+  border-radius: 16px;
+  background: rgba(247, 243, 234, 0.48);
+}
+
+.itemComplete {
+  background: rgba(59, 123, 87, 0.06);
+}
+
+.itemAttention {
+  background: rgba(214, 162, 58, 0.08);
+}
+
+.statusIcon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(59, 123, 87, 0.12);
+  color: var(--growth-green);
+  font-weight: 950;
+}
+
+.itemAttention .statusIcon {
+  background: rgba(214, 162, 58, 0.16);
+  color: #7b5813;
+}
+
+.itemBody {
+  min-width: 0;
+}
+
+.itemBody strong {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 14px;
+}
+
+.itemBody p {
+  margin: 0;
+  color: #6a6f77;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.itemValue {
+  max-width: 170px;
+  color: #52575f;
+  font-size: 11px;
+  font-weight: 780;
+  text-align: right;
+}
+
+.sidebar {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.presenceCard,
+.handoffCard {
+  padding: 22px;
+}
+
+.orgIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 14px;
+  border-radius: 17px;
+  background: #f5f2ea;
+}
+
+.orgMark {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  background: var(--exchange-black);
+  color: var(--warm-ivory);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.orgIdentity strong,
+.orgIdentity span {
+  display: block;
+}
+
+.orgIdentity span {
+  margin-top: 3px;
+  color: #6c7179;
+  font-size: 12px;
+}
+
+.presenceMeta {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+}
+
+.presenceMeta div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(37, 41, 50, 0.08);
+}
+
+.presenceMeta dt {
+  color: #6a6f77;
+  font-size: 12px;
+}
+
+.presenceMeta dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.tag {
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgba(46, 94, 170, 0.09);
+  color: #294f86;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.handoffList {
+  display: grid;
+  gap: 10px;
+  margin: 17px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.handoffList li {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 9px;
+  color: #575c64;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.handoffList span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(46, 94, 170, 0.1);
+  color: var(--signal-blue);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.actionBar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid rgba(11, 11, 13, 0.1);
+  border-radius: 24px;
+  background: rgba(11, 11, 13, 0.94);
+  color: var(--warm-ivory);
+  box-shadow: 0 18px 44px rgba(11, 11, 13, 0.18);
+}
+
+.actionCopy strong {
+  display: block;
+  font-size: 16px;
+}
+
+.actionCopy span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(247, 243, 234, 0.7);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.primaryButton,
+.secondaryLink {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border-radius: 14px;
+  font-weight: 820;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primaryButton {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: var(--rf-gold);
+  color: #17140d;
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.secondaryLink {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: var(--warm-ivory);
+}
+
+.error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(177, 48, 48, 0.18);
+  color: #ffe3e3;
+  font-size: 12px;
+}
+
+.boundaryNote {
+  margin: 13px 2px 0;
+  color: #73777e;
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@media (max-width: 840px) {
+  .hero,
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .metricCard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .stateBadge {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .shell {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .topbar {
+    margin-bottom: 16px;
+  }
+
+  .brand {
+    font-size: 19px;
+  }
+
+  .heroCard,
+  .metricCard,
+  .panel,
+  .presenceCard,
+  .handoffCard {
+    border-radius: 20px;
+  }
+
+  .heroCard,
+  .panel,
+  .presenceCard,
+  .handoffCard {
+    padding: 18px;
+  }
+
+  .metricCard {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .stateBadge {
+    grid-column: auto;
+  }
+
+  .item {
+    grid-template-columns: 32px minmax(0, 1fr);
+  }
+
+  .itemValue {
+    grid-column: 2;
+    max-width: none;
+    text-align: left;
+  }
+
+  .actionBar {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryButton,
+  .secondaryLink {
+    scroll-behavior: auto;
+  }
+}
