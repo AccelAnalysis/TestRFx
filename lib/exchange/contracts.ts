@@ -1,6 +1,9 @@
 export type ExchangeLens = "rfx" | "resources" | "intelligence" | "capabilities";
 export type DrawerState = "peek" | "mid" | "expanded";
 export type ExchangeRecordType = "rfx" | "resource" | "intelligence" | "capability";
+export type MapDisplayMode = "2d" | "3d";
+export type GeolocationStatus = "idle" | "requesting" | "located" | "denied" | "unavailable";
+export type RecordRelationshipFilter = "all" | "mine" | "others";
 
 export type Coordinates = { lat: number; lng: number };
 
@@ -39,11 +42,29 @@ export interface ExchangeLensDefinition {
   actions: (record?: ExchangeRecord) => LensAction[];
 }
 
+export interface ExchangeFilters {
+  geography?: string;
+  relationship: RecordRelationshipFilter;
+  mappedOnly: boolean;
+  featuredOnly: boolean;
+  metadata: string[];
+}
+
+export interface ExchangeMapState {
+  displayMode: MapDisplayMode;
+  geolocationStatus: GeolocationStatus;
+  viewerLocation?: Coordinates;
+  viewportDirty: boolean;
+  resetKey: number;
+}
+
 export interface ExchangeViewState {
   lens: ExchangeLens;
   search: string;
+  filtersByLens: Record<ExchangeLens, ExchangeFilters>;
   drawer: DrawerState;
   selectedRecordId?: string;
   detailRecordId?: string;
   menuOpen: boolean;
+  map: ExchangeMapState;
 }
