@@ -12,11 +12,7 @@ type ActionSpec = {
 };
 
 const unavailable = {
-  rfxCreate: "RFx creation is unavailable until the production RFx command service is connected.",
-  rfxManage: "RFx lifecycle management is unavailable until the production RFx command service is connected.",
-  rfxRespond: "Response/submission is unavailable until the production RFx response command service is connected.",
   compare: "Comparison requires the governed intelligence/matching service; fixture comparisons are not used in production.",
-  capabilityWrite: "Capability writes require the production capability/evidence service; the reference workflow is not used in production.",
   amacs: "AMACS/AI mapping is unavailable until the governed AMACS service is configured.",
   matching: "Matching is unavailable until the governed AMACS/matching service is configured.",
 } as const;
@@ -24,14 +20,14 @@ const unavailable = {
 const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }> = {
   rfx: {
     own: [
-      { id: "create-rfx", label: "Create RFx", icon: "+", trigger: "modal", operational: false, unavailableReason: unavailable.rfxCreate },
-      { id: "manage-rfx", label: "Manage", icon: "✎", trigger: "menu", operational: false, unavailableReason: unavailable.rfxManage, requiresRecord: true },
+      { id: "create-rfx", label: "Create RFx", icon: "+", trigger: "modal" },
+      { id: "manage-rfx", label: "Manage", icon: "✎", trigger: "menu", requiresRecord: true },
       { id: "invite-team", label: "Invite Team", icon: "◎", trigger: "workflow", requiresRecord: true },
       { id: "watch", label: "Watch", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
     ],
     other: [
       { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true },
-      { id: "respond", label: "Respond", icon: "↵", trigger: "modal", operational: false, unavailableReason: unavailable.rfxRespond, requiresRecord: true },
+      { id: "respond", label: "Respond", icon: "↵", trigger: "modal", requiresRecord: true },
       { id: "team", label: "Team", icon: "◎", trigger: "workflow", requiresRecord: true },
       { id: "watch", label: "Watch", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
     ],
@@ -66,9 +62,9 @@ const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }>
   },
   capabilities: {
     own: [
-      { id: "manage-capabilities", label: "Manage Capabilities", icon: "✎", trigger: "workflow", operational: false, unavailableReason: unavailable.capabilityWrite, requiresRecord: true },
+      { id: "manage-capabilities", label: "Manage Capabilities", icon: "✎", trigger: "detail", requiresRecord: true },
       { id: "ai-amacs", label: "AI → AMACS", icon: "✦", trigger: "workflow", operational: false, unavailableReason: unavailable.amacs, requiresRecord: true },
-      { id: "capability-evidence", label: "Add / Edit Evidence", icon: "✓", trigger: "workflow", operational: false, unavailableReason: unavailable.capabilityWrite, requiresRecord: true },
+      { id: "capability-evidence", label: "Add / Edit Evidence", icon: "✓", trigger: "detail", requiresRecord: true },
       { id: "capability-gaps", label: "Capability Gaps", icon: "▥", trigger: "workflow", operational: false, unavailableReason: unavailable.matching, requiresRecord: true },
     ],
     other: [
@@ -92,7 +88,7 @@ function authorizedFor(spec: ActionSpec, record?: ExchangeRecord) {
   if (spec.id === "follow" || spec.id === "follow-track") return access.canFollow || access.canTrack;
   if (spec.id === "refer") return access.canRefer;
   if (spec.id === "respond") return access.canRespond;
-  if (["manage-rfx", "invite-team", "edit-resource", "archive-resource", "manage-capabilities", "ai-amacs", "capability-evidence", "capability-gaps", "edit-insight"].includes(spec.id)) return access.canManage;
+  if (["create-rfx", "manage-rfx", "invite-team", "offer-resource", "edit-resource", "archive-resource", "add-insight", "manage-capabilities", "ai-amacs", "capability-evidence", "capability-gaps", "edit-insight"].includes(spec.id)) return access.canManage;
   if (["team", "request-resource", "add-note"].includes(spec.id)) return Boolean(access.canSave || access.canRespond || access.canRefer);
   return true;
 }
