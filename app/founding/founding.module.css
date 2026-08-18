@@ -1,0 +1,293 @@
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 84% 10%, rgba(214, 162, 58, 0.18), transparent 30rem),
+    radial-gradient(circle at 10% 42%, rgba(46, 94, 170, 0.08), transparent 26rem),
+    var(--warm-ivory);
+}
+
+.content {
+  width: min(1180px, calc(100% - 40px));
+  margin: 0 auto;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.55fr);
+  align-items: center;
+  gap: clamp(34px, 7vw, 92px);
+  padding: clamp(70px, 10vw, 126px) 0 76px;
+}
+
+.heroCopy h1 {
+  max-width: 850px;
+  margin: 10px 0 0;
+  color: #112f59;
+  font-size: clamp(46px, 7vw, 86px);
+  line-height: 0.96;
+  letter-spacing: -0.06em;
+}
+
+.lede {
+  max-width: 720px;
+  margin: 26px 0 0;
+  color: #565d68;
+  font-size: clamp(17px, 2vw, 20px);
+  line-height: 1.6;
+}
+
+.priceCard {
+  padding: 28px;
+  border: 1px solid rgba(20, 54, 102, 0.15);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 20px 54px rgba(11, 11, 13, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.planName {
+  margin: 0;
+  color: #85601b;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.price {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 14px 0 8px;
+}
+
+.price strong {
+  font-size: 54px;
+  line-height: 1;
+  letter-spacing: -0.055em;
+}
+
+.price span {
+  padding-bottom: 7px;
+  color: #666b73;
+  font-weight: 700;
+}
+
+.planDescription,
+.sectionHeader p,
+.card p,
+.pathCard p,
+.stepCard p,
+.faqCard p {
+  color: #626771;
+  line-height: 1.55;
+}
+
+.planDescription { margin: 0 0 20px; }
+
+.facts {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 24px;
+  padding: 0;
+  list-style: none;
+}
+
+.facts li {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 9px;
+  align-items: start;
+  color: #3f444c;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.facts li::before {
+  content: "✓";
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(59, 123, 87, 0.12);
+  color: var(--growth-green);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.primaryAction,
+.secondaryAction {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  border-radius: 14px;
+  font-weight: 820;
+  text-decoration: none;
+}
+
+.primaryAction {
+  width: 100%;
+  border: 1px solid var(--exchange-black);
+  background: var(--exchange-black);
+  color: var(--warm-ivory);
+}
+
+.secondaryAction {
+  border: 1px solid rgba(20, 54, 102, 0.2);
+  background: rgba(255, 255, 255, 0.62);
+  color: #143666;
+}
+
+.textAction {
+  display: block;
+  margin-top: 12px;
+  color: #555b64;
+  font-size: 13px;
+  font-weight: 760;
+  text-align: center;
+}
+
+.section {
+  padding: 74px 0;
+  border-top: 1px solid var(--border);
+}
+
+.sectionHeader {
+  max-width: 780px;
+  margin-bottom: 34px;
+}
+
+.sectionHeader h2 {
+  margin: 0;
+  color: #112f59;
+  font-size: clamp(34px, 5vw, 58px);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.sectionHeader p { margin: 16px 0 0; font-size: 17px; }
+
+.gridFour,
+.paths,
+.creditLayout,
+.faqGrid,
+.steps {
+  display: grid;
+  gap: 14px;
+}
+
+.gridFour { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.paths, .faqGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.creditLayout { grid-template-columns: 1.1fr 0.9fr; }
+.steps { grid-template-columns: repeat(5, minmax(0, 1fr)); counter-reset: membership-step; }
+
+.card,
+.pathCard,
+.creditCard,
+.stepCard,
+.faqCard {
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.card,
+.stepCard,
+.faqCard { padding: 22px; }
+.pathCard, .creditCard { padding: 28px; }
+.card strong, .stepCard strong, .faqCard strong { display: block; margin-bottom: 8px; font-size: 16px; }
+.card p, .stepCard p, .faqCard p { margin: 0; }
+
+.pathCard h3 {
+  margin: 0 0 10px;
+  color: #112f59;
+  font-size: 26px;
+  letter-spacing: -0.035em;
+}
+
+.pathCard p { margin: 0 0 22px; }
+
+.pathFeatured {
+  border-color: rgba(214, 162, 58, 0.5);
+  background: rgba(255, 249, 232, 0.72);
+}
+
+.creditMetric {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 8px 0 14px;
+}
+
+.creditMetric strong { font-size: 44px; letter-spacing: -0.05em; }
+.creditMetric span { color: #626771; font-weight: 700; }
+
+.stepCard {
+  min-height: 185px;
+  counter-increment: membership-step;
+}
+
+.stepCard::before {
+  content: counter(membership-step);
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 22px;
+  border-radius: 50%;
+  background: #143666;
+  color: white;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.integrationBand {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  margin: 72px 0;
+  padding: clamp(28px, 5vw, 52px);
+  border-radius: 30px;
+  background: var(--exchange-black);
+  color: var(--warm-ivory);
+}
+
+.integrationBand h2 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 54px);
+  letter-spacing: -0.05em;
+}
+
+.integrationBand p {
+  max-width: 680px;
+  margin: 12px 0 0;
+  color: rgba(247, 243, 234, 0.72);
+  line-height: 1.55;
+}
+
+.integrationActions { display: flex; gap: 10px; }
+.integrationActions .primaryAction { width: auto; background: var(--warm-ivory); color: var(--exchange-black); border-color: var(--warm-ivory); }
+.integrationActions .secondaryAction { color: var(--warm-ivory); border-color: rgba(247, 243, 234, 0.3); background: transparent; }
+
+@media (max-width: 980px) {
+  .hero,
+  .creditLayout { grid-template-columns: 1fr; }
+  .gridFour { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .priceCard { max-width: 620px; }
+}
+
+@media (max-width: 680px) {
+  .content { width: min(100% - 28px, 1180px); }
+  .hero { padding: 56px 0 52px; }
+  .section { padding: 54px 0; }
+  .gridFour, .paths, .steps, .faqGrid { grid-template-columns: 1fr; }
+  .stepCard { min-height: 0; }
+  .integrationBand { grid-template-columns: 1fr; }
+  .integrationActions { flex-direction: column; }
+  .integrationActions .primaryAction { width: 100%; }
+}
