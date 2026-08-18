@@ -14,6 +14,17 @@ function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function safeHttpUrl(value: unknown) {
+  const candidate = text(value);
+  if (!candidate) return undefined;
+  try {
+    const url = new URL(candidate);
+    return url.protocol === "http:" || url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function insightInput(value: unknown): IntelligenceInsightInput | undefined {
   if (!value || typeof value !== "object") return undefined;
   const body = value as Record<string, unknown>;
@@ -23,7 +34,8 @@ function insightInput(value: unknown): IntelligenceInsightInput | undefined {
   const signalType = text(body.signalType);
   const sourceLabel = text(body.sourceLabel);
   const sourceType = text(body.sourceType) as IntelligenceSourceType;
-  if (!title || !summary || !geography || !signalType || !sourceLabel || !sourceTypes.has(sourceType)) return undefined;
+  const sourceUri = safeHttpUrl(body.sourceUri);
+  if (sourceUri === null || !title || !summary || !geography || !signalType || !sourceLabel || !sourceTypes.has(sourceType)) return undefined;
   return {
     title,
     summary,
@@ -33,7 +45,7 @@ function insightInput(value: unknown): IntelligenceInsightInput | undefined {
     sourceType,
     observedFrom: text(body.observedFrom) || undefined,
     observedTo: text(body.observedTo) || undefined,
-    sourceUri: text(body.sourceUri) || undefined,
+    sourceUri,
     locationId: text(body.locationId) || undefined,
   };
 }
@@ -82,7 +94,7 @@ export async function POST(request: NextRequest) {
   try {
     const actor = await requireExchangeActor(request);
     const input = insightInput(await request.json());
-    if (!input) return NextResponse.json({ error: "A title, observation, geography, signal type, source label, and valid source type are required." }, { status: 400 });
+    if (!input) return NextResponse.json({ error: "A title, observation, geography, signal type, source label, valid source type, and HTTP(S) source URL when supplied are required." }, { status: 400 });
     const detail = await createIntelligence(actor, input);
     return NextResponse.json(detail, { status: 201 });
   } catch (error) {
