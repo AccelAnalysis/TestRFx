@@ -36,6 +36,7 @@ type ResultRow = {
   resource_terms: unknown;
   resource_archived_at: string | null;
   relationship_kinds: string[] | null;
+  sponsored: boolean;
   total_count: number;
   mapped_count: number;
 };
@@ -72,6 +73,7 @@ function resourceProjection(row: ResultRow): ResourceProjection | undefined {
     visibility: allowedVisibility,
     terms,
     status: row.resource_archived_at ? "archived" : "active",
+    sponsored: row.sponsored,
   };
 }
 
@@ -92,7 +94,7 @@ function cardProjection(row: ResultRow, metadata: string[], ownedByViewer: boole
     classifications: metadata.slice(0, 3),
     status: { label: row.status, tone: row.status === "active" || row.status === "open" ? "success" : "neutral" },
     relationships: relationshipStates(row, ownedByViewer),
-    placement: "organic",
+    placement: row.sponsored ? "sponsored" : "organic",
   };
 }
 
@@ -193,6 +195,7 @@ export async function listExchangeRecords(input: {
            r.category AS resource_category, r.availability AS resource_availability, r.capacity AS resource_capacity,
            r.visibility AS resource_visibility, r.terms AS resource_terms, r.archived_at AS resource_archived_at,
            ${relationshipSelect},
+           (sponsor.exchange_record_id IS NOT NULL) AS sponsored,
            COUNT(*) OVER()::int AS total_count,
            COUNT(*) FILTER (WHERE l.point IS NOT NULL) OVER()::int AS mapped_count
       FROM exchange_records er
@@ -200,6 +203,16 @@ export async function listExchangeRecords(input: {
       LEFT JOIN locations l ON l.id = er.location_id
       LEFT JOIN resources r ON r.exchange_record_id = er.id
       ${relationshipJoin}
+      LEFT JOIN LATERAL (
+        SELECT sp.exchange_record_id
+          FROM sponsored_placements sp
+         WHERE sp.exchange_record_id = er.id
+           AND sp.status = 'active'
+           AND sp.starts_at <= now()
+           AND sp.ends_at > now()
+         ORDER BY sp.placement_rank DESC, sp.starts_at DESC
+         LIMIT 1
+      ) sponsor ON TRUE
      WHERE ${where.join(" AND ")}
      ORDER BY ${orderBy}
      LIMIT ${limitParam} OFFSET ${offsetParam}`;
