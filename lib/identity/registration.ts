@@ -11,7 +11,10 @@ export type RegistrationEntryContext = {
   entryKind: RegistrationEntryKind;
   returnTo?: string;
   source?: string;
+  medium?: string;
   campaign?: string;
+  content?: string;
+  partner?: string;
   referral?: string;
   invitation?: string;
   organization?: string;
@@ -60,7 +63,19 @@ const supportedKinds = new Set<RegistrationEntryKind>([
 ]);
 const authEntryPaths = new Set(["/auth", "/signin", "/join", "/login", "/register"]);
 const internalOrigin = "https://rfxchange.invalid";
-const contextKeys = ["source", "campaign", "referral", "invitation", "organization", "membership", "geography", "record"] as const;
+const contextKeys = [
+  "source",
+  "medium",
+  "campaign",
+  "content",
+  "partner",
+  "referral",
+  "invitation",
+  "organization",
+  "membership",
+  "geography",
+  "record",
+] as const;
 
 function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -91,7 +106,7 @@ function normalizedKind(value: unknown): RegistrationEntryKind {
 function deriveEntryKind(context: Omit<RegistrationEntryContext, "entryKind">, requestedKind?: unknown): RegistrationEntryKind {
   if (context.invitation) return "partner_invitation";
   if (context.referral) return "referral";
-  if (context.campaign) return "campaign";
+  if (context.campaign || context.partner) return "campaign";
   const explicit = normalizedKind(requestedKind);
   if (explicit !== "direct") return explicit;
   return context.source === "marketing" ? "marketing" : "direct";
@@ -100,14 +115,17 @@ function deriveEntryKind(context: Omit<RegistrationEntryContext, "entryKind">, r
 export function registrationContextFromSearchParams(params: SearchParamsLike): RegistrationEntryContext {
   const context = {
     returnTo: safeReturnTo(single(params.returnTo)),
-    source: clean(single(params.source)) || undefined,
-    campaign: clean(single(params.campaign)) || undefined,
-    referral: clean(single(params.referral)) || undefined,
+    source: clean(single(params.utm_source) ?? single(params.source)) || undefined,
+    medium: clean(single(params.utm_medium) ?? single(params.medium)) || undefined,
+    campaign: clean(single(params.campaign) ?? single(params.utm_campaign)) || undefined,
+    content: clean(single(params.utm_content) ?? single(params.content)) || undefined,
+    partner: clean(single(params.partner)) || undefined,
+    referral: clean(single(params.referral) ?? single(params.ref)) || undefined,
     invitation: clean(single(params.invitation) ?? single(params.invite), 500) || undefined,
     organization: clean(single(params.organization)) || undefined,
     membership: clean(single(params.membership)) || undefined,
     geography: clean(single(params.geography)) || undefined,
-    record: clean(single(params.record)) || undefined,
+    record: clean(single(params.record) ?? single(params.opportunity)) || undefined,
   };
 
   return {
@@ -126,7 +144,10 @@ function sanitizeContext(value: unknown): RegistrationEntryContext {
   const context = {
     returnTo: safeReturnTo(value.returnTo),
     source: clean(value.source) || undefined,
+    medium: clean(value.medium) || undefined,
     campaign: clean(value.campaign) || undefined,
+    content: clean(value.content) || undefined,
+    partner: clean(value.partner) || undefined,
     referral: clean(value.referral) || undefined,
     invitation: clean(value.invitation, 500) || undefined,
     organization: clean(value.organization) || undefined,
