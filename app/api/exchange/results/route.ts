@@ -12,11 +12,12 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    const actor = await resolveExchangeActor(request);
+    if (!actor) return NextResponse.json({ error: "Authentication and an active organization are required." }, { status: 401 });
     const lensParam = request.nextUrl.searchParams.get("lens") ?? "rfx";
     if (!lenses.has(lensParam as ExchangeLens)) return NextResponse.json({ error: "Unsupported lens" }, { status: 400 });
     const lens = lensParam as ExchangeLens;
     const state = searchStateFromParams(request.nextUrl.searchParams);
-    const actor = await resolveExchangeActor(request);
     const repositoryRecords = await listExchangeRecords({ lens, query: state.query, limit: 1000 }, actor);
     const response = searchExchangeRecords(repositoryRecords, lens, state);
     const records = response.results.map((result) => result.record);
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
       matches: response.results.map((result) => ({ id: result.record.id, ...result.match })),
       summary: { total: response.total, mapped: response.mapped, offMap: response.offMap },
       actions: lensDefinitions[lens].actions(records[0]),
-      authenticated: Boolean(actor),
+      authenticated: true,
     });
   } catch (error) {
     if (error instanceof DatabaseUnavailableError) return NextResponse.json({ error: error.message, state: "unavailable" }, { status: 503 });
