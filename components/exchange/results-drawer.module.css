@@ -1,0 +1,248 @@
+.drawer {
+  position: absolute;
+  z-index: 15;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 24px 24px 0 0;
+  background: var(--surface-strong);
+  box-shadow: 0 -12px 36px rgba(11, 11, 13, .14);
+  backdrop-filter: blur(22px) saturate(118%);
+  transition: height .25s ease;
+}
+
+.peek { height: 124px; }
+.mid { height: min(56vh, 520px); }
+.expanded { height: calc(100dvh - var(--nav-height) - env(safe-area-inset-bottom) - 76px); }
+
+.grabber {
+  flex: 0 0 24px;
+  border: 0;
+  background: transparent;
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.grabber span {
+  display: block;
+  width: 42px;
+  height: 5px;
+  margin: 7px auto 0;
+  border-radius: 999px;
+  background: rgba(37, 41, 50, .25);
+}
+
+.grabber:focus-visible,
+.filterButton:focus-visible,
+.sortControl select:focus-visible,
+.filterPanel select:focus-visible,
+.clearFilters:focus-visible,
+.stateMessage button:focus-visible {
+  outline: 3px solid rgba(46, 94, 170, .28);
+  outline-offset: 2px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px 10px 16px;
+}
+
+.headingBlock { min-width: 0; }
+.eyebrow {
+  margin: 0 0 4px;
+  color: #745312;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.resultContext {
+  margin: 3px 0 0;
+  color: #6b7078;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sortControl select,
+.filterButton {
+  min-height: 36px;
+  max-width: 145px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: white;
+  color: var(--graphite);
+  font-size: 11px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.sortControl select { width: 122px; }
+.filterButtonActive {
+  border-color: rgba(214, 162, 58, .7);
+  background: rgba(214, 162, 58, .12);
+}
+
+.filterPanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+  padding: 12px 14px;
+  border-block: 1px solid var(--border);
+  background: rgba(247, 243, 234, .78);
+}
+
+.filterPanel > label:not(.checkControl) {
+  display: grid;
+  gap: 5px;
+  color: #555a63;
+  font-size: 10px;
+  font-weight: 780;
+}
+
+.filterPanel select {
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--graphite);
+}
+
+.checkControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: #4f555e;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.checkControl input { width: 16px; height: 16px; accent-color: var(--signal-blue); }
+.clearFilters {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  font-size: 11px;
+  font-weight: 740;
+  cursor: pointer;
+}
+.clearFilters:disabled { opacity: .45; cursor: not-allowed; }
+
+.drawer :global(.action-rail) { padding-top: 10px; }
+
+.list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 12px calc(18px + env(safe-area-inset-bottom));
+  scroll-padding: 8px;
+  scrollbar-gutter: stable;
+}
+
+.stateMessage {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 32px 20px;
+  text-align: center;
+  color: #626771;
+}
+.stateMessage strong { color: var(--graphite); }
+.stateMessage p { margin: 0; max-width: 310px; line-height: 1.45; }
+.stateMessage button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: white;
+  font-weight: 730;
+  cursor: pointer;
+}
+
+.skeletonStack { display: grid; gap: 10px; }
+.skeletonCard {
+  height: 124px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: linear-gradient(100deg, #f0efea 20%, #faf9f6 42%, #f0efea 64%);
+  background-size: 220% 100%;
+  animation: drawer-shimmer 1.25s linear infinite;
+}
+
+.loadSentinel,
+.endOfResults {
+  min-height: 44px;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  color: #737780;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.peek .filterPanel,
+.peek .list,
+.peek :global(.action-rail) { display: none; }
+
+@keyframes drawer-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+@media (min-width: 900px) {
+  .drawer {
+    left: auto;
+    right: 14px;
+    top: 14px;
+    bottom: calc(var(--nav-height) + 14px);
+    width: min(38vw, 520px);
+    height: auto !important;
+    border: 1px solid rgba(255, 255, 255, .7);
+    border-radius: 24px;
+  }
+
+  .grabber { display: none; }
+  .header { padding-top: 16px; }
+  .peek .filterPanel { display: grid; }
+  .peek .list { display: block; }
+  .peek :global(.action-rail) { display: grid; }
+}
+
+@media (max-width: 520px) {
+  .header { align-items: flex-start; }
+  .headerActions { gap: 5px; }
+  .sortControl select { width: 92px; padding-inline: 7px; }
+  .filterButton { padding-inline: 8px; }
+  .filterPanel { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer { transition-duration: .001ms; }
+  .skeletonCard { animation: none; }
+}
