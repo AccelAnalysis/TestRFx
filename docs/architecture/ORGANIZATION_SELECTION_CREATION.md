@@ -2,197 +2,316 @@
 
 ## Purpose
 
-`Identity & Onboarding Shell → Organization Selection / Creation` resolves the verified user to one canonical RFxchange organization identity before geography, profile, capability, and Exchange-ready steps begin.
+`Identity & Onboarding Shell → Organization Selection / Creation` resolves a verified RFxchange user to one canonical organization and establishes the user-to-organization membership/authority context required before Geography, Organization Profile, Capability Enrichment, and Exchange-ready completion.
 
-The subsystem deliberately answers two questions and stops there:
-
-1. Which organization should this user operate through?
-2. Does that organization already exist in RFxchange, or must a canonical organization identity be created?
-
-It must not become a second Organization Profile editor, capability editor, geography workflow, membership paywall, or authenticated Exchange surface.
+This module does **not** duplicate the downstream Geography or Organization Profile forms. It establishes organization identity, affiliation, authority, membership, and resolution state; downstream modules enrich the same canonical organization.
 
 ## Chassis boundary
 
-This module runs inside the Identity & Onboarding shell. It does not mount the persistent Exchange map, drawer, action rail, record cards, or RFx / Resources / Intelligence / Capabilities navigation.
+This workflow remains inside the Identity & Onboarding shell. It does not mount or recreate the authenticated Exchange map, sliding drawer, action rail, cards, or lens navigation.
 
-The current reference route is:
-
-```text
-/onboarding/organization
-```
-
-Successful resolution hands off to the next onboarding boundary:
+The addressable workflow root is:
 
 ```text
-/onboarding?step=geography
+/onboarding/organization?step=<workflow-step>
 ```
 
-A dedicated Geography implementation can replace that handoff without changing organization-resolution contracts.
-
-## User flows
+Successful organization resolution hands off to the existing Geography implementation:
 
 ```text
-Verified account
-      │
-      ▼
-Organization choice
-      │
-      ├─────────────── Find existing ───────────────┐
-      │                                             │
-      │                                     Organization search
-      │                                             │
-      │                           ┌─────────────────┴───────────────┐
-      │                           │                                 │
-      │                     Seeded/unclaimed                  Claimed/verified
-      │                           │                                 │
-      │                     Claim organization                 Request access
-      │                           │                                 │
-      └───────────────┬───────────┴─────────────────────────────────┘
-                      │
-                      ▼
-               Organization resolved
-                      │
-                      ▼
-                   Geography
-
-Organization choice
-      │
-      └─────────────── Create new
-                              │
-                       Minimal identity
-                              │
-                       Duplicate check
-                              │
-                  ┌───────────┴───────────┐
-                  │                       │
-            Possible match           No match
-                  │                       │
-          Existing-org review       Confirm creation
-                  │                       │
-                  └───────────┬───────────┘
-                              ▼
-                      Organization resolved
+/onboarding/geography?organizationId=<id>&organizationName=<name>
 ```
 
-## Canonical concepts
+The subsequent existing routes remain:
 
-### Organization Account
+```text
+/onboarding/organization-profile
+/onboarding/capabilities
+/onboarding/completion
+```
 
-Administrative tenant identity. Production persistence should own lifecycle, claims, authority state, restrictions, commercial linkage, and the active organization context.
+## Source-derived hierarchical workflow tree
 
-### Organization Profile
+The implementation represents the source Registration and Onboarding flows as a real hierarchy rather than one transient form:
 
-Exchange-facing representation of the same canonical organization. This module initializes only the minimum identity required to continue; detailed profile enrichment belongs to the later Organization Profile stage.
+```text
+Organization Selection / Creation
+│
+├── Welcome / role selection
+│
+├── Organization affiliation
+│   │
+│   ├── Find / join existing
+│   │   ├── Search organizations
+│   │   ├── Review organization
+│   │   ├── Claim & authority
+│   │   ├── Platform claim review
+│   │   ├── Request access
+│   │   ├── Existing-admin approval
+│   │   └── Invitation validation & acceptance
+│   │
+│   └── Create new organization
+│       ├── Organization identity
+│       ├── Duplicate / conflict resolution
+│       ├── Authority confirmation
+│       └── Create & establish membership
+│
+└── Status & completion
+    ├── Pending approval / review
+    └── Organization connected
+```
 
-### Organization Membership
+Each navigable child/grandchild is represented by an explicit `OrganizationStep` and URL state. Prerequisite-dependent items remain disabled in the hierarchy until their required organization, invitation, request, claim, or create-state context exists.
 
-The user-to-organization relationship. Creation may establish the creator as an active initial administrator subject to production policy. Existing claimed organizations should normally create a pending access request rather than silently grant authority.
+## Source coverage
 
-### Claim / authority state
+### Onboarding source
 
-A seeded organization can be selected without creating another tenant. Claiming should preserve the canonical organization ID and move authority through domain validation, administrator approval, authoritative evidence, documentation, or manual review as production services require.
+The source-specific **Referral / Invitation** branch is implemented end-to-end:
 
-Organization authority and public `Verified` trust status are separate concepts.
+```text
+Invitation entry
+  → validate invitation
+  → verify invited email matches the verified account
+  → display organization + assigned role
+  → accept invitation
+  → consume one-time invitation
+  → create organization membership
+  → confirm role/access
+  → Geography
+```
 
-## Duplicate/entity resolution
+The source **Welcome / Role Selection** behavior is represented as governed role context:
 
-Before a new organization is committed, the production entity-resolution service should compare normalized identity signals including:
+- new organization creator → `Primary Administrator`;
+- existing organization join → requested role + existing-admin approval;
+- invitation → inviter-assigned role confirmed on acceptance.
 
-- legal/common organization name;
+The source Organization Setup fields are split according to the canonical platform IA:
+
+- Organization Name and Organization Type → this module;
+- Location / Geography → `/onboarding/geography`;
+- Visibility Preferences → `/onboarding/organization-profile`.
+
+### Registration source
+
+The Registration source's `Claim existing organization / Create new organization` decision is implemented directly.
+
+The source Organization Details fields remain on their existing concrete downstream route rather than being duplicated here:
+
+- Description;
+- Industry / NAICS;
+- Website/contact enrichment;
+- visibility/public presentation.
+
+The website/domain field is accepted here only as a minimum entity-resolution signal and is carried into the in-progress organization profile seed.
+
+## URL-addressable nested state
+
+The workflow uses these concrete states:
+
+```text
+welcome
+affiliation
+existing.search
+existing.review
+existing.claim
+existing.join
+invitation.review
+create.identity
+create.duplicates
+create.authority
+create.confirm
+status.pending
+status.connected
+access.review
+claim.review
+```
+
+Organization ID, invitation token, access-request ID, and claim ID are carried as bounded route context where required. Durable authoritative resolution state is server-side in PostgreSQL; browser `sessionStorage` is not used as the source of truth.
+
+## Verified onboarding session
+
+Organization mutation endpoints require the signed, HTTP-only onboarding session created after account email verification.
+
+The cookie contains bounded verified onboarding identity context and is HMAC-protected using `ONBOARDING_SESSION_SECRET` (falling back to the already-required account-verification secret when appropriate). It is `HttpOnly`, `SameSite=Lax`, scoped to the application, and secure in production.
+
+Organization search, claim, create, invitation acceptance, and approval APIs return `401 verification_required` when that verified onboarding session is absent or invalid.
+
+## Real persistence and services
+
+The previous deterministic `organizationSeed`, `createReferenceResolution`, `referenceOnly` API response, and browser `rfxchange.onboarding.organization` session-storage record have been removed from this subsystem.
+
+Production execution now targets the canonical PostgreSQL/PostGIS architecture through `DATABASE_URL` and the `postgres` client. If the database is not configured, the service returns an explicit configuration error rather than silently falling back to mock organizations.
+
+Apply:
+
+```text
+db/schema.sql
+db/identity-verification.sql
+db/organization-profile.sql
+db/organization-selection.sql
+```
+
+The organization-selection migration adds:
+
+```text
+organization_identity
+organization_aliases
+organization_invitations
+organization_join_requests
+organization_claims
+organization_onboarding_state
+platform_user_roles
+organization_memberships.status
+organization_memberships.is_primary
+```
+
+## Organization search / entity resolution
+
+`GET /api/onboarding/organizations` now searches the canonical organization repository.
+
+Entity resolution uses real stored signals supported by the current schema:
+
+- canonical organization name;
 - aliases / DBA names;
-- website and email domain;
-- address and geography;
-- phone;
-- authoritative/government identifiers when available;
-- existing claims and memberships.
+- website/primary domain;
+- first stored organization location for result context;
+- PostgreSQL trigram similarity;
+- exact domain matching.
 
-Similar names alone must not force a destructive merge. Potential conflicts should preserve both records and history until resolved by governed entity-resolution logic.
+The create transaction repeats a high-confidence duplicate check immediately before insert. The client therefore cannot bypass duplicate resolution by skipping UI steps.
 
-## Reference implementation
+## Existing organization: claim
 
-The repository currently contains a deterministic reference organization set and a normalized API boundary:
+Unclaimed organizations preserve their canonical `organization_id`.
+
+Authority paths are:
+
+### Verified organization-domain email
+
+When the verified account email domain matches the organization's stored primary domain, the claim is approved server-side, the canonical organization becomes claimed, and the user receives the Primary Administrator membership.
+
+### Administrative review
+
+When domain authority is unavailable, RFxchange creates a durable claim with an authority/evidence note. Pending/competing claims remain separate records. A user provisioned with the `platform_admin` platform role can open the claim-review deep link, compare active claims, and approve or deny the selected claim.
+
+Approving one claim:
+
+- marks the selected claim approved;
+- denies the other active competing claims for the organization;
+- preserves all claim history;
+- marks the organization claimed;
+- creates/updates the winning Primary Administrator membership;
+- updates the claimant's onboarding state;
+- clears losing claimant organization-resolution state;
+- writes an activity event.
+
+This avoids destructive organization merges.
+
+## Existing organization: join
+
+Claimed/verified organizations never grant authority simply because a user selected them.
+
+The user chooses a requested role and RFxchange persists an `organization_join_request`.
+
+An existing organization member with `Primary Administrator` role or `organization.members.manage` permission can open the access-review deep link and approve or deny the request.
+
+Approval creates/updates the real organization membership and records `admin-approved` authority state. Denial clears the requester's organization resolution so another affiliation can be chosen.
+
+## Invitation path
+
+Invitation tokens are stored only as SHA-256 hashes. The raw token remains in the invitation URL and is never persisted by the organization-selection tables.
+
+Acceptance requires:
+
+- pending invitation;
+- non-expired invitation;
+- exact match between invitation email and verified onboarding account;
+- one-primary-organization rule;
+- successful transactional membership creation.
+
+The invitation is consumed once and acceptance is audited.
+
+## Create-new path
+
+The create workflow is intentionally decomposed:
 
 ```text
-GET /api/onboarding/organizations?q=<query>&domain=<domain>
+Organization identity
+  → duplicate/entity resolution
+  → authority representation
+  → confirmation
+  → server-side duplicate recheck
+  → canonical organization transaction
 ```
 
-The UI uses that boundary for organization search and duplicate interruption. It never queries domain tables directly.
+The transaction creates:
 
-The reference completion path writes an `OrganizationResolution` object into session storage under:
+- `organizations` canonical tenant identity;
+- `organization_identity` minimum organization identity;
+- an in-progress `organization_profiles` row;
+- the creator's Primary Administrator `organization_membership`;
+- durable `organization_onboarding_state`;
+- an `OrganizationCreated` activity event.
+
+Detailed profile data is still completed downstream.
+
+## One-primary-organization rule
+
+The Registration source says one primary organization per account during initial onboarding, with additional organizations later.
+
+This is enforced in two places:
+
+- server-side workflow checks before organization creation, claim, or invitation acceptance;
+- a partial unique PostgreSQL index on active primary organization memberships.
+
+The client cannot override this invariant.
+
+## Audit and activity
+
+Meaningful transitions write platform activity events, including:
 
 ```text
-rfxchange.onboarding.organization
+OrganizationCreated
+OrganizationInvitationAccepted
+OrganizationAccessRequested
+OrganizationAccessApproved
+OrganizationAccessDenied
+OrganizationClaimSubmitted
+OrganizationClaimApproved
+OrganizationClaimApprovedByAdmin
+OrganizationClaimDeniedByAdmin
 ```
 
-This is intentionally **not production persistence**. It proves the client flow and the handoff contract while keeping the backend truth boundary explicit.
-
-## Production integration
-
-Replace the reference search/persistence implementation behind the existing UI contract with application services that perform:
-
-```text
-Identity session
-      │
-      ▼
-Organization Resolution Service
-      │
-      ├── Search / entity matching
-      ├── Duplicate scoring
-      ├── Invitation resolution
-      ├── Claim / authority workflow
-      └── Conflict resolution
-      │
-      ▼
-Organization Account Service
-      │
-      ├── Canonical organization
-      ├── Organization profile seed
-      └── lifecycle state
-      │
-      ▼
-Membership / Authorization Service
-      │
-      ├── user membership
-      ├── role preset
-      └── granular permissions
-      │
-      ▼
-Audit / Event Service
-```
-
-Production completion must persist server-side:
-
-- canonical `organization_id`;
-- organization account/profile linkage;
-- `organization_membership`;
-- role and permissions;
-- invitation or acquisition attribution;
-- claim and authority state;
-- duplicate/conflict decisions;
-- audit events.
+These events remain available to the shared audit/notification/analytics infrastructure.
 
 ## Truth and security rules
 
-- Never create a second organization merely because an existing seeded record is incomplete.
-- Never grant administrative authority solely because a user selected an existing organization.
-- Never treat a UI-disabled action as authorization enforcement; membership and authority decisions must be server-side.
-- Never imply that reference/session state is canonical production truth.
-- Do not require paid membership to establish a legitimate organization identity.
-- Do not collect Geography, detailed Organization Profile, AMACS capability evidence, or verification data in this bounded step.
+- Never create a second organization because an existing record is incomplete.
+- Never grant claimed-organization authority solely from a client selection.
+- Never store raw invitation tokens.
+- Never treat disabled UI as authorization; all approvals are enforced server-side.
+- Never treat administrative authority as public RFxchange `Verified` status.
+- Never use browser session storage as canonical organization truth.
+- Never fall back to deterministic fake organizations when `DATABASE_URL` is absent.
+- Do not place a payment gate before legitimate organization identity is established.
+- Do not duplicate Geography, detailed Organization Profile, visibility, or AMACS capability enrichment in this bounded module.
 
 ## Completion contract
 
-Organization Selection / Creation is complete when the platform can provide the next onboarding step with:
+Organization Selection / Creation is complete when RFxchange has real server-side values for:
 
 ```text
-user_id
+verified user identity
 organization_id
-organization_membership_id
-organization_name
-organization_type
+organization membership
+role / permissions
+resolution mode
 claim / authority state
-invitation / acquisition context (when present)
-onboarding session / progress state
+invitation / acquisition context when applicable
+durable onboarding progress
+audit event(s)
 ```
 
-The current reference implementation proves the user-facing state machine and normalized organization-search boundary. Production identity, persistence, invitation validation, authorization, and audit services remain explicit downstream integrations.
+The immediate handoff is the existing Geography route, continuing enrichment against the same canonical organization.
