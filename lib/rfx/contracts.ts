@@ -1,4 +1,4 @@
-export type RfxType = "RFI" | "RFQ" | "RFP" | "Sources Sought" | "Supplier Request" | "Service Request";
+export type RfxType = "RFI" | "RFQ" | "RFP" | "Sources Sought" | "Supplier Request" | "Subcontractor Request" | "Service Request" | "Product Request" | "Partner Request";
 export type RfxSource = "rfxchange" | "external";
 export type RfxStatus =
   | "draft"
