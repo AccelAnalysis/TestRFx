@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MembershipCheckoutButton } from "@/components/membership/MembershipCheckoutButton";
 import { formatUsdCents, foundingMembership } from "@/lib/membership/catalog";
 import { normalizeMembershipSelection } from "@/lib/membership/contracts";
 import styles from "./membership.module.css";
@@ -15,6 +16,7 @@ export default async function MembershipSelectionPage({ searchParams }: { search
   const selection = normalizeMembershipSelection(query.membership) ?? "founding";
   const plan = foundingMembership;
   const price = formatUsdCents(plan.price.cents);
+  const checkoutCancelled = query.checkout === "cancelled";
 
   return (
     <main className="identity-shell onboarding-shell">
@@ -22,7 +24,7 @@ export default async function MembershipSelectionPage({ searchParams }: { search
         <p className="eyebrow">Membership selection</p>
         <h1>Confirm the organization membership path</h1>
         <p className="muted">
-          The Public shell selected {selection === "founding" ? "Founding Membership" : "a membership plan"}. Production checkout must resolve the authenticated active organization before creating a subscription.
+          The Public shell selected {selection === "founding" ? "Founding Membership" : "a membership plan"}. Checkout resolves the authenticated active organization before Stripe creates a subscription.
         </p>
 
         <div className={styles.summary}>
@@ -36,15 +38,16 @@ export default async function MembershipSelectionPage({ searchParams }: { search
           <div className={styles.details}>
             <div className={styles.detail}><strong>Owner</strong><span>Organization-level membership</span></div>
             <div className={styles.detail}><strong>Capacity</strong><span>First {plan.capacity.limit} organizations</span></div>
-            <div className={styles.detail}><strong>Activation</strong><span>After verified payment confirmation</span></div>
+            <div className={styles.detail}><strong>Activation</strong><span>After verified Stripe confirmation</span></div>
           </div>
         </div>
 
         <div className={styles.integrationNote}>
-          <strong>Stripe checkout integration point.</strong> The pricing/membership slice intentionally stops here until authenticated organization context, live capacity reservation, billing authorization, and Stripe-backed subscription creation are connected. The UI does not locally unlock Exchange access from an unverified payment state.
+          <strong>Stripe-hosted subscription checkout.</strong> RFxchange resolves the active organization from the authenticated session, validates the configured Founding Price, enforces the 250-organization subscription cap from Stripe subscription data, and sends payment to Stripe-hosted Checkout. Exchange entitlement is finalized only from signed Stripe webhook events.
         </div>
 
-        <button className={styles.disabledButton} type="button" disabled aria-disabled="true">Continue to secure checkout — integration pending</button>
+        {checkoutCancelled ? <p className={styles.checkoutStatus}>Checkout was canceled. No membership change was made.</p> : null}
+        <MembershipCheckoutButton />
         <Link className={styles.backLink} href="/founding">Back to Founding Membership</Link>
       </section>
     </main>
