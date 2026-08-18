@@ -1,14 +1,13 @@
 "use client";
 
 import { useMemo, useRef, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import type { DrawerState, ExchangeLens, ExchangeRecord, MapCamera, MapViewState } from "@/lib/exchange/contracts";
+import type { Coordinates, DrawerState, ExchangeLens, ExchangeRecord, MapCamera, MapViewState } from "@/lib/exchange/contracts";
 import {
   buildMarkerGroups,
   lensMapPresentations,
   panMapCamera,
   projectCoordinate,
   summarizeMapRecords,
-  toggleMapDisplayMode,
   zoomMapCamera,
 } from "@/lib/exchange/map-model";
 import styles from "./persistent-map.module.css";
@@ -37,6 +36,7 @@ export function PersistentMap({
   selectedRecordId,
   drawerState,
   view,
+  viewerLocation,
   onViewChange,
   onSelect,
 }: {
@@ -45,6 +45,7 @@ export function PersistentMap({
   selectedRecordId?: string;
   drawerState: DrawerState;
   view: MapViewState;
+  viewerLocation?: Coordinates;
   onViewChange: (view: MapViewState) => void;
   onSelect: (id: string) => void;
 }) {
@@ -52,13 +53,11 @@ export function PersistentMap({
   const dragRef = useRef<{ x: number; y: number; camera: MapCamera } | null>(null);
   const presentation = lensMapPresentations[lens];
   const summary = useMemo(() => summarizeMapRecords(records), [records]);
-  const groups = useMemo(
-    () => buildMarkerGroups(records, view.camera, selectedRecordId),
-    [records, selectedRecordId, view.camera],
-  );
+  const groups = useMemo(() => buildMarkerGroups(records, view.camera, selectedRecordId), [records, selectedRecordId, view.camera]);
   const densityRecords = presentation.overlay === "heat" || presentation.overlay === "density"
-    ? records.filter((record): record is ExchangeRecord & { location: { lat: number; lng: number } } => Boolean(record.location))
+    ? records.filter((record): record is ExchangeRecord & { location: Coordinates } => Boolean(record.location))
     : [];
+  const viewerPoint = viewerLocation ? projectCoordinate(viewerLocation, view.camera) : undefined;
 
   function updateCamera(camera: MapCamera) {
     onViewChange({ ...view, camera });
@@ -73,13 +72,7 @@ export function PersistentMap({
   function movePan(event: ReactPointerEvent<HTMLDivElement>) {
     if (!dragRef.current || !surfaceRef.current) return;
     const rect = surfaceRef.current.getBoundingClientRect();
-    updateCamera(panMapCamera(
-      dragRef.current.camera,
-      event.clientX - dragRef.current.x,
-      event.clientY - dragRef.current.y,
-      rect.width,
-      rect.height,
-    ));
+    updateCamera(panMapCamera(dragRef.current.camera, event.clientX - dragRef.current.x, event.clientY - dragRef.current.y, rect.width, rect.height));
   }
 
   function endPan() {
@@ -163,9 +156,7 @@ export function PersistentMap({
               onClick={() => updateCamera({ ...zoomMapCamera(view.camera, 1.4), center: group.coordinate })}
               aria-label={`Zoom to ${group.records.length} ${presentation.shortLabel} results`}
               title={`${group.records.length} results`}
-            >
-              {group.records.length}
-            </button>
+            >{group.records.length}</button>
           );
         }
         const record = group.records[0];
@@ -181,11 +172,15 @@ export function PersistentMap({
             aria-pressed={selected}
             aria-label={`Select ${record.title}`}
             title={record.title}
-          >
-            <span>{record.ownedByViewer ? "◆" : "●"}</span>
-          </button>
+          ><span>{record.ownedByViewer ? "◆" : "●"}</span></button>
         );
       })}
+
+      {viewerPoint?.visible ? (
+        <div className={`${styles.marker} ${styles.markerRfx}`} style={positionStyle(viewerPoint)} role="img" aria-label="Your current location" title="Your current location">
+          <span>•</span>
+        </div>
+      ) : null}
 
       <div className={styles.status} aria-live="polite">
         <span className={`${styles.lensDot} ${markerClass(lens)}`} aria-hidden />
@@ -197,10 +192,9 @@ export function PersistentMap({
         <strong>{view.geography.label}</strong>
       </div>
 
-      <div className={styles.tools} aria-label="Map controls">
+      <div className={styles.tools} aria-label="Map zoom controls">
         <button type="button" onClick={() => updateCamera(zoomMapCamera(view.camera, 0.75))} aria-label="Zoom in">+</button>
         <button type="button" onClick={() => updateCamera(zoomMapCamera(view.camera, -0.75))} aria-label="Zoom out">−</button>
-        <button type="button" onClick={() => updateCamera(toggleMapDisplayMode(view.camera))} aria-label={`Switch to ${view.camera.mode === "2d" ? "3D" : "2D"} map`}>{view.camera.mode === "2d" ? "3D" : "2D"}</button>
       </div>
 
       <div className={styles.legend} aria-hidden>

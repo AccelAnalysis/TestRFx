@@ -30,14 +30,11 @@ The shell never imports lens-specific workflow implementation. A lens supplies d
 - `ExchangeRecord` is the normalized projection consumed by map, card, selection, and detail primitives.
 - `LensAction` owns one of four governed action positions and explicitly exposes visibility, applicability, authorization, operational readiness, and an unavailable reason.
 - `DrawerState` is `peek | mid | expanded`.
-- `MapViewState` gives the shell one provider-neutral camera/geography contract for the mounted Persistent Map.
 - Menu is intentionally outside `ExchangeLens`.
 
 ## State continuity
 
-Opening record detail overlays the still-mounted Exchange shell. Closing it returns to the same lens, search query, selected marker/card, drawer state, list scroll position, and map camera. Menu behaves the same way. Lens changes retain the shared map camera/geography context while replacing the active lens projection.
-
-The Persistent Map contract and provider boundary are documented in [`PERSISTENT_MAP.md`](PERSISTENT_MAP.md). The reference spatial canvas can be replaced by a Mapbox GL JS or MapLibre adapter without changing lens contracts.
+Opening record detail overlays the still-mounted Exchange shell. Closing it returns to the same lens, search query, selected marker/card, drawer state, and list scroll position. Menu behaves the same way. The reference map canvas is provider-neutral; a Mapbox/MapLibre adapter can replace it without changing lens contracts.
 
 ## Responsive composition
 
@@ -55,7 +52,6 @@ Incomplete business workflows remain visible in their governed action positions 
 
 Product work should plug into the existing contracts rather than alter shell composition:
 
-- Persistent Map: provider adapter, authorized geography, viewport querying, PostGIS spatial queries, production clusters, heat/polygon layers, geocoder/current location, and location privacy.
 - RFx: response, teaming, watch, issuer, and RFx lifecycle repositories.
 - Resources: offer/request, availability, connection, and fulfillment workflows.
 - Intelligence: real datasets, heat/polygon layers, comparison, tracking, and source provenance.
