@@ -42,17 +42,25 @@ The module deliberately does not mount the authenticated Exchange map, result dr
 - `POST /api/identity/register` — normalized registration application boundary.
 - successful reference submissions hand off to `/onboarding?step=account-verification&registration=...`.
 
-## Entry attribution
+## Entry attribution and public-entry compatibility
 
-`/register` preserves bounded acquisition context from query parameters:
+`/register` preserves the acquisition/deep-link context used by the Public Login/Register gateway:
 
+- `returnTo`
 - `source`
 - `campaign`
 - `referral`
-- `invite`
-- `returnTo` (relative RFxchange paths only)
+- `invitation` (`invite` is accepted as a backward-compatible alias)
+- `organization`
+- `membership`
+- `geography`
+- `record`
 
-Invitation wins over referral, which wins over campaign when deriving the canonical registration entry source. Arbitrary `returnTo` hosts are rejected to avoid creating an open-redirect contract.
+Registration adds an internal `entryKind` classification (`direct`, `marketing`, `campaign`, `referral`, `partner_invitation`, `event_qr`, or `login_recovery`) without replacing the raw `source` value supplied by acquisition.
+
+Invitation wins over referral, which wins over campaign when deriving the canonical registration entry kind. `returnTo` must be an internal relative path and cannot point back into the auth-entry routes, preventing external redirects and identity-entry loops.
+
+The same context is preserved when the participant switches from Registration to Login and when Registration hands off to Account Verification.
 
 ## Registration payload
 
@@ -64,13 +72,17 @@ Invitation wins over referral, which wins over campaign when deriving the canoni
   acceptedTerms: boolean;
   marketingConsent: boolean;
   context: {
-    source: "direct" | "marketing" | "campaign" | "referral" |
+    entryKind: "direct" | "marketing" | "campaign" | "referral" |
       "partner_invitation" | "event_qr" | "login_recovery";
-    sourceDetail?: string;
-    campaign?: string;
-    referralCode?: string;
-    invitationCode?: string;
     returnTo?: string;
+    source?: string;
+    campaign?: string;
+    referral?: string;
+    invitation?: string;
+    organization?: string;
+    membership?: string;
+    geography?: string;
+    record?: string;
   };
 }
 ```
@@ -116,7 +128,7 @@ security_events
 audit_events
 ```
 
-Organization membership is intentionally downstream of registration.
+Organization membership is intentionally downstream of registration. Incoming `organization`, `membership`, and `geography` parameters are routing/onboarding intent only and must not be promoted to canonical organization truth by Registration.
 
 ## Passwordless alignment
 
@@ -131,7 +143,7 @@ The reference surface includes:
 - field-level `aria-invalid` and error descriptions;
 - non-marketing terms acknowledgement separated from optional marketing consent;
 - keyboard-operable controls;
-- explicit existing-account path to Login;
+- explicit existing-account path to Login with context preservation;
 - server-side validation in addition to client input types.
 
 Production adapters should add enumeration-safe existing-account messaging, resend verification, change-email recovery, expired challenge handling, and bot/rate-limit controls.
