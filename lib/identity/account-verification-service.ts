@@ -122,11 +122,13 @@ export async function verifyAccountEmail(token: string): Promise<{
     nextPath: buildOnboardingContinuation(result.account.context),
   };
 
-  void sendAccountVerifiedConfirmation(result.account.email).catch(async (error) => {
+  try {
+    await sendAccountVerifiedConfirmation(result.account.email);
+  } catch (error) {
     await recordIdentityEvent("VerificationConfirmationDeliveryFailed", result.account.id, {
       reason: error instanceof EmailDeliveryError ? error.code : "delivery_failed",
     }).catch(() => undefined);
-  });
+  }
 
   return { response, sessionToken: result.sessionToken };
 }
