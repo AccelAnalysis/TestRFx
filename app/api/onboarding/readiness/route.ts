@@ -1,11 +1,13 @@
-import { NextResponse } from "next/server";
-import { getReferenceExchangeReadiness } from "@/lib/onboarding/readiness";
+import { NextRequest, NextResponse } from "next/server";
+import { buildExchangeReadiness } from "@/lib/onboarding/readiness";
+import { readOnboardingProgressFromRequest } from "@/lib/onboarding/progress-store";
 
-export async function GET() {
-  return NextResponse.json({
-    mode: "reference",
-    readiness: getReferenceExchangeReadiness(),
-    productionBoundary:
-      "Replace the reference evaluator with authenticated identity, organization, geography, capability, visibility, and entitlement repositories without changing the UI contract.",
-  });
+export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  const progress = readOnboardingProgressFromRequest(request);
+  return NextResponse.json(
+    { readiness: buildExchangeReadiness(progress), progressUpdatedAt: progress.updatedAt },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
