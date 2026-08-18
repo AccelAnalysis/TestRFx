@@ -42,7 +42,8 @@ export type OrganizationStep =
   | "create.confirm"
   | "status.pending"
   | "status.connected"
-  | "access.review";
+  | "access.review"
+  | "claim.review";
 
 export type OrganizationEntryContext = {
   source?: string;
@@ -52,6 +53,7 @@ export type OrganizationEntryContext = {
   returnTo?: string;
   organizationId?: string;
   requestId?: string;
+  claimId?: string;
 };
 
 export interface OrganizationCandidate {
@@ -84,6 +86,22 @@ export interface OrganizationAccessReview {
   createdAt: string;
 }
 
+export interface OrganizationClaimReviewItem {
+  claimId: string;
+  claimantEmail: string;
+  claimantName: string;
+  authorityMethod: "domain_email" | "manual_review";
+  evidenceNote?: string;
+  status: "pending" | "conflict";
+  createdAt: string;
+}
+
+export interface OrganizationClaimReview {
+  organization: OrganizationCandidate;
+  selectedClaimId: string;
+  claims: OrganizationClaimReviewItem[];
+}
+
 export interface OrganizationResolution {
   status: "connected" | "pending";
   mode: OrganizationResolutionMode;
@@ -112,7 +130,8 @@ export type OrganizationMutationAction =
   | "claim"
   | "request_access"
   | "accept_invitation"
-  | "review_access";
+  | "review_access"
+  | "review_claim";
 
 export type OrganizationMutationRequest = {
   action: OrganizationMutationAction;
@@ -125,6 +144,7 @@ export type OrganizationMutationRequest = {
   evidenceNote?: string;
   invitationToken?: string;
   requestId?: string;
+  claimId?: string;
   decision?: "approve" | "deny";
   context?: OrganizationEntryContext;
 };
@@ -137,7 +157,7 @@ export type OrganizationWorkflowNode = {
 };
 
 export const ORGANIZATION_WORKFLOW_TREE: readonly OrganizationWorkflowNode[] = [
-  { id: "welcome", label: "Welcome & role context", step: "welcome" },
+  { id: "welcome", label: "Welcome / role selection", step: "welcome" },
   {
     id: "affiliation",
     label: "Organization affiliation",
@@ -151,8 +171,10 @@ export const ORGANIZATION_WORKFLOW_TREE: readonly OrganizationWorkflowNode[] = [
           { id: "existing-search", label: "Search organizations", step: "existing.search" },
           { id: "existing-review", label: "Review organization", step: "existing.review" },
           { id: "existing-claim", label: "Claim & authority", step: "existing.claim" },
+          { id: "claim-review", label: "Platform claim review", step: "claim.review" },
           { id: "existing-join", label: "Request access", step: "existing.join" },
-          { id: "invitation", label: "Invitation validation", step: "invitation.review" },
+          { id: "access-review", label: "Existing-admin approval", step: "access.review" },
+          { id: "invitation", label: "Invitation validation & acceptance", step: "invitation.review" },
         ],
       },
       {
@@ -161,7 +183,7 @@ export const ORGANIZATION_WORKFLOW_TREE: readonly OrganizationWorkflowNode[] = [
         step: "create.identity",
         children: [
           { id: "create-identity", label: "Organization identity", step: "create.identity" },
-          { id: "create-duplicates", label: "Duplicate resolution", step: "create.duplicates" },
+          { id: "create-duplicates", label: "Duplicate / conflict resolution", step: "create.duplicates" },
           { id: "create-authority", label: "Authority confirmation", step: "create.authority" },
           { id: "create-confirm", label: "Create & establish membership", step: "create.confirm" },
         ],
@@ -193,6 +215,7 @@ const validSteps = new Set<OrganizationStep>([
   "status.pending",
   "status.connected",
   "access.review",
+  "claim.review",
 ]);
 const validTypes = new Set<OrganizationType>(organizationTypes);
 const validRoles = new Set<OrganizationUserRole>(organizationUserRoles.map((role) => role.id));
@@ -244,12 +267,14 @@ export function organizationContextFromSearchParams(params: SearchParamsLike): O
     returnTo: safeReturnTo(single(params.returnTo)),
     organizationId: clean(single(params.organization)) || undefined,
     requestId: clean(single(params.request)) || undefined,
+    claimId: clean(single(params.claim)) || undefined,
   };
 }
 
 export function organizationStepFromSearchParams(params: SearchParamsLike, context: OrganizationEntryContext) {
   const requested = clean(single(params.step), 80) as OrganizationStep;
   if (validSteps.has(requested)) return requested;
+  if (context.claimId) return "claim.review";
   if (context.requestId) return "access.review";
   if (context.invitation) return "invitation.review";
   return "welcome";
@@ -269,6 +294,7 @@ export function buildOrganizationHref(
   if (merged.returnTo) params.set("returnTo", merged.returnTo);
   if (merged.organizationId) params.set("organization", merged.organizationId);
   if (merged.requestId) params.set("request", merged.requestId);
+  if (merged.claimId) params.set("claim", merged.claimId);
   return `/onboarding/organization?${params.toString()}`;
 }
 
