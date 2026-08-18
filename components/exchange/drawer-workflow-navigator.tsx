@@ -18,6 +18,10 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onIn
   const current = path[path.length - 1];
 
   function choose(node: DrawerWorkflowNode) {
+    if (node.disabledReason) {
+      setPathIds((currentPath) => [...currentPath, node.id]);
+      return;
+    }
     if (node.children?.length) {
       setPathIds((currentPath) => [...currentPath, node.id]);
       return;
@@ -49,28 +53,29 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onIn
         </nav>
 
         {current.description ? <p className={styles.description}>{current.description}</p> : null}
-        {current.execution && current.execution.kind !== "outcome" ? (
+        {current.disabledReason ? <div className={styles.outcome} role="status"><strong>Production integration required</strong><span>{current.disabledReason}</span></div> : null}
+        {!current.disabledReason && current.execution && current.execution.kind !== "outcome" ? (
           <button className={styles.primary} type="button" onClick={() => onExecute(current.execution!, current)}>Continue: {current.label}</button>
         ) : null}
 
         {current.children?.length ? (
           <div className={styles.tree} role="list" aria-label={`${current.label} next steps`}>
             {current.children.map((child) => (
-              <button className={styles.node} type="button" role="listitem" key={child.id} onClick={() => choose(child)}>
-                <span className={styles.nodeKind}>{child.kind}</span>
+              <button className={styles.node} type="button" role="listitem" key={child.id} onClick={() => choose(child)} aria-disabled={Boolean(child.disabledReason)}>
+                <span className={styles.nodeKind}>{child.disabledReason ? "integration" : child.kind}</span>
                 <strong>{child.label}</strong>
-                {child.description ? <small>{child.description}</small> : null}
-                <span className={styles.chevron} aria-hidden>{child.children?.length ? "›" : child.execution?.kind === "outcome" ? "✓" : "→"}</span>
+                {child.description ? <small>{child.description}</small> : child.disabledReason ? <small>{child.disabledReason}</small> : null}
+                <span className={styles.chevron} aria-hidden>{child.disabledReason || child.children?.length ? "›" : child.execution?.kind === "outcome" ? "✓" : "→"}</span>
               </button>
             ))}
           </div>
         ) : current.execution?.kind === "outcome" ? (
           <div className={styles.outcome} role="status"><strong>{current.label}</strong><span>This is a terminal outcome defined by the source workflow.</span></div>
-        ) : !current.execution && !current.id.endsWith("-policy") ? (
+        ) : !current.execution && !current.id.endsWith("-policy") && !current.disabledReason ? (
           <div className={styles.outcome}><strong>No additional child workflow is defined in the source.</strong></div>
         ) : null}
 
-        {current.id.endsWith("-policy") ? <button className={styles.primary} type="button" onClick={() => onInspectReferralPolicy(current)}>Load recipient policy / fee</button> : null}
+        {!current.disabledReason && current.id.endsWith("-policy") ? <button className={styles.primary} type="button" onClick={() => onInspectReferralPolicy(current)}>Load recipient policy / fee</button> : null}
 
         <footer className={styles.footer}>
           {pathIds.length ? <button type="button" onClick={() => setPathIds((currentPath) => currentPath.slice(0, -1))}>← Back</button> : null}
