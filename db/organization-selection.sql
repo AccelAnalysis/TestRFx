@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS organization_onboarding_state (
   organization_id uuid REFERENCES organizations(id) ON DELETE SET NULL,
   resolution_mode text CHECK (resolution_mode IN ('claim', 'join', 'create', 'invitation')),
   membership_state text CHECK (membership_state IN ('active', 'pending-approval', 'authority-pending')),
-  authority_state text CHECK (authority_state IN ('invited', 'domain-verified', 'self-attested', 'pending-review')),
+  authority_state text CHECK (authority_state IN ('invited', 'admin-approved', 'domain-verified', 'self-attested', 'pending-review')),
   organization_role text,
   current_step text NOT NULL DEFAULT 'welcome',
   request_id uuid,
