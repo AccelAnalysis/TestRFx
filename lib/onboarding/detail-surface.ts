@@ -1,306 +1,441 @@
 export const ONBOARDING_DETAIL_SUBJECTS = [
   "account",
   "organization",
-  "authority",
   "geography",
   "profile",
-  "capability",
-  "evidence",
-  "role-goals",
+  "capabilities",
   "membership",
   "readiness",
 ] as const;
 
 export type OnboardingDetailSubject = (typeof ONBOARDING_DETAIL_SUBJECTS)[number];
-export type OnboardingDetailMode = "view" | "edit" | "review" | "resolve" | "confirm" | "verify";
-export type OnboardingDetailStatus =
-  | "complete"
-  | "needs-action"
-  | "needs-confirmation"
-  | "pending"
-  | "optional"
-  | "blocked"
-  | "not-applicable";
+export type OnboardingDetailClassification = "required" | "recommended" | "optional" | "conditional";
+export type OnboardingDetailSource = "Onboarding" | "Registration" | "Capabilities" | "Project";
+export type OnboardingServiceMaturity = "connected-reference" | "workflow-only" | "production-pending";
 
-export type OnboardingDetailFieldKind = "text" | "textarea" | "select" | "toggle" | "status";
-export type OnboardingDetailValue = string | boolean;
+export interface OnboardingServiceTarget {
+  endpoint?: string;
+  method?: "GET" | "POST";
+  action?: string;
+  owner: string;
+  maturity: OnboardingServiceMaturity;
+  purpose: string;
+}
 
-export interface OnboardingDetailField {
+export interface OnboardingWorkflowTarget {
+  href: string;
+  label: string;
+  preserveReturnTo?: boolean;
+  service: OnboardingServiceTarget;
+}
+
+export interface OnboardingDetailNode {
   id: string;
   label: string;
-  kind: OnboardingDetailFieldKind;
-  value: OnboardingDetailValue;
-  required?: boolean;
-  description?: string;
-  options?: readonly string[];
-}
-
-export interface OnboardingDetailSection {
-  id: string;
-  title: string;
-  description?: string;
-  fields: readonly OnboardingDetailField[];
-}
-
-export interface OnboardingDetailGuidance {
-  what: string;
-  why: string;
-  visibility: string;
-  next: string;
+  description: string;
+  classification: OnboardingDetailClassification;
+  sources: readonly OnboardingDetailSource[];
+  workflow: OnboardingWorkflowTarget;
+  children?: readonly OnboardingDetailNode[];
 }
 
 export interface OnboardingDetailDefinition {
   subject: OnboardingDetailSubject;
-  mode: OnboardingDetailMode;
-  eyebrow: string;
-  title: string;
-  subjectLabel: string;
+  label: string;
+  description: string;
   step: number;
   totalSteps: number;
-  required: boolean;
-  status: OnboardingDetailStatus;
-  statusLabel: string;
-  completionSummary: string;
-  guidance: OnboardingDetailGuidance;
-  sections: readonly OnboardingDetailSection[];
-  returnHref: string;
-  nextHref: string;
-  nextLabel: string;
+  classification: OnboardingDetailClassification;
+  sources: readonly OnboardingDetailSource[];
+  workflow: OnboardingWorkflowTarget;
+  children: readonly OnboardingDetailNode[];
 }
 
-const organizationOptions = ["Business", "Supplier", "Buyer", "Issuer", "Government", "EDO", "Resource Provider", "Nonprofit", "Other"] as const;
-const publicPrecisionOptions = ["Exact", "Approximate", "Locality only"] as const;
+export interface OnboardingDetailBreadcrumb {
+  label: string;
+  href: string;
+}
+
+const svc = (
+  owner: string,
+  maturity: OnboardingServiceMaturity,
+  purpose: string,
+  endpoint?: string,
+  method?: "GET" | "POST",
+  action?: string,
+): OnboardingServiceTarget => ({ owner, maturity, purpose, ...(endpoint ? { endpoint } : {}), ...(method ? { method } : {}), ...(action ? { action } : {}) });
+
+const workflow = (
+  href: string,
+  label: string,
+  service: OnboardingServiceTarget,
+  preserveReturnTo = false,
+): OnboardingWorkflowTarget => ({ href, label, service, preserveReturnTo });
+
+const node = (
+  id: string,
+  label: string,
+  description: string,
+  classification: OnboardingDetailClassification,
+  sources: readonly OnboardingDetailSource[],
+  target: OnboardingWorkflowTarget,
+  children?: readonly OnboardingDetailNode[],
+): OnboardingDetailNode => ({ id, label, description, classification, sources, workflow: target, ...(children?.length ? { children } : {}) });
+
+const registrationService = svc(
+  "Registration",
+  "connected-reference",
+  "The normalized registration API exists, but its identity adapter remains stateless/reference until durable identity infrastructure is connected.",
+  "/api/identity/register",
+  "POST",
+);
+const verificationService = (action?: string) => svc(
+  "Account Verification",
+  "connected-reference",
+  "The verification API exists and validates the account-access challenge contract; delivery/session infrastructure remains a production adapter boundary.",
+  "/api/identity/account-verification",
+  "POST",
+  action,
+);
+const organizationSearchService = svc(
+  "Organization Selection / Creation",
+  "connected-reference",
+  "Organization search/entity-resolution is exposed by API. Claim/join/create persistence and authority decisions remain reference workflow behavior today.",
+  "/api/onboarding/organizations",
+  "GET",
+);
+const organizationMutationPending = svc(
+  "Organization Selection / Creation",
+  "production-pending",
+  "Claim/join/create currently resolves in the owning workflow but does not yet have a canonical server-side mutation repository. Detail Surface does not simulate one.",
+);
+const geographyService = svc(
+  "Geography",
+  "connected-reference",
+  "The Geography API performs server-side draft validation/context construction. Geocoding, authoritative geography policy, and durable PostGIS writes remain production adapters.",
+  "/api/onboarding/geography",
+  "POST",
+);
+const profileService = svc(
+  "Organization Profile",
+  "connected-reference",
+  "The Organization Profile API validates the canonical handoff contract. The current adapter is reference rather than durable profile persistence.",
+  "/api/onboarding/organization-profile",
+  "POST",
+);
+const capabilityService = svc(
+  "Capability Enrichment",
+  "workflow-only",
+  "The merged Capability Enrichment workflow exists, but no canonical onboarding capability/AMACS/evidence server API is exposed yet. Detail Surface delegates instead of inventing one.",
+);
+const membershipCatalogService = svc(
+  "Pricing / Membership",
+  "connected-reference",
+  "The governed plan catalog is available by API. Live Stripe checkout, capacity reservation, payment reconciliation, and entitlement persistence remain production work.",
+  "/api/membership/catalog",
+  "GET",
+);
+const stripePendingService = svc(
+  "Pricing / Membership",
+  "production-pending",
+  "Stripe payment execution is intentionally not implemented in Detail Surface and remains disabled in the owning Membership workflow until authenticated organization billing is connected.",
+);
+const readinessService = svc(
+  "Exchange-ready Completion",
+  "connected-reference",
+  "The readiness API evaluates the normalized readiness contract. Its current repository inputs are reference data rather than canonical account/organization persistence.",
+  "/api/onboarding/readiness",
+  "GET",
+);
+const activationService = svc(
+  "Exchange-ready Completion",
+  "connected-reference",
+  "The activation endpoint re-evaluates readiness and returns the governed handoff contract; durable activation/events remain a production repository boundary.",
+  "/api/onboarding/readiness/activate",
+  "POST",
+);
+
+const registration = workflow("/register", "Open registration", registrationService, true);
+const verify = (action?: string) => workflow("/onboarding/account-verification", "Open account verification", verificationService(action), true);
+const organization = workflow("/onboarding/organization", "Open organization workflow", organizationSearchService);
+const organizationMutation = (label: string) => workflow("/onboarding/organization", label, organizationMutationPending);
+const geography = workflow("/onboarding/geography", "Open Geography workflow", geographyService);
+const profile = workflow("/onboarding/organization-profile", "Open Organization Profile", profileService, true);
+const capabilities = workflow("/onboarding/capabilities", "Open Capability Enrichment", capabilityService);
+const membership = workflow("/onboarding/membership", "Open Membership workflow", membershipCatalogService, true);
+const completion = workflow("/onboarding/completion", "Open Exchange-ready review", readinessService, true);
+const activate = workflow("/onboarding/completion", "Activate Exchange handoff", activationService, true);
+const exchange = workflow("/exchange", "Enter the Exchange", svc("Authenticated Exchange", "workflow-only", "The existing authenticated Exchange shell is the post-onboarding destination."));
 
 const definitions: Record<OnboardingDetailSubject, OnboardingDetailDefinition> = {
   account: {
-    subject: "account", mode: "verify", eyebrow: "Account & identity detail", title: "Confirm your account", subjectLabel: "Jordan Avery",
-    step: 1, totalSteps: 6, required: true, status: "needs-confirmation", statusLabel: "Needs confirmation",
-    completionSummary: "Email control and required acknowledgements must be established before organization onboarding can continue.",
-    guidance: {
-      what: "This surface describes the person-level RFxchange identity used to authenticate access.",
-      why: "RFxchange must distinguish a verified user account from organization authority, organization verification, and paid membership.",
-      visibility: "Authentication data is private. Public organization information is established later and separately.",
-      next: "After account verification, resolve the organization this user represents.",
-    },
-    sections: [
-      { id: "identity", title: "Identity", fields: [
-        { id: "name", label: "Name", kind: "text", value: "Jordan Avery", required: true },
-        { id: "email", label: "Email", kind: "text", value: "jordan@example.com", required: true },
-        { id: "email-status", label: "Email verification", kind: "status", value: "Pending confirmation" },
-      ] },
-      { id: "acknowledgements", title: "Required acknowledgements", fields: [
-        { id: "terms", label: "Terms accepted", kind: "toggle", value: true, required: true },
-        { id: "platform-rules", label: "Platform Rules accepted", kind: "toggle", value: true, required: true },
-        { id: "privacy", label: "Privacy acknowledgement", kind: "toggle", value: true, required: true },
-      ] },
+    subject: "account",
+    label: "Account & Identity",
+    description: "Create the person-level account and prove control of the selected access method before organization onboarding.",
+    step: 1,
+    totalSteps: 6,
+    classification: "required",
+    sources: ["Onboarding", "Registration"],
+    workflow: verify(),
+    children: [
+      node("account-creation", "Account Creation", "Establish the person-level RFxchange account.", "required", ["Onboarding", "Registration"], registration, [
+        node("name", "Name", "Enter the participant name.", "required", ["Onboarding", "Registration"], registration),
+        node("email-auth-method", "Email / Password or Auth Method", "Establish email and the supported authentication method.", "required", ["Onboarding"], registration),
+      ]),
+      node("verify-email-access", "Verify Email / Access", "Complete the account-access verification loop before organization setup.", "required", ["Onboarding", "Registration"], verify(), [
+        node("send-verification", "Send Verification", "Issue the account verification challenge.", "required", ["Registration"], verify("request")),
+        node("verification-link", "Verification Link", "Validate the verification challenge and continue only after success.", "required", ["Registration"], verify("verify")),
+        node("resend-verification", "Resend Verification", "Resend an unavailable or expired verification challenge.", "conditional", ["Registration"], verify("resend")),
+        node("change-email", "Change Email Address", "Correct the email address and issue a new challenge.", "conditional", ["Registration"], verify("change_email")),
+      ]),
     ],
-    returnHref: "/onboarding", nextHref: "/onboarding/organization", nextLabel: "Continue to organization",
   },
   organization: {
-    subject: "organization", mode: "resolve", eyebrow: "Organization resolution detail", title: "Resolve the canonical organization", subjectLabel: "Your Organization",
-    step: 2, totalSteps: 6, required: true, status: "needs-action", statusLabel: "Needs action",
-    completionSummary: "Review the candidate before claiming or creating an organization so RFxchange does not create a duplicate identity.",
-    guidance: {
-      what: "Organization resolution determines which canonical RFxchange organization record this account will join.",
-      why: "RFx, Resources, Intelligence, Capabilities, referrals, and Menu must all reuse one organization identity.",
-      visibility: "Candidate matching signals are onboarding-only. Public profile fields are controlled later.",
-      next: "After the organization is resolved, establish authority and membership before geography/profile enrichment.",
-    },
-    sections: [
-      { id: "candidate", title: "Candidate organization", description: "Reference entity-resolution data only; production matching belongs behind the organization service boundary.", fields: [
-        { id: "organization-name", label: "Organization name", kind: "text", value: "Your Organization", required: true },
-        { id: "organization-type", label: "Organization type", kind: "select", value: "Business", options: organizationOptions, required: true },
-        { id: "candidate-geography", label: "Candidate geography", kind: "text", value: "Isle of Wight, VA" },
-        { id: "claim-state", label: "Claim state", kind: "status", value: "Seeded / unclaimed" },
-      ] },
-      { id: "resolution", title: "Resolution decision", fields: [
-        { id: "matches", label: "This candidate is my organization", kind: "toggle", value: false, required: true },
-        { id: "notes", label: "Resolution notes", kind: "textarea", value: "Review name, geography, domain, address, aliases, and existing claim state before creating a new record." },
-      ] },
+    subject: "organization",
+    label: "Organization",
+    description: "Resolve one canonical organization identity, establish affiliation, and handle invitation/authority paths without creating duplicates.",
+    step: 2,
+    totalSteps: 6,
+    classification: "required",
+    sources: ["Onboarding", "Registration"],
+    workflow: organization,
+    children: [
+      node("basic-user-onboarding", "Basic User Onboarding", "Choose the participant role and organization affiliation path.", "required", ["Onboarding"], organization, [
+        node("welcome-role-selection", "Welcome / Role Selection", "Select the participant's organization role/participation context.", "required", ["Onboarding"], profile),
+        node("join-existing-organization", "Join Existing Organization", "Find an existing canonical organization and request or accept membership.", "conditional", ["Onboarding"], organizationMutation("Join existing organization")),
+        node("create-new-organization", "Create New Organization", "Create only when entity resolution does not identify the correct organization.", "conditional", ["Onboarding"], organizationMutation("Create new organization")),
+      ]),
+      node("organization-setup", "Organization Setup", "Follow the Registration source's claim-or-create decision.", "required", ["Registration"], organization, [
+        node("claim-existing-organization", "Claim Existing Organization", "Resolve to the existing record and enter the claim/authority path.", "conditional", ["Registration"], organizationMutation("Claim existing organization")),
+        node("create-new-organization", "Create New Organization", "Create a canonical organization when no correct match exists.", "conditional", ["Registration"], organizationMutation("Create new organization")),
+      ]),
+      node("organization-setup-details", "Organization Setup Details", "Establish the source-defined identity, type, geography handoff, and visibility preferences.", "required", ["Onboarding"], profile, [
+        node("organization-name", "Organization Name", "Confirm the organization name used by the canonical profile.", "required", ["Onboarding"], profile),
+        node("organization-type", "Organization Type", "Confirm the organization type/participation classification.", "required", ["Onboarding"], profile),
+        node("location-geography", "Location / Geography", "Continue to the governed Geography workflow rather than creating a duplicate location model.", "required", ["Onboarding"], geography),
+        node("visibility-preferences", "Visibility Preferences", "Set organization search/map/contact visibility in the canonical profile workflow.", "required", ["Onboarding"], profile),
+      ]),
+      node("organization-details", "Organization Details", "Complete the Registration source's organization detail fields.", "required", ["Registration"], profile, [
+        node("name-description", "Organization Name & Description", "Complete the Exchange-facing organization identity and description.", "required", ["Registration"], profile),
+        node("industry-naics", "Industry / NAICS (optional)", "Add optional industry and NAICS context.", "optional", ["Registration"], profile),
+        node("website-contact", "Website / Contact Info", "Add website and organization contact information.", "required", ["Registration"], profile),
+      ]),
+      node("referral-invitation", "Referral / Invitation", "Handle participants entering from an invitation or organization-admin referral path.", "conditional", ["Onboarding", "Registration"], organizationMutation("Open invitation / affiliation workflow"), [
+        node("validate-invitation", "Validate Invitation", "Validate invitation context before it affects organization membership.", "required", ["Onboarding"], organizationMutation("Validate invitation")),
+        node("accept-join-organization", "Accept and Join Organization", "Accept the invitation and establish organization membership.", "required", ["Onboarding"], organizationMutation("Accept and join organization")),
+        node("set-role-confirm-access", "Set Role and Confirm Access", "Confirm role/access without equating authority with public organization verification.", "required", ["Onboarding"], organizationMutation("Set role and confirm access")),
+      ]),
     ],
-    returnHref: "/onboarding", nextHref: "/onboarding/detail/authority", nextLabel: "Continue to authority",
-  },
-  authority: {
-    subject: "authority", mode: "verify", eyebrow: "Organization authority detail", title: "Establish organization authority", subjectLabel: "Your Organization",
-    step: 2, totalSteps: 6, required: true, status: "pending", statusLabel: "Pending authority",
-    completionSummary: "Organization membership and administrative authority are separate from public Verified Organization status.",
-    guidance: {
-      what: "Authority determines whether this user may administer the resolved organization.",
-      why: "A verified email cannot silently grant organization control or overwrite another organization administrator.",
-      visibility: "Authority evidence is private unless a separate public verification process publishes an approved status.",
-      next: "Once authority is established, geography can safely bind to the canonical organization.",
-    },
-    sections: [{ id: "authority", title: "Authority pathway", fields: [
-      { id: "requested-role", label: "Requested role", kind: "select", value: "Organization administrator", options: ["Organization administrator", "Member", "Contributor"], required: true },
-      { id: "authority-path", label: "Authority method", kind: "select", value: "Organization-domain email", options: ["Organization-domain email", "Existing administrator invitation", "Administrator review", "Organization documentation", "Authoritative record"], required: true },
-      { id: "authority-state", label: "Authority state", kind: "status", value: "Pending review" },
-    ] }],
-    returnHref: "/onboarding/organization", nextHref: "/onboarding/geography", nextLabel: "Continue to geography",
   },
   geography: {
-    subject: "geography", mode: "confirm", eyebrow: "Geography & location detail", title: "Confirm where the organization is based and serves", subjectLabel: "Isle of Wight, VA",
-    step: 3, totalSteps: 6, required: true, status: "needs-confirmation", statusLabel: "Needs confirmation",
-    completionSummary: "Primary Exchange geography, physical location, public precision, and service geography remain distinct concepts.",
-    guidance: {
-      what: "Geography establishes the organization's spatial identity and initial Exchange context.",
-      why: "RFxchange must know where an organization is based without assuming that its service territory is identical to its address.",
-      visibility: "Public location precision can be exact, approximate, or locality-only; service geography may remain broader.",
-      next: "After geography is confirmed, enrich the same canonical organization profile.",
-    },
-    sections: [
-      { id: "location", title: "Base location", fields: [
-        { id: "primary-locality", label: "Primary locality", kind: "text", value: "Isle of Wight County, VA", required: true },
-        { id: "address", label: "Base address", kind: "text", value: "" },
-        { id: "map-state", label: "Map placement", kind: "status", value: "Needs geocode confirmation" },
-        { id: "public-precision", label: "Public map precision", kind: "select", value: "Locality only", options: publicPrecisionOptions, required: true },
-      ] },
-      { id: "service", title: "Service geography", fields: [
-        { id: "service-area", label: "Where can this organization perform work?", kind: "textarea", value: "Hampton Roads and surrounding Virginia markets", required: true },
-      ] },
+    subject: "geography",
+    label: "Geography & Location",
+    description: "Keep primary geography, physical location, map placement, public precision, and service geography as separate spatial concepts.",
+    step: 3,
+    totalSteps: 6,
+    classification: "required",
+    sources: ["Registration", "Project"],
+    workflow: geography,
+    children: [
+      node("select-geography", "Select Geography", "Choose the county, city, or region that establishes the initial market context.", "required", ["Registration"], geography, [
+        node("search-county-city-region", "Search County / City / Region", "Search the governed geography list.", "required", ["Registration"], geography),
+        node("primary-locality", "Primary Locality", "Confirm the locality used for onboarding and Exchange context.", "required", ["Registration", "Project"], geography),
+        node("market-boundaries", "Market Boundaries", "Use the selected geography to establish the released market context.", "required", ["Registration"], geography),
+      ]),
+      node("location-map-placement", "Location / Map Placement", "Capture the physical address and confirm map placement.", "required", ["Registration", "Project"], geography, [
+        node("physical-address", "Add Physical Address", "Enter the organization's base physical address.", "required", ["Registration"], geography),
+        node("geocode-address", "Geocode Address", "Resolve the address through the Geography provider boundary.", "required", ["Registration"], geography),
+        node("confirm-marker", "Confirm Marker Placement", "Confirm the resulting location before Geography completion.", "required", ["Registration"], geography),
+      ]),
+      node("visibility-preferences", "Visibility Preferences", "Control public precision independently of the stored physical address.", "required", ["Onboarding", "Project"], geography, [
+        node("exact", "Exact", "Permit exact public location where appropriate.", "conditional", ["Project"], geography),
+        node("approximate", "Approximate", "Expose an approximate public location.", "conditional", ["Project"], geography),
+        node("locality-only", "Locality Only", "Expose only the locality for the public presence.", "conditional", ["Project"], geography),
+      ]),
+      node("service-geography", "Service Geography", "Describe where the organization can perform work separately from where it is based.", "required", ["Project"], geography),
+      node("review", "Review Geography", "Review the normalized geography context before continuing.", "required", ["Project"], geography),
     ],
-    returnHref: "/onboarding/organization", nextHref: "/onboarding/organization-profile", nextLabel: "Continue to organization profile",
   },
   profile: {
-    subject: "profile", mode: "edit", eyebrow: "Organization profile detail", title: "Build the Exchange-facing organization profile", subjectLabel: "Your Organization",
-    step: 4, totalSteps: 6, required: true, status: "needs-action", statusLabel: "Needs 1 required item",
-    completionSummary: "Profile Complete means required identity and discoverability fields are present; it does not mean the organization is verified.",
-    guidance: {
-      what: "The organization profile is the shared Exchange identity reused across all lenses and cross-lens workflows.",
-      why: "A single canonical profile prevents RFx, Resources, Capabilities, and referrals from creating separate copies of the organization.",
-      visibility: "Only fields enabled for Exchange visibility should be published; administrative account data remains private.",
-      next: "Add at least one meaningful capability, then progressively enrich AMACS alignment and evidence.",
-    },
-    sections: [
-      { id: "identity", title: "Exchange identity", fields: [
-        { id: "profile-name", label: "Organization name", kind: "text", value: "Your Organization", required: true },
-        { id: "profile-type", label: "Organization type", kind: "select", value: "Business", options: organizationOptions, required: true },
-        { id: "overview", label: "Overview", kind: "textarea", value: "", required: true },
-        { id: "website", label: "Website", kind: "text", value: "" },
-      ] },
-      { id: "visibility", title: "Visibility", fields: [
-        { id: "exchange-visible", label: "Show profile in Exchange discovery", kind: "toggle", value: true, required: true },
-        { id: "contact-visible", label: "Allow Exchange contact discovery", kind: "toggle", value: true },
-      ] },
+    subject: "profile",
+    label: "Organization Profile",
+    description: "Build the canonical Exchange-facing organization profile reused across authenticated lenses and cross-lens workflows.",
+    step: 4,
+    totalSteps: 6,
+    classification: "required",
+    sources: ["Onboarding", "Project"],
+    workflow: profile,
+    children: [
+      node("core-profile-details", "Core Profile Details", "Complete organization overview, contacts, description, and key information.", "required", ["Onboarding"], profile, [
+        node("organization-overview", "Organization Overview", "Describe the organization for Exchange participants.", "required", ["Onboarding"], profile),
+        node("contacts", "Contacts", "Maintain the primary organization contact separately from the signed-in user's identity.", "required", ["Onboarding"], profile),
+        node("description-key-info", "Description and Key Info", "Complete the descriptive information needed for a useful profile.", "required", ["Onboarding"], profile),
+      ]),
+      node("industry-services", "Industry & Services", "Capture industry context and service offerings used by capability enrichment.", "recommended", ["Onboarding"], profile, [
+        node("industries-served", "Industries Served", "Identify industries served by the organization.", "recommended", ["Onboarding"], profile),
+        node("service-offerings", "Service Offerings", "Describe service offerings that seed capability enrichment.", "recommended", ["Onboarding"], profile),
+      ]),
+      node("roles-goals-visibility", "Role, Goals & Visibility", "Set participation role, first-value goals, and discoverability preferences.", "required", ["Onboarding", "Project"], profile, [
+        node("welcome-role-selection", "Welcome / Role Selection", "Select how the organization participates in RFxchange.", "required", ["Onboarding"], profile),
+        node("visibility-preferences", "Visibility Preferences", "Control organization search, map, and contact visibility.", "required", ["Onboarding", "Project"], profile),
+        node("goals", "Goals", "Capture the intended first-value path for post-onboarding routing.", "required", ["Project"], profile),
+      ]),
     ],
-    returnHref: "/onboarding/geography", nextHref: "/onboarding/capabilities", nextLabel: "Continue to capabilities",
   },
-  capability: {
-    subject: "capability", mode: "edit", eyebrow: "Capability detail", title: "Describe one meaningful capability", subjectLabel: "Capability seed",
-    step: 5, totalSteps: 6, required: true, status: "needs-action", statusLabel: "Needs capability description",
-    completionSummary: "A plain-language capability can establish discoverability; AMACS mapping and evidence can continue progressively.",
-    guidance: {
-      what: "A capability describes what the organization can provide, perform, make, or support.",
-      why: "Capabilities connect organization discovery to RFx matching, Intelligence, Resources, and future referral workflows.",
-      visibility: "A capability claim may be published separately from its supporting evidence and verification state.",
-      next: "Review AMACS suggestions, add evidence where useful, and decide publication intent before completion.",
-    },
-    sections: [
-      { id: "claim", title: "Capability claim", fields: [
-        { id: "capability-name", label: "Capability name", kind: "text", value: "", required: true },
-        { id: "capability-description", label: "Plain-language description", kind: "textarea", value: "", required: true },
-        { id: "industry", label: "Industries served", kind: "text", value: "" },
-      ] },
-      { id: "amacs", title: "AMACS alignment", description: "AMACS suggestions remain assistance until the organization confirms the mapping.", fields: [
-        { id: "amacs-suggestion", label: "Suggested AMACS mapping", kind: "status", value: "Not yet suggested" },
-        { id: "amacs-confirmed", label: "Organization confirmed mapping", kind: "toggle", value: false },
-        { id: "evidence-state", label: "Evidence state", kind: "status", value: "Self-reported / no evidence attached" },
-      ] },
+  capabilities: {
+    subject: "capabilities",
+    label: "Capability Enrichment",
+    description: "Progress from plain-language capabilities through AMACS assistance, evidence, and discoverability without treating optional enrichment as an access gate.",
+    step: 5,
+    totalSteps: 6,
+    classification: "required",
+    sources: ["Onboarding", "Capabilities"],
+    workflow: capabilities,
+    children: [
+      node("core-profile-details", "Core Profile Details", "Review organization overview, contacts, description, and key information used to seed enrichment.", "required", ["Onboarding"], profile),
+      node("industry-services", "Industry & Services", "Review industries served and service offerings.", "recommended", ["Onboarding"], profile, [
+        node("industries-served", "Industries Served", "Review industries served by the organization.", "recommended", ["Onboarding"], profile),
+        node("service-offerings", "Service Offerings", "Review service offerings before detailed capability entry.", "recommended", ["Onboarding"], profile),
+      ]),
+      node("capabilities-entry", "Capabilities Entry", "Add detailed capabilities and solutions in plain language.", "required", ["Onboarding"], capabilities, [
+        node("detailed-capabilities", "Detailed Capabilities", "Describe what the organization can actually do.", "required", ["Onboarding"], capabilities),
+        node("solutions", "Solutions", "Add the solutions represented by capability claims.", "recommended", ["Onboarding"], capabilities),
+      ]),
+      node("amacs-mapping", "AMACS Mapping / AI-to-AMACS Assistance", "Use assistance to propose structured AMACS alignment while preserving organization confirmation as a separate truth state.", "recommended", ["Onboarding", "Capabilities"], capabilities, [
+        node("suggest-mapping", "Suggest AMACS Mapping", "Generate or retrieve mapping candidates through the future AMACS service boundary.", "recommended", ["Onboarding", "Capabilities"], capabilities),
+        node("review-confirm-mapping", "Review / Confirm Mapping", "Review and confirm a mapping before it becomes organization-asserted taxonomy truth.", "recommended", ["Onboarding", "Capabilities"], capabilities),
+      ]),
+      node("evidence-certifications", "Evidence / Certifications", "Support capability claims without treating an upload as independent verification.", "recommended", ["Onboarding", "Capabilities"], capabilities, [
+        node("certifications", "Certifications", "Associate relevant certifications with capability claims.", "recommended", ["Onboarding"], capabilities),
+        node("licenses", "Licenses", "Associate supporting licenses.", "recommended", ["Onboarding"], capabilities),
+        node("case-studies", "Case Studies", "Associate case studies with applicable capabilities.", "optional", ["Onboarding"], capabilities),
+        node("supporting-documents", "Supporting Documents", "Attach supporting documents when the evidence/object-storage service is connected.", "optional", ["Onboarding"], capabilities),
+      ]),
+      node("tags-keywords-specialties", "Tags / Keywords / Specialties", "Add discoverability terms without changing canonical AMACS taxonomy truth.", "optional", ["Onboarding"], capabilities, [
+        node("keywords", "Keywords", "Add alternate search terminology.", "optional", ["Onboarding"], capabilities),
+        node("specialties", "Specialties", "Add organization specialties that improve discovery.", "optional", ["Onboarding"], capabilities),
+        node("tags", "Tags", "Add controlled discoverability tags where supported.", "optional", ["Onboarding"], capabilities),
+      ]),
     ],
-    returnHref: "/onboarding/organization-profile", nextHref: "/onboarding/detail/evidence", nextLabel: "Review evidence options",
-  },
-  evidence: {
-    subject: "evidence", mode: "review", eyebrow: "Evidence & credential detail", title: "Support a capability without overstating verification", subjectLabel: "Optional evidence",
-    step: 5, totalSteps: 6, required: false, status: "optional", statusLabel: "Optional enrichment",
-    completionSummary: "Uploaded evidence can support a claim, but upload alone does not create a Verified Organization or verified capability.",
-    guidance: {
-      what: "Evidence links certifications, licenses, documents, case studies, or other support to a capability claim.",
-      why: "RFxchange needs provenance and auditability without converting self-submitted files into unsupported trust claims.",
-      visibility: "Evidence may remain private while an approved public credential representation is displayed separately.",
-      next: "Continue to discoverability, roles/goals, or readiness even when optional evidence is not supplied.",
-    },
-    sections: [{ id: "evidence", title: "Evidence record", fields: [
-      { id: "evidence-type", label: "Evidence type", kind: "select", value: "Certification", options: ["Certification", "License", "Document", "Case study", "Past performance", "Other"] },
-      { id: "issuer", label: "Issuer / source", kind: "text", value: "" },
-      { id: "identifier", label: "Identifier", kind: "text", value: "" },
-      { id: "verification-state", label: "Verification state", kind: "status", value: "Self-reported" },
-    ] }],
-    returnHref: "/onboarding/capabilities", nextHref: "/onboarding/detail/role-goals", nextLabel: "Continue without blocking",
-  },
-  "role-goals": {
-    subject: "role-goals", mode: "edit", eyebrow: "Role, goals & visibility detail", title: "Tell RFxchange how this organization participates", subjectLabel: "Participation context",
-    step: 5, totalSteps: 6, required: true, status: "complete", statusLabel: "Complete",
-    completionSummary: "Roles describe how the organization participates; goals guide the first-value path after onboarding.",
-    guidance: {
-      what: "Roles and goals configure how RFxchange presents relevant opportunities and workflows.",
-      why: "An organization may be a supplier, buyer, issuer, resource provider, partner, or several at once; the platform should not force one account type.",
-      visibility: "Participation roles may be public; onboarding goals are product-personalization context and need not be public.",
-      next: "Use this context to choose the most useful authenticated Exchange destination after readiness.",
-    },
-    sections: [{ id: "roles", title: "Participation", fields: [
-      { id: "primary-role", label: "Primary role", kind: "select", value: "Business", options: organizationOptions, required: true },
-      { id: "find-opportunities", label: "Find opportunities", kind: "toggle", value: true },
-      { id: "find-teammates", label: "Find teammates", kind: "toggle", value: true },
-      { id: "find-resources", label: "Find resources", kind: "toggle", value: false },
-      { id: "explore-network", label: "Explore the network", kind: "toggle", value: true },
-    ] }],
-    returnHref: "/onboarding/capabilities", nextHref: "/onboarding/completion", nextLabel: "Review Exchange readiness",
   },
   membership: {
-    subject: "membership", mode: "review", eyebrow: "Membership detail", title: "Review participation and optional membership", subjectLabel: "Organization participation",
-    step: 5, totalSteps: 6, required: false, status: "optional", statusLabel: "Optional commercial decision",
-    completionSummary: "Core Exchange readiness must remain distinct from commercial membership, Founding recognition, verification, and credibility states.",
-    guidance: {
-      what: "Membership describes commercial participation for the organization, not the user's organization role or public verification state.",
-      why: "RFxchange should not let payment silently purchase credibility, qualification, or administrative authority.",
-      visibility: "Billing details are private; approved commercial recognition may be shown separately where applicable.",
-      next: "A free organization can continue to Exchange-ready review when the required identity and readiness gates are satisfied.",
-    },
-    sections: [{ id: "membership", title: "Commercial participation", fields: [
-      { id: "plan", label: "Plan", kind: "select", value: "Free organization", options: ["Free organization", "Founding Membership — $49/month"] },
-      { id: "founding-capacity", label: "Founding capacity", kind: "status", value: "Production capacity service not connected in reference chassis" },
-      { id: "continue-free", label: "Continue without upgrade", kind: "toggle", value: true },
-    ] }],
-    returnHref: "/onboarding", nextHref: "/onboarding/completion", nextLabel: "Review Exchange readiness",
+    subject: "membership",
+    label: "Membership",
+    description: "Resolve free or paid participation without allowing payment to purchase authority, verification, or credibility.",
+    step: 5,
+    totalSteps: 6,
+    classification: "conditional",
+    sources: ["Registration", "Project"],
+    workflow: membership,
+    children: [
+      node("membership-selection", "Membership Selection", "Choose the organization's participation path.", "conditional", ["Registration", "Project"], membership, [
+        node("founding-membership", "Founding Membership ($49/mo)", "Select the Founding Membership offer when available.", "optional", ["Registration", "Project"], workflow("/onboarding/membership?membership=founding", "Review Founding Membership", membershipCatalogService, true)),
+        node("future-plans", "Future Plans as Available", "Review future plans only when the governed Membership catalog exposes them.", "optional", ["Registration"], membership),
+        node("continue-free", "Continue Free", "Continue through core readiness without making paid membership a universal access gate.", "optional", ["Project"], membership),
+      ]),
+      node("payment", "Payment (Stripe)", "Complete payment only for a selected paid plan through the Membership-owned Stripe boundary.", "conditional", ["Registration"], workflow("/onboarding/membership?membership=founding", "Open Membership payment handoff", stripePendingService, true), [
+        node("enter-payment-details", "Enter Payment Details", "Collect payment details in Stripe-owned secure checkout, not Detail Surface.", "conditional", ["Registration"], workflow("/onboarding/membership?membership=founding", "Open secure payment handoff", stripePendingService, true)),
+        node("secure-checkout", "Secure Checkout", "Use Stripe checkout when the Membership integration is operational.", "conditional", ["Registration"], workflow("/onboarding/membership?membership=founding", "Open secure checkout handoff", stripePendingService, true)),
+        node("payment-confirmation", "Payment Confirmation", "Return confirmed payment/entitlement state to onboarding before readiness evaluation.", "conditional", ["Registration"], workflow("/onboarding/membership?membership=founding", "Review payment state", stripePendingService, true)),
+      ]),
+    ],
   },
   readiness: {
-    subject: "readiness", mode: "review", eyebrow: "Exchange-ready review detail", title: "Resolve the remaining readiness gates", subjectLabel: "Your Organization",
-    step: 6, totalSteps: 6, required: true, status: "needs-action", statusLabel: "1 blocking item",
-    completionSummary: "Exchange readiness is a controlled handoff. Optional AMACS depth, evidence, certifications, media, and additional capabilities do not become artificial access gates.",
-    guidance: {
-      what: "Readiness is the final server-evaluated checkpoint before the canonical organization becomes active in the authenticated Exchange.",
-      why: "Visited screens are not authoritative; the platform must re-evaluate the actual user, organization, geography, capability, visibility, and entitlement state.",
-      visibility: "The readiness checklist is administrative. Published organization data appears only after its own visibility rules are satisfied.",
-      next: "When every blocking item is resolved, activate the organization presence and enter the existing authenticated Exchange shell.",
-    },
-    sections: [
-      { id: "required", title: "Required readiness", fields: [
-        { id: "account-ready", label: "Account activated", kind: "status", value: "Complete" },
-        { id: "organization-ready", label: "Organization resolved", kind: "status", value: "Complete" },
-        { id: "authority-ready", label: "Authority / membership", kind: "status", value: "Complete" },
-        { id: "geography-ready", label: "Geography confirmed", kind: "status", value: "Complete" },
-        { id: "profile-ready", label: "Profile identity & visibility", kind: "status", value: "Complete" },
-        { id: "capability-ready", label: "Meaningful capability", kind: "status", value: "Needs action" },
-      ] },
-      { id: "enrichment", title: "Progressive enrichment", fields: [
-        { id: "amacs-depth", label: "AMACS depth", kind: "status", value: "Optional" },
-        { id: "certifications", label: "Certifications / evidence", kind: "status", value: "Optional" },
-        { id: "media", label: "Portfolio / media", kind: "status", value: "Optional" },
-      ] },
+    subject: "readiness",
+    label: "Exchange-ready Completion",
+    description: "Evaluate blocking readiness, resolve missing items, then activate the handoff to the existing authenticated Exchange shell.",
+    step: 6,
+    totalSteps: 6,
+    classification: "required",
+    sources: ["Onboarding", "Registration"],
+    workflow: completion,
+    children: [
+      node("review-completion-checkpoint", "Review & Completion Checkpoint", "Review required/recommended completeness and route missing items back to their owning workflow.", "required", ["Onboarding"], completion, [
+        node("completeness-check", "Completeness Check", "Evaluate required and recommended onboarding items through the Readiness service.", "required", ["Onboarding"], completion),
+        node("missing-items", "Missing Items / Actionable Prompts", "Surface blocking or recommended items as concrete links back to the owning workflow.", "required", ["Onboarding"], completion),
+        node("save-continue-later", "Save and Continue Later", "Use owning domain persistence; Detail Surface does not keep a browser-only shadow record.", "recommended", ["Onboarding"], completion),
+        node("profile-completeness-indicator", "Profile Completeness Indicator", "Use completeness as guidance without turning optional enrichment into a blocking access gate.", "recommended", ["Onboarding"], completion),
+      ]),
+      node("exchange-ready", "Exchange Ready", "Activate organization presence and enter the existing Exchange after all blocking gates pass.", "required", ["Onboarding", "Registration"], activate, [
+        node("listed-presence", "Listed / Presence in Exchange", "Activate the permitted marker or off-map organization presence.", "required", ["Onboarding"], activate),
+        node("browse-exchange", "Browse RFx, Resources, Intelligence, and Capabilities", "Enter the existing authenticated Exchange rather than an onboarding-only home.", "required", ["Onboarding"], exchange),
+        node("profile-through-menu", "Profile Available Through Menu", "Manage the same canonical organization profile through the authenticated Menu after entry.", "recommended", ["Onboarding"], exchange),
+      ]),
     ],
-    returnHref: "/onboarding", nextHref: "/exchange", nextLabel: "Enter the Exchange",
   },
+};
+
+const legacyRedirects: Record<string, string> = {
+  authority: "/onboarding/detail/organization/referral-invitation/set-role-confirm-access",
+  capability: "/onboarding/detail/capabilities/capabilities-entry",
+  evidence: "/onboarding/detail/capabilities/evidence-certifications",
+  "role-goals": "/onboarding/detail/profile/roles-goals-visibility",
 };
 
 export function isOnboardingDetailSubject(value: string): value is OnboardingDetailSubject {
   return (ONBOARDING_DETAIL_SUBJECTS as readonly string[]).includes(value);
 }
 
-export function getOnboardingDetailDefinition(subject: string): OnboardingDetailDefinition | null {
-  return isOnboardingDetailSubject(subject) ? definitions[subject] : null;
+export function getLegacyOnboardingDetailRedirect(subject: string): string | undefined {
+  return legacyRedirects[subject];
 }
 
 export function listOnboardingDetailDefinitions(): readonly OnboardingDetailDefinition[] {
   return ONBOARDING_DETAIL_SUBJECTS.map((subject) => definitions[subject]);
+}
+
+export function getOnboardingDetailDefinition(subject: string): OnboardingDetailDefinition | null {
+  return isOnboardingDetailSubject(subject) ? definitions[subject] : null;
+}
+
+export function onboardingDetailHref(subject: OnboardingDetailSubject, path: readonly string[] = []): string {
+  return `/onboarding/detail/${subject}${path.length ? `/${path.map(encodeURIComponent).join("/")}` : ""}`;
+}
+
+export function getOnboardingDetailNode(subject: OnboardingDetailSubject, path: readonly string[]): OnboardingDetailDefinition | OnboardingDetailNode | null {
+  const definition = definitions[subject];
+  if (path.length === 0) return definition;
+  let children: readonly OnboardingDetailNode[] = definition.children;
+  let current: OnboardingDetailNode | undefined;
+  for (const segment of path) {
+    current = children.find((candidate) => candidate.id === segment);
+    if (!current) return null;
+    children = current.children ?? [];
+  }
+  return current ?? null;
+}
+
+export function getOnboardingDetailBreadcrumbs(subject: OnboardingDetailSubject, path: readonly string[]): readonly OnboardingDetailBreadcrumb[] {
+  const definition = definitions[subject];
+  const crumbs: OnboardingDetailBreadcrumb[] = [{ label: definition.label, href: onboardingDetailHref(subject) }];
+  let children: readonly OnboardingDetailNode[] = definition.children;
+  const accumulated: string[] = [];
+  for (const segment of path) {
+    const current = children.find((candidate) => candidate.id === segment);
+    if (!current) break;
+    accumulated.push(segment);
+    crumbs.push({ label: current.label, href: onboardingDetailHref(subject, accumulated) });
+    children = current.children ?? [];
+  }
+  return crumbs;
+}
+
+export function getOnboardingDetailParentHref(subject: OnboardingDetailSubject, path: readonly string[]): string {
+  return path.length === 0 ? "/onboarding/detail" : onboardingDetailHref(subject, path.slice(0, -1));
+}
+
+export interface OnboardingStaticDetailPath { subject: OnboardingDetailSubject; path: string[]; }
+export function listOnboardingStaticDetailPaths(): OnboardingStaticDetailPath[] {
+  const paths: OnboardingStaticDetailPath[] = [];
+  const walk = (subject: OnboardingDetailSubject, nodes: readonly OnboardingDetailNode[], prefix: string[] = []) => {
+    for (const child of nodes) {
+      const path = [...prefix, child.id];
+      paths.push({ subject, path });
+      if (child.children?.length) walk(subject, child.children, path);
+    }
+  };
+  for (const definition of listOnboardingDetailDefinitions()) walk(definition.subject, definition.children);
+  return paths;
 }
 
 export function sanitizeInternalDetailHref(value: string | undefined, fallback: string): string {
