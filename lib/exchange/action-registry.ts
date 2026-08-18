@@ -19,9 +19,15 @@ const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }>
     { id: "request-resource", label: "Request", icon: "+", trigger: "modal", requiresRecord: true }, { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true }, { id: "share", label: "Share", icon: "↗", trigger: "direct", requiresRecord: true }, { id: "save", label: "Save", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "save" },
   ]},
   intelligence: { own: [
-    { id: "add-insight", label: "Add Insight", icon: "+", trigger: "modal" }, { id: "edit-insight", label: "Edit Insight", icon: "✎", trigger: "modal", requiresRecord: true }, { id: "compare", label: "Compare", icon: "⇄", trigger: "workflow", requiresRecord: true }, { id: "track", label: "Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "track" },
+    { id: "add-insight", label: "Add Insight", icon: "+", trigger: "modal" },
+    { id: "edit-insight", label: "Edit Insight", icon: "✎", trigger: "menu", requiresRecord: true },
+    { id: "compare", label: "Compare", icon: "⇄", trigger: "modal", requiresRecord: true },
+    { id: "track", label: "Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "track" },
   ], other: [
-    { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true }, { id: "add-note", label: "Add Note", icon: "◌", trigger: "modal", requiresRecord: true }, { id: "compare", label: "Compare", icon: "⇄", trigger: "workflow", requiresRecord: true }, { id: "follow-track", label: "Follow / Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "follow" },
+    { id: "view", label: "View Insight Detail", icon: "◉", trigger: "menu", requiresRecord: true },
+    { id: "add-note", label: "Add Note", icon: "◌", trigger: "modal", requiresRecord: true },
+    { id: "compare", label: "Compare", icon: "⇄", trigger: "modal", requiresRecord: true },
+    { id: "follow-track", label: "Follow / Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "follow" },
   ]},
   capabilities: { own: [
     { id: "manage-capabilities", label: "Manage Capabilities", icon: "✎", trigger: "workflow", requiresRecord: true },
