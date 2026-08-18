@@ -115,10 +115,10 @@ function deriveEntryKind(context: Omit<RegistrationEntryContext, "entryKind">, r
 export function registrationContextFromSearchParams(params: SearchParamsLike): RegistrationEntryContext {
   const context = {
     returnTo: safeReturnTo(single(params.returnTo)),
-    source: clean(single(params.source) ?? single(params.utm_source)) || undefined,
-    medium: clean(single(params.medium) ?? single(params.utm_medium)) || undefined,
+    source: clean(single(params.utm_source) ?? single(params.source)) || undefined,
+    medium: clean(single(params.utm_medium) ?? single(params.medium)) || undefined,
     campaign: clean(single(params.campaign) ?? single(params.utm_campaign)) || undefined,
-    content: clean(single(params.content) ?? single(params.utm_content)) || undefined,
+    content: clean(single(params.utm_content) ?? single(params.content)) || undefined,
     partner: clean(single(params.partner)) || undefined,
     referral: clean(single(params.referral) ?? single(params.ref)) || undefined,
     invitation: clean(single(params.invitation) ?? single(params.invite), 500) || undefined,
