@@ -1,0 +1,106 @@
+.card {
+  width: min(100%, 540px);
+}
+
+.icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 18px;
+  border-radius: 18px;
+  background: rgba(46, 94, 170, 0.12);
+  color: var(--signal-blue);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.processing {
+  animation: verification-spin 1.2s linear infinite;
+}
+
+.success {
+  background: rgba(59, 123, 87, 0.14);
+  color: var(--growth-green);
+}
+
+.error {
+  background: rgba(158, 47, 47, 0.12);
+  color: #9e2f2f;
+}
+
+.destination {
+  margin: 8px 0 18px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: rgba(247, 243, 234, 0.72);
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.textButton {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: #4c5668;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.notice {
+  margin: 16px 0 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(46, 94, 170, 0.08);
+  color: #3d4c67;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.referenceBox {
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px dashed rgba(46, 94, 170, 0.38);
+  border-radius: 15px;
+  background: rgba(46, 94, 170, 0.06);
+}
+
+.referenceBox strong {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.referenceBox p {
+  margin: 0 0 12px;
+  color: #5b6471;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.boundary {
+  margin: 16px 0 0;
+  color: #6b7078;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+@keyframes verification-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .processing { animation: none; }
+}
