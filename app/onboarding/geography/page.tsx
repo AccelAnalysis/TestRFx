@@ -1,5 +1,5 @@
-import { GeographyWorkflow } from "./geography-workflow";
+import { GeographyWorkflowLive } from "./geography-workflow-live";
 
 export default function GeographyPage() {
-  return <GeographyWorkflow />;
+  return <GeographyWorkflowLive />;
 }
