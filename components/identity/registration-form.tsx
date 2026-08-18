@@ -81,13 +81,15 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
           <span>Exchange ready</span>
         </div>
         <p className="eyebrow">RFxchange registration</p>
-        <h1>Registration ready for verification</h1>
+        <h1>{accepted.resumed ? "Continue account verification" : "Account created"}</h1>
         <p className="muted">
-          <strong>{accepted.email}</strong> is ready for the account-verification handoff. Your acquisition, referral, invitation, organization, membership, geography, and requested-record context remains available to downstream onboarding when supplied.
+          <strong>{accepted.email}</strong> {accepted.resumed
+            ? "already has a pending RFxchange registration. Continue the verification workflow below."
+            : "is now attached to a pending RFxchange account. Verify the email before organization onboarding."}
         </p>
         <div className={styles.statusPanel}>
           <strong>Next: verify your email</strong>
-          <p>This TestRFx reference adapter establishes the verification handoff; transactional email delivery and persistent identity storage plug into this contract next.</p>
+          <p>Verification uses a one-time email challenge. Organization membership, geography, profile, capabilities, and Exchange readiness remain downstream onboarding steps.</p>
         </div>
         <Link className="button button-primary button-full" href={accepted.handoffHref}>
           Continue to account verification
@@ -152,7 +154,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
             aria-describedby={errors.email ? "email-error" : "email-help"}
             required
           />
-          <small id="email-help" className={styles.help}>This becomes your canonical RFxchange identity email after verification and production identity persistence are connected.</small>
+          <small id="email-help" className={styles.help}>This becomes your RFxchange account email after successful verification.</small>
           {errors.email ? <small id="email-error" className={styles.error}>{errors.email}</small> : null}
         </label>
 
@@ -178,7 +180,7 @@ export function RegistrationForm({ initialContext }: RegistrationFormProps) {
         {errors.form ? <div className={styles.formError} role="alert">{errors.form}</div> : null}
 
         <button className="button button-primary button-full" type="submit" disabled={submitting}>
-          {submitting ? "Creating registration…" : "Continue"}
+          {submitting ? "Creating account…" : "Continue"}
         </button>
       </form>
 

@@ -9,11 +9,11 @@ export default function AccountVerificationPage() {
           <section className="identity-card">
             <p className="eyebrow">Account verification</p>
             <h1>Loading verification…</h1>
-            <p className="muted">Preparing your secure account verification state.</p>
+            <p className="muted">Preparing your account verification workflow.</p>
           </section>
         }
       >
-        <AccountVerificationPanel />
+        <AccountVerificationPanel activePath={[]} />
       </Suspense>
     </main>
   );

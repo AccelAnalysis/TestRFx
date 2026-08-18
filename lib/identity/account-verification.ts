@@ -1,8 +1,8 @@
-export const ACCOUNT_VERIFICATION_PURPOSE = "rfxchange-account-email-verification" as const;
 export const ACCOUNT_VERIFICATION_TTL_SECONDS = 30 * 60;
 
 export type AccountVerificationState =
   | "idle"
+  | "loading"
   | "requesting"
   | "pending"
   | "verifying"
@@ -29,35 +29,40 @@ export type VerificationEntrySource =
 
 export interface AccountVerificationContext {
   source?: VerificationEntrySource;
-  invitationId?: string;
-  referralId?: string;
-  campaignId?: string;
+  acquisitionSource?: string;
+  invitation?: string;
+  referral?: string;
+  campaign?: string;
+  organization?: string;
+  membership?: string;
+  geography?: string;
+  record?: string;
   returnTo?: string;
-}
-
-export interface VerificationTokenPayload {
-  version: 1;
-  purpose: typeof ACCOUNT_VERIFICATION_PURPOSE;
-  email: string;
-  issuedAt: number;
-  expiresAt: number;
-  nonce: string;
-  context: AccountVerificationContext;
 }
 
 export interface VerificationRequestResponse {
   state: "pending";
+  registrationId: string;
   maskedEmail: string;
   expiresInSeconds: number;
-  referenceDelivery: boolean;
-  verificationPath?: string;
+  retryAfterSeconds?: number;
 }
 
 export interface VerificationSuccessResponse {
   state: "verified";
-  email: string;
+  registrationId: string;
+  maskedEmail: string;
   nextPath: string;
   context: AccountVerificationContext;
+}
+
+export interface VerificationStatusResponse {
+  state: "pending" | "verified";
+  registrationId: string;
+  maskedEmail: string;
+  latestDeliveryState?: "pending" | "sent" | "failed";
+  latestChallengeState?: VerificationChallengeState;
+  nextPath?: string;
 }
 
 export function normalizeEmail(value: string): string {
@@ -80,49 +85,88 @@ export function maskEmail(value: string): string {
   return `${visible}${"•".repeat(Math.max(3, Math.min(6, local.length - visible.length)))}@${domain}`;
 }
 
-function boundedValue(value: unknown): string | undefined {
+function boundedValue(value: unknown, maxLength = 240): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 240) return undefined;
+  if (!trimmed || trimmed.length > maxLength) return undefined;
   return trimmed;
 }
 
 function isInternalReturnPath(value: string): boolean {
-  return value.startsWith("/onboarding") || value.startsWith("/exchange");
+  return value.startsWith("/") && !value.startsWith("//") && (value.startsWith("/onboarding") || value.startsWith("/exchange"));
 }
 
+const allowedSources = new Set<VerificationEntrySource>([
+  "registration",
+  "email_change",
+  "resend",
+  "invitation",
+  "referral",
+  "campaign",
+  "unknown",
+]);
+
 export function sanitizeVerificationContext(value: unknown): AccountVerificationContext {
-  if (!value || typeof value !== "object") return {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const raw = value as Record<string, unknown>;
-  const source = boundedValue(raw.source);
-  const allowedSources: VerificationEntrySource[] = [
-    "registration",
-    "email_change",
-    "resend",
-    "invitation",
-    "referral",
-    "campaign",
-    "unknown",
-  ];
-  const returnTo = boundedValue(raw.returnTo);
+  const sourceValue = boundedValue(raw.source);
+  const returnTo = boundedValue(raw.returnTo, 500);
 
   return {
-    source: allowedSources.includes(source as VerificationEntrySource)
-      ? (source as VerificationEntrySource)
+    source: sourceValue && allowedSources.has(sourceValue as VerificationEntrySource)
+      ? (sourceValue as VerificationEntrySource)
       : undefined,
-    invitationId: boundedValue(raw.invitationId),
-    referralId: boundedValue(raw.referralId),
-    campaignId: boundedValue(raw.campaignId),
+    acquisitionSource: boundedValue(raw.acquisitionSource),
+    invitation: boundedValue(raw.invitation, 500),
+    referral: boundedValue(raw.referral),
+    campaign: boundedValue(raw.campaign),
+    organization: boundedValue(raw.organization),
+    membership: boundedValue(raw.membership),
+    geography: boundedValue(raw.geography),
+    record: boundedValue(raw.record),
     returnTo: returnTo && isInternalReturnPath(returnTo) ? returnTo : undefined,
   };
 }
 
-export function buildOnboardingContinuation(context: AccountVerificationContext): string {
-  const params = new URLSearchParams({ stage: "organization" });
+export function verificationContextFromSearchParams(params: URLSearchParams): AccountVerificationContext {
+  return sanitizeVerificationContext({
+    source: params.get("source") ?? undefined,
+    acquisitionSource: params.get("acquisitionSource") ?? undefined,
+    invitation: params.get("invitation") ?? params.get("invite") ?? undefined,
+    referral: params.get("referral") ?? undefined,
+    campaign: params.get("campaign") ?? undefined,
+    organization: params.get("organization") ?? undefined,
+    membership: params.get("membership") ?? undefined,
+    geography: params.get("geography") ?? undefined,
+    record: params.get("record") ?? undefined,
+    returnTo: params.get("returnTo") ?? undefined,
+  });
+}
+
+export function buildVerificationContextSearchParams(context: AccountVerificationContext): URLSearchParams {
+  const params = new URLSearchParams();
   if (context.source) params.set("source", context.source);
-  if (context.invitationId) params.set("invitation", context.invitationId);
-  if (context.referralId) params.set("referral", context.referralId);
-  if (context.campaignId) params.set("campaign", context.campaignId);
+  if (context.acquisitionSource) params.set("acquisitionSource", context.acquisitionSource);
+  if (context.invitation) params.set("invitation", context.invitation);
+  if (context.referral) params.set("referral", context.referral);
+  if (context.campaign) params.set("campaign", context.campaign);
+  if (context.organization) params.set("organization", context.organization);
+  if (context.membership) params.set("membership", context.membership);
+  if (context.geography) params.set("geography", context.geography);
+  if (context.record) params.set("record", context.record);
   if (context.returnTo) params.set("returnTo", context.returnTo);
-  return `/onboarding?${params.toString()}`;
+  return params;
+}
+
+export function buildOnboardingContinuation(context: AccountVerificationContext): string {
+  const params = buildVerificationContextSearchParams(context);
+  const query = params.toString();
+  return query ? `/onboarding/organization?${query}` : "/onboarding/organization";
+}
+
+export function sourceFromRegistrationContext(entryKind: string): VerificationEntrySource {
+  if (entryKind === "partner_invitation") return "invitation";
+  if (entryKind === "referral") return "referral";
+  if (entryKind === "campaign") return "campaign";
+  return "registration";
 }

@@ -40,7 +40,8 @@ export type RegistrationAccepted = {
   nextStep: "account_verification";
   handoffHref: string;
   context: RegistrationEntryContext;
-  adapter: "reference";
+  adapter: "runtime";
+  resumed: boolean;
 };
 
 export type RegistrationValidationResult =
@@ -191,7 +192,7 @@ export function registrationLoginHref(context: RegistrationEntryContext) {
 
 export function registrationHandoffHref(registrationId: string, context: RegistrationEntryContext) {
   const params = registrationContextSearchParams(context);
-  params.set("step", "account-verification");
   params.set("registration", registrationId);
-  return `/onboarding?${params.toString()}`;
+  const query = params.toString();
+  return `/onboarding/account-verification/verify-email-access/send?${query}`;
 }
