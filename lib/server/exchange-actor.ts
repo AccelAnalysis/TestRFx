@@ -4,6 +4,13 @@ import { query } from "./database";
 
 export const EXCHANGE_SESSION_COOKIE = "rfx_session";
 
+export interface RuntimeSessionIdentity {
+  userId: string;
+  email: string;
+  displayName: string;
+  activeOrganizationId?: string;
+}
+
 export interface ExchangeActor {
   userId: string;
   email: string;
@@ -13,6 +20,13 @@ export interface ExchangeActor {
   role: string;
   permissions: string[];
 }
+
+type SessionRow = {
+  user_id: string;
+  email: string;
+  display_name: string;
+  active_organization_id: string | null;
+};
 
 type ActorRow = {
   user_id: string;
@@ -30,6 +44,28 @@ function tokenHash(token: string) {
 
 function normalizePermissions(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+export async function resolveRuntimeSessionFromToken(token?: string | null): Promise<RuntimeSessionIdentity | undefined> {
+  if (!token) return undefined;
+  const result = await query<SessionRow>(`
+    SELECT s.user_id::text, u.email, u.display_name, s.active_organization_id::text
+    FROM app_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.token_hash = $1
+      AND s.revoked_at IS NULL
+      AND s.expires_at > now()
+      AND u.account_status = 'active'
+    LIMIT 1
+  `, [tokenHash(token)]);
+  const row = result.rows[0];
+  if (!row) return undefined;
+  return {
+    userId: row.user_id,
+    email: row.email,
+    displayName: row.display_name,
+    activeOrganizationId: row.active_organization_id ?? undefined,
+  };
 }
 
 export async function resolveExchangeActorFromToken(token?: string | null): Promise<ExchangeActor | undefined> {
@@ -66,6 +102,10 @@ export async function resolveExchangeActorFromToken(token?: string | null): Prom
     role: row.role,
     permissions: normalizePermissions(row.permissions),
   };
+}
+
+export async function resolveRuntimeSession(request: NextRequest) {
+  return resolveRuntimeSessionFromToken(request.cookies.get(EXCHANGE_SESSION_COOKIE)?.value);
 }
 
 export async function resolveExchangeActor(request: NextRequest) {
