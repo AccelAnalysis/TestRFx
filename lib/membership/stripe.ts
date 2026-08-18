@@ -70,6 +70,14 @@ function stripeKey() {
   return key;
 }
 
+function stripeErrorMessage(payload: unknown) {
+  if (!payload || typeof payload !== "object") return undefined;
+  const error = (payload as { error?: unknown }).error;
+  if (!error || typeof error !== "object") return undefined;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" ? message : undefined;
+}
+
 async function stripeRequest<T>(
   path: string,
   init: RequestInit = {},
@@ -87,18 +95,10 @@ async function stripeRequest<T>(
     cache: "no-store",
   });
 
-  const payload = (await response.json().catch(() => null)) as
-    | T
-    | { error?: { message?: string } }
-    | null;
-
+  const payload: unknown = await response.json().catch(() => null);
   if (!response.ok) {
-    const message = payload && typeof payload === "object" && "error" in payload
-      ? payload.error?.message
-      : undefined;
-    throw new Error(message || `Stripe request failed (${response.status}).`);
+    throw new Error(stripeErrorMessage(payload) || `Stripe request failed (${response.status}).`);
   }
-
   if (!payload) throw new Error("Stripe returned an empty response.");
   return payload as T;
 }
