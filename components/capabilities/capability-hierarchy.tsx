@@ -5,7 +5,7 @@ import styles from "./capabilities.module.css";
 
 function Branch({ node, activeNodeId, selectedOtherAvailable, onNavigate }: { node: CapabilityNavigationNode; activeNodeId?: CapabilityNavigationNodeId; selectedOtherAvailable: boolean; onNavigate: (id: CapabilityNavigationNodeId) => void }) {
   const activePath = activeNodeId ? capabilityNavigationPath(activeNodeId) : [];
-  const disabled = Boolean(node.requiresSelectedOther && !selectedOtherAvailable);
+  const disabled = Boolean((node.scope === "own" && selectedOtherAvailable) || (node.requiresSelectedOther && !selectedOtherAvailable));
   return <li className={styles.treeItem}>
     <button type="button" className={`${styles.treeButton} ${node.id === activeNodeId ? styles.treeActive : ""}`} disabled={disabled} onClick={() => onNavigate(node.id)} aria-current={node.id === activeNodeId ? "step" : undefined}>
       <span>{node.label}</span>{activePath.includes(node.id) && node.id !== activeNodeId ? <small>In path</small> : null}
