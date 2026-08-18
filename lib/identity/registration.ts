@@ -38,6 +38,7 @@ export type RegistrationVerificationRequired = {
   registrationId: string;
   email: string;
   maskedEmail: string;
+  resolution: "new_account" | "pending_verification";
   nextStep: "account_verification";
   handoffHref: string;
   context: RegistrationEntryContext;
