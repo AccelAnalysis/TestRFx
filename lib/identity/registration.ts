@@ -33,19 +33,51 @@ export type RegistrationFieldErrors = Partial<
   Record<"firstName" | "lastName" | "email" | "acceptedTerms" | "form", string>
 >;
 
-export type RegistrationAccepted = {
+export type RegistrationVerificationRequired = {
   status: "verification_required";
   registrationId: string;
   email: string;
+  maskedEmail: string;
   nextStep: "account_verification";
   handoffHref: string;
   context: RegistrationEntryContext;
-  adapter: "reference";
+  delivery: "sent" | "already_sent";
+  retryAfterSeconds?: number;
 };
+
+export type RegistrationExistingAccount = {
+  status: "existing_account";
+  email: string;
+  loginHref: string;
+  context: RegistrationEntryContext;
+};
+
+export type RegistrationDeliveryFailed = {
+  status: "verification_delivery_failed";
+  registrationId: string;
+  email: string;
+  maskedEmail: string;
+  handoffHref: string;
+  context: RegistrationEntryContext;
+  message: string;
+};
+
+export type RegistrationAccepted =
+  | RegistrationVerificationRequired
+  | RegistrationExistingAccount
+  | RegistrationDeliveryFailed;
 
 export type RegistrationValidationResult =
   | { ok: true; submission: RegistrationSubmission }
   | { ok: false; errors: RegistrationFieldErrors };
+
+export type RegistrationStatus = {
+  registrationId: string;
+  state: "pending_verification" | "verified" | "existing_account" | "abandoned" | "blocked";
+  maskedEmail: string;
+  context: RegistrationEntryContext;
+  handoffHref: string;
+};
 
 type SearchParamsLike = Record<string, string | string[] | undefined>;
 
@@ -114,6 +146,10 @@ export function registrationContextFromSearchParams(params: SearchParamsLike): R
     entryKind: deriveEntryKind(context, single(params.entryKind)),
     ...context,
   };
+}
+
+export function registrationContextFromUrlSearchParams(params: URLSearchParams): RegistrationEntryContext {
+  return registrationContextFromSearchParams(Object.fromEntries(params.entries()));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -189,9 +225,21 @@ export function registrationLoginHref(context: RegistrationEntryContext) {
   return query ? `/login?${query}` : "/login";
 }
 
-export function registrationHandoffHref(registrationId: string, context: RegistrationEntryContext) {
+export function registrationHandoffHref(registrationId: string, context: RegistrationEntryContext, mode?: "resend" | "change-email") {
   const params = registrationContextSearchParams(context);
-  params.set("step", "account-verification");
   params.set("registration", registrationId);
-  return `/onboarding?${params.toString()}`;
+  if (mode) params.set("mode", mode);
+  return `/onboarding/account-verification?${params.toString()}`;
+}
+
+export function registrationWorkflowHref(
+  path: readonly string[],
+  context: RegistrationEntryContext,
+  registrationId?: string,
+) {
+  const params = registrationContextSearchParams(context);
+  if (registrationId) params.set("registration", registrationId);
+  const query = params.toString();
+  const pathname = `/register/${path.map((part) => encodeURIComponent(part)).join("/")}`;
+  return query ? `${pathname}?${query}` : pathname;
 }
