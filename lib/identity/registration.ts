@@ -173,12 +173,25 @@ export function validateRegistrationPayload(value: unknown): RegistrationValidat
   };
 }
 
-export function registrationHandoffHref(registrationId: string, context: RegistrationEntryContext) {
-  const params = new URLSearchParams({ step: "account-verification", registration: registrationId });
+export function registrationContextSearchParams(context: RegistrationEntryContext) {
+  const params = new URLSearchParams();
   if (context.returnTo) params.set("returnTo", context.returnTo);
   for (const key of contextKeys) {
     const value = context[key];
     if (value) params.set(key, value);
   }
+  return params;
+}
+
+export function registrationLoginHref(context: RegistrationEntryContext) {
+  const params = registrationContextSearchParams(context);
+  const query = params.toString();
+  return query ? `/login?${query}` : "/login";
+}
+
+export function registrationHandoffHref(registrationId: string, context: RegistrationEntryContext) {
+  const params = registrationContextSearchParams(context);
+  params.set("step", "account-verification");
+  params.set("registration", registrationId);
   return `/onboarding?${params.toString()}`;
 }
