@@ -1,0 +1,67 @@
+.workflowNav {
+  padding: 18px;
+  border: 1px solid rgba(37, 41, 50, .12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .82);
+  box-shadow: 0 10px 28px rgba(11, 11, 13, .06);
+}
+
+.workflowNavHeading {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(37, 41, 50, .1);
+}
+
+.workflowNavHeading span {
+  color: #745312;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.workflowNavHeading strong { font-size: 15px; }
+.workflowGroup { padding-top: 15px; }
+.workflowGroup + .workflowGroup { margin-top: 14px; border-top: 1px solid rgba(37, 41, 50, .08); }
+
+.workflowGroupHeading { display: grid; gap: 4px; margin-bottom: 7px; }
+.workflowGroupHeading strong { font-size: 13px; }
+.workflowGroupHeading small { color: #6b7078; font-size: 10px; line-height: 1.35; }
+.workflowTree, .treeChildren { margin: 0; padding: 0; list-style: none; }
+.treeChildren { margin-left: 13px; padding-left: 10px; border-left: 1px solid rgba(37, 41, 50, .12); }
+.treeItem { margin: 2px 0; }
+
+.treeLink, .treeLabel {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 5px 7px;
+  border-radius: 10px;
+  color: #4f545c;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.treeLink:hover { background: rgba(46, 94, 170, .07); color: #252932; }
+.treeLinkActive { background: rgba(214, 162, 58, .14); color: #3f300f; }
+.treeChild .treeLink, .treeChild .treeLabel { font-size: 10px; font-weight: 650; }
+
+.treeStatus {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(37, 41, 50, .08);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+@media (max-width: 760px) {
+  .workflowNav { padding: 15px; }
+  .workflowGroupHeading small { max-width: 40rem; }
+}

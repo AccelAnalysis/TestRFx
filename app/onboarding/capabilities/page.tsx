@@ -1,5 +1,5 @@
-import CapabilityEnrichment from "@/components/onboarding/capability-enrichment";
+import { CapabilityEnrichmentRoute } from "@/components/onboarding/capability-enrichment-route";
 
 export default function CapabilityEnrichmentPage() {
-  return <CapabilityEnrichment />;
+  return <CapabilityEnrichmentRoute />;
 }

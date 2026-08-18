@@ -127,34 +127,29 @@ import Link from "next/link";
 import { formatUsdCents, foundingMembership } from "@/lib/membership/catalog";
 import styles from "./membership.module.css";
 
-export const metadata: Metadata = {
-  title: "Membership Selection | RFxchange",
-};
+export const metadata: Metadata = { title: "Participation & Membership | RFxchange" };
 
 export default function MembershipSelectionPage() {
-  const plan = foundingMembership;
-  const price = formatUsdCents(plan.price.cents);
-
+  const price = formatUsdCents(foundingMembership.price.cents);
   return (
     <main className="identity-shell onboarding-shell">
       <section className="identity-card onboarding-card">
-        <p className="eyebrow">Membership selection</p>
-        <h1>Confirm the organization membership path</h1>
-        <p className="muted">The static preview shows the Founding Membership path. Production checkout resolves authenticated organization context before creating a subscription.</p>
-        <div className={styles.summary}>
-          <div className={styles.summaryHeader}>
-            <div><p className="eyebrow">Selected plan</p><h2>{plan.name}</h2></div>
-            <div className={styles.price}>{price} <small>/ month</small></div>
-          </div>
-          <div className={styles.details}>
-            <div className={styles.detail}><strong>Owner</strong><span>Organization-level membership</span></div>
-            <div className={styles.detail}><strong>Capacity</strong><span>First {plan.capacity.limit} organizations</span></div>
-            <div className={styles.detail}><strong>Activation</strong><span>After verified payment confirmation</span></div>
-          </div>
+        <p className="eyebrow">Static preview</p>
+        <h1>Participation & membership</h1>
+        <p className="muted">The production runtime can activate Free organization participation through the onboarding progress service. GitHub Pages has no API runtime, so this preview does not grant an entitlement.</p>
+        <div className={styles.planGrid}>
+          <article className={styles.summary}>
+            <div className={styles.summaryHeader}><div><p className="eyebrow">Core participation</p><h2>Free organization</h2></div><div className={styles.price}>$0 <small>/ month</small></div></div>
+            <div className={styles.integrationNote}>Production action: activate a real Free participation checkpoint. Static preview action is intentionally disabled.</div>
+            <button className={styles.disabledButton} disabled>Runtime required</button>
+          </article>
+          <article className={styles.summary}>
+            <div className={styles.summaryHeader}><div><p className="eyebrow">Optional membership</p><h2>{foundingMembership.name}</h2></div><div className={styles.price}>{price} <small>/ month</small></div></div>
+            <div className={styles.integrationNote}>Founding Membership requires genuine Stripe checkout and payment confirmation. No payment is simulated in the preview.</div>
+            <button className={styles.disabledButton} disabled>Secure checkout unavailable</button>
+          </article>
         </div>
-        <div className={styles.integrationNote}><strong>Stripe checkout integration point.</strong> The Pages preview does not create a subscription or unlock Exchange permissions.</div>
-        <button className={styles.disabledButton} type="button" disabled aria-disabled="true">Continue to secure checkout — integration pending</button>
-        <Link className={styles.backLink} href="/founding">Back to Founding Membership</Link>
+        <Link className={styles.backLink} href="/onboarding/completion">Continue previewing onboarding</Link>
       </section>
     </main>
   );
@@ -176,14 +171,75 @@ export default function OrganizationProfilePage() {
 await write(
   "app/onboarding/completion/page.tsx",
   `import { ExchangeReadyCompletion } from "@/components/onboarding/exchange-ready-completion";
-import { getReferenceExchangeReadiness, resolveExchangeDestination } from "@/lib/onboarding/readiness";
+import { buildExchangeReadiness, resolveExchangeDestination } from "@/lib/onboarding/readiness";
+import { createEmptyOnboardingProgress } from "@/lib/onboarding/progress";
 
 export default function CompletionPage() {
   return (
     <ExchangeReadyCompletion
-      readiness={getReferenceExchangeReadiness()}
+      readiness={buildExchangeReadiness(createEmptyOnboardingProgress())}
       returnTo={resolveExchangeDestination(undefined)}
     />
+  );
+}
+`,
+);
+
+await write(
+  "app/onboarding/completion/activate/page.tsx",
+  `import Link from "next/link";
+import { CompletionNavigation } from "@/components/onboarding/completion-navigation";
+import styles from "@/components/onboarding/completion-transition.module.css";
+import { buildExchangeReadiness } from "@/lib/onboarding/readiness";
+import { createEmptyOnboardingProgress } from "@/lib/onboarding/progress";
+
+export default function CompletionActivationPage() {
+  const readiness = buildExchangeReadiness(createEmptyOnboardingProgress());
+  return (
+    <main className={styles.shell}>
+      <div className={styles.frame}>
+        <header className={styles.topbar}><span className={styles.brand}>RFxchange</span><span className={styles.step}>Static preview · Publish & activate</span></header>
+        <div className={styles.grid}>
+          <section className={styles.card}>
+            <h1>Confirm Exchange presence</h1>
+            <p>Activation requires the production runtime because readiness is evaluated from saved server-side onboarding progress. GitHub Pages does not fabricate an activation.</p>
+            <div className={styles.notice}><strong>Preview only.</strong> Complete this workflow in the runtime application to activate an Exchange-ready state.</div>
+            <Link className={styles.secondaryLink} href="/onboarding/completion">← Back to readiness review</Link>
+          </section>
+          <CompletionNavigation readiness={readiness} activePath="/onboarding/completion/activate" />
+        </div>
+      </div>
+    </main>
+  );
+}
+`,
+);
+
+await write(
+  "app/onboarding/completion/success/page.tsx",
+  `import Link from "next/link";
+import { CompletionNavigation } from "@/components/onboarding/completion-navigation";
+import styles from "@/components/onboarding/completion-transition.module.css";
+import { buildExchangeReadiness } from "@/lib/onboarding/readiness";
+import { createEmptyOnboardingProgress } from "@/lib/onboarding/progress";
+
+export default function ExchangeReadySuccessPage() {
+  const readiness = buildExchangeReadiness(createEmptyOnboardingProgress());
+  return (
+    <main className={styles.shell}>
+      <div className={styles.frame}>
+        <header className={styles.topbar}><span className={styles.brand}>RFxchange</span><span className={styles.step}>Static preview · Step 10</span></header>
+        <div className={styles.grid}>
+          <section className={styles.card}>
+            <div className={styles.successMark}>!</div>
+            <h1>Activation has not been recorded</h1>
+            <p>The static Pages preview cannot create server-side onboarding state. It deliberately does not display a false Exchange-ready success.</p>
+            <Link className={styles.primaryLink} href="/onboarding/completion">Return to readiness review</Link>
+          </section>
+          <CompletionNavigation readiness={readiness} activePath="/onboarding/completion/success" />
+        </div>
+      </div>
+    </main>
   );
 }
 `,

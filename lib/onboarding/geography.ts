@@ -10,7 +10,6 @@ export interface GeographyOption {
   type: "county" | "independent_city";
   releaseState: GeographyReleaseState;
   primarySelectable: boolean;
-  previewPosition: { x: number; y: number };
 }
 
 export interface BaseLocationDraft {
@@ -35,7 +34,7 @@ export interface GeographyDraft {
 export interface GeographyContext {
   primaryGeography: GeographyOption;
   primaryLocation: BaseLocationDraft & {
-    geocodeStatus: "reference_preview";
+    geocodeStatus: "unavailable";
     mapConfirmed: true;
   };
   publicLocation: {
@@ -61,7 +60,6 @@ export const geographyOptions: GeographyOption[] = [
     type: "county",
     releaseState: "released",
     primarySelectable: true,
-    previewPosition: { x: 48, y: 48 },
   },
   {
     id: "suffolk-va",
@@ -71,7 +69,6 @@ export const geographyOptions: GeographyOption[] = [
     type: "independent_city",
     releaseState: "visible",
     primarySelectable: false,
-    previewPosition: { x: 67, y: 58 },
   },
   {
     id: "southampton-va",
@@ -81,7 +78,6 @@ export const geographyOptions: GeographyOption[] = [
     type: "county",
     releaseState: "visible",
     primarySelectable: false,
-    previewPosition: { x: 39, y: 72 },
   },
   {
     id: "hampton-va",
@@ -91,7 +87,6 @@ export const geographyOptions: GeographyOption[] = [
     type: "independent_city",
     releaseState: "visible",
     primarySelectable: false,
-    previewPosition: { x: 72, y: 30 },
   },
   {
     id: "newport-news-va",
@@ -101,7 +96,6 @@ export const geographyOptions: GeographyOption[] = [
     type: "independent_city",
     releaseState: "visible",
     primarySelectable: false,
-    previewPosition: { x: 61, y: 26 },
   },
   {
     id: "norfolk-va",
@@ -111,7 +105,6 @@ export const geographyOptions: GeographyOption[] = [
     type: "independent_city",
     releaseState: "visible",
     primarySelectable: false,
-    previewPosition: { x: 79, y: 52 },
   },
 ];
 
@@ -178,14 +171,14 @@ export function validateGeographyDraft(value: unknown): GeographyValidationResul
 
   if (!primary) errors.push("Select a recognized primary geography.");
   else if (!primary.primarySelectable || primary.releaseState !== "released") {
-    errors.push(`${primary.name} is visible in this reference build but is not released for primary activation.`);
+    errors.push(`${primary.name} is visible but is not released for primary activation.`);
   }
 
   if (!draft.baseLocation.address1) errors.push("Enter the organization's base street address.");
   if (!draft.baseLocation.city) errors.push("Enter the organization's base city.");
   if (!draft.baseLocation.state) errors.push("Enter the organization's base state.");
   if (!draft.baseLocation.postalCode) errors.push("Enter the organization's postal code.");
-  if (!draft.mapConfirmed) errors.push("Confirm the reference map placement before completing Geography.");
+  if (!draft.mapConfirmed) errors.push("Confirm the location and public map treatment before completing Geography.");
 
   if (draft.serviceMode === "localities" && draft.serviceGeographyIds.length === 0) {
     errors.push("Select at least one service geography or choose a broader service-area mode.");
@@ -200,13 +193,13 @@ export function validateGeographyDraft(value: unknown): GeographyValidationResul
 export function buildGeographyContext(draft: GeographyDraft): GeographyContext {
   const primaryGeography = getGeographyOption(draft.primaryGeographyId);
   if (!primaryGeography) throw new Error("Primary geography must be validated before context construction.");
-  if (!draft.mapConfirmed) throw new Error("Map placement must be confirmed before context construction.");
+  if (!draft.mapConfirmed) throw new Error("Location treatment must be confirmed before context construction.");
 
   return {
     primaryGeography,
     primaryLocation: {
       ...draft.baseLocation,
-      geocodeStatus: "reference_preview",
+      geocodeStatus: "unavailable",
       mapConfirmed: true,
     },
     publicLocation: {

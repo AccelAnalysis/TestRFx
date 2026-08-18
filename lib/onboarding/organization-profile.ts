@@ -95,7 +95,6 @@ export type OrganizationProfileAccepted = {
     capabilitySeed: true;
   };
   context: OrganizationProfileContext;
-  adapter: "reference";
 };
 
 export type OrganizationProfileValidationResult =
@@ -284,7 +283,7 @@ export function validateOrganizationProfilePayload(value: unknown): Organization
 }
 
 export function organizationProfileHandoffHref(organizationId: string, context: OrganizationProfileContext) {
-  const params = new URLSearchParams({ step: "capability-enrichment", organization: organizationId });
+  const params = new URLSearchParams({ organization: organizationId });
   if (context.returnTo) params.set("returnTo", context.returnTo);
-  return `/onboarding?${params.toString()}`;
+  return `/onboarding/capabilities?${params.toString()}`;
 }

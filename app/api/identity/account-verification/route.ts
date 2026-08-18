@@ -11,6 +11,11 @@ import {
   createReferenceVerificationToken,
   verifyReferenceVerificationToken,
 } from "@/lib/identity/account-verification-token";
+import { mergeOnboardingProgress } from "@/lib/onboarding/progress";
+import {
+  readOnboardingProgressFromRequest,
+  writeOnboardingProgressCookie,
+} from "@/lib/onboarding/progress-store";
 
 export const dynamic = "force-dynamic";
 
@@ -51,12 +56,17 @@ export async function POST(request: NextRequest) {
       return noStore({ state: "invalid", message: "This verification link is invalid." }, 400);
     }
 
-    return noStore({
+    const response = noStore({
       state: "verified",
       email: result.payload.email,
       context: result.payload.context,
       nextPath: buildOnboardingContinuation(result.payload.context),
     });
+    const progress = mergeOnboardingProgress(readOnboardingProgressFromRequest(request), {
+      checkpoints: [{ id: "account_verified", status: "complete", value: maskEmail(result.payload.email) }],
+    });
+    writeOnboardingProgressCookie(response, progress);
+    return response;
   }
 
   if (body.action === "request" || body.action === "resend" || body.action === "change_email") {
