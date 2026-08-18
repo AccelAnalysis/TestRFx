@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { DrawerState, ExchangeLens } from "@/lib/exchange/contracts";
 import { exchangeSeed } from "@/lib/exchange/seed";
 import { filterExchangeRecords } from "@/lib/exchange/filter";
@@ -28,9 +28,25 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const actionRecord = selectedRecord && records.some((record) => record.id === selectedRecord.id) ? selectedRecord : records[0];
   const actions = definition.actions(actionRecord);
 
-  function setUrl(nextLens: ExchangeLens, recordId?: string) {
+  useEffect(() => {
+    function syncFromUrl() {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      const urlLens = parts[1];
+      if (urlLens === "rfx" || urlLens === "resources" || urlLens === "intelligence" || urlLens === "capabilities") {
+        setLens(urlLens);
+        const recordId = parts[2];
+        setSelectedRecordId(recordId);
+        setDetailRecordId(recordId);
+      }
+    }
+    window.addEventListener("popstate", syncFromUrl);
+    return () => window.removeEventListener("popstate", syncFromUrl);
+  }, []);
+
+  function setUrl(nextLens: ExchangeLens, recordId?: string, mode: "push" | "replace" = "replace") {
     const next = recordId ? `/exchange/${nextLens}/${recordId}` : `/exchange/${nextLens}`;
-    window.history.replaceState({}, "", next);
+    if (mode === "push") window.history.pushState({}, "", next);
+    else window.history.replaceState({}, "", next);
   }
 
   function changeLens(next: ExchangeLens) {
@@ -44,7 +60,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   function openDetail(id: string) {
     setSelectedRecordId(id);
     setDetailRecordId(id);
-    setUrl(lens, id);
+    setUrl(lens, id, "push");
   }
 
   function closeDetail() {
