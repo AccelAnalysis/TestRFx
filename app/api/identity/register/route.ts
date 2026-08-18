@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  registrationHandoffHref,
+  registrationContextSearchParams,
   validateRegistrationPayload,
   type RegistrationAccepted,
 } from "@/lib/identity/registration";
@@ -14,12 +14,18 @@ export async function POST(request: NextRequest) {
   }
 
   const registrationId = `reg_${crypto.randomUUID()}`;
+  const params = registrationContextSearchParams(validation.submission.context);
+  params.set("email", validation.submission.email);
+  params.set("displayName", `${validation.submission.firstName} ${validation.submission.lastName}`);
+  params.set("registration", registrationId);
+  params.set("source", params.get("source") || "registration");
+
   const accepted: RegistrationAccepted = {
     status: "verification_required",
     registrationId,
     email: validation.submission.email,
     nextStep: "account_verification",
-    handoffHref: registrationHandoffHref(registrationId, validation.submission.context),
+    handoffHref: `/onboarding/account-verification?${params.toString()}`,
     context: validation.submission.context,
     adapter: "reference",
   };
