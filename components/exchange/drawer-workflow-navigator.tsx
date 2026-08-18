@@ -5,7 +5,7 @@ import type { ExchangeRecord } from "@/lib/exchange/contracts";
 import { drawerWorkflowPath, type DrawerWorkflowExecution, type DrawerWorkflowNode } from "@/lib/exchange/drawer-workflows";
 import styles from "./drawer-workflow-navigator.module.css";
 
-export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onInspectReferralPolicy }: {
+export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onInspectReferralPolicy: _onInspectReferralPolicy }: {
   root: DrawerWorkflowNode;
   record?: ExchangeRecord;
   onClose: () => void;
@@ -18,7 +18,7 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onIn
   const current = path[path.length - 1];
 
   function choose(node: DrawerWorkflowNode) {
-    if (node.disabledReason) {
+    if (node.disabledReason || node.id.endsWith("-policy")) {
       setPathIds((currentPath) => [...currentPath, node.id]);
       return;
     }
@@ -26,11 +26,7 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onIn
       setPathIds((currentPath) => [...currentPath, node.id]);
       return;
     }
-    if (node.execution) {
-      onExecute(node.execution, node);
-      return;
-    }
-    if (node.id.endsWith("-policy")) onInspectReferralPolicy(node);
+    if (node.execution) onExecute(node.execution, node);
   }
 
   return (
@@ -65,7 +61,7 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onIn
                 <span className={styles.nodeKind}>{child.disabledReason ? "integration" : child.kind}</span>
                 <strong>{child.label}</strong>
                 {child.description ? <small>{child.description}</small> : child.disabledReason ? <small>{child.disabledReason}</small> : null}
-                <span className={styles.chevron} aria-hidden>{child.disabledReason || child.children?.length ? "›" : child.execution?.kind === "outcome" ? "✓" : "→"}</span>
+                <span className={styles.chevron} aria-hidden>{child.disabledReason || child.children?.length || child.id.endsWith("-policy") ? "›" : child.execution?.kind === "outcome" ? "✓" : "→"}</span>
               </button>
             ))}
           </div>
@@ -75,7 +71,7 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onIn
           <div className={styles.outcome}><strong>No additional child workflow is defined in the source.</strong></div>
         ) : null}
 
-        {!current.disabledReason && current.id.endsWith("-policy") ? <button className={styles.primary} type="button" onClick={() => onInspectReferralPolicy(current)}>Load recipient policy / fee</button> : null}
+        {!current.disabledReason && current.id.endsWith("-policy") ? <div className={styles.outcome} role="status"><strong>Recipient-specific step</strong><span>Open the Referral modal, choose the receiving organization, and RFxchange loads that organization's published referral policy / fee before the referral can be created.</span></div> : null}
 
         <footer className={styles.footer}>
           {pathIds.length ? <button type="button" onClick={() => setPathIds((currentPath) => currentPath.slice(0, -1))}>← Back</button> : null}
