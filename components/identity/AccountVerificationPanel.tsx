@@ -16,8 +16,7 @@ type ApiResponse = {
   state?: string;
   message?: string;
   maskedEmail?: string;
-  referenceDelivery?: boolean;
-  verificationPath?: string;
+  expiresInSeconds?: number;
   email?: string;
   nextPath?: string;
 };
@@ -44,7 +43,6 @@ export function AccountVerificationPanel() {
   const [maskedDestination, setMaskedDestination] = useState(initialEmail ? maskEmail(initialEmail) : "");
   const [state, setState] = useState<AccountVerificationState>(token ? "verifying" : "idle");
   const [message, setMessage] = useState("");
-  const [referencePath, setReferencePath] = useState("");
   const [nextPath, setNextPath] = useState("/onboarding?stage=organization");
   const [editingEmail, setEditingEmail] = useState(!initialEmail);
 
@@ -101,7 +99,6 @@ export function AccountVerificationPanel() {
     const normalized = normalizeEmail(email);
     setState("requesting");
     setMessage("");
-    setReferencePath("");
 
     try {
       const response = await fetch("/api/identity/account-verification", {
@@ -110,7 +107,7 @@ export function AccountVerificationPanel() {
         body: JSON.stringify({ action, email: normalized, context }),
       });
       const data = (await response.json()) as ApiResponse;
-      const resolvedState = response.ok ? responseState(data.state) : responseState(data.state);
+      const resolvedState = responseState(data.state);
       setState(resolvedState);
       setMessage(data.message ?? "");
 
@@ -118,7 +115,6 @@ export function AccountVerificationPanel() {
         setEmail(normalized);
         setMaskedDestination(data.maskedEmail ?? maskEmail(normalized));
         setEditingEmail(false);
-        setReferencePath(data.referenceDelivery ? data.verificationPath ?? "" : "");
       }
     } catch {
       setState("invalid");
@@ -188,7 +184,7 @@ export function AccountVerificationPanel() {
       <section className={`identity-card ${styles.card}`} aria-live="polite">
         <div className={`${styles.icon} ${styles.error}`} aria-hidden="true">!</div>
         <p className="eyebrow">Account verification</p>
-        <h1>Verification is not configured</h1>
+        <h1>Verification service unavailable</h1>
         <p className="muted">{message || "Account verification is unavailable in this environment."}</p>
         <Link className="button button-secondary button-full" href="/register">Return to registration</Link>
       </section>
@@ -206,14 +202,6 @@ export function AccountVerificationPanel() {
           <p className="muted">We sent a verification link to:</p>
           <p className={styles.destination}>{maskedDestination}</p>
           <p className="muted">Open the link to prove control of this account email and continue setup.</p>
-
-          {referencePath ? (
-            <div className={styles.referenceBox}>
-              <strong>Reference chassis delivery</strong>
-              <p>Email delivery is an integration point in this repo. Use this local link to exercise the verification contract.</p>
-              <a className="button button-primary button-full" href={referencePath}>Open reference verification link</a>
-            </div>
-          ) : null}
 
           <div className={styles.actions}>
             <button className="button button-secondary button-full" type="button" onClick={() => void requestVerification("resend")}>
