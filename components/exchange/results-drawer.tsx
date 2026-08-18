@@ -11,31 +11,17 @@ import styles from "./results-drawer.module.css";
 const stateLabel: Record<DrawerState, string> = { peek: "Expand results", mid: "Expand results", expanded: "Collapse results" };
 
 export interface ResultsDrawerProps {
-  state: DrawerState;
-  onStateChange: (state: DrawerState) => void;
-  lens: ExchangeLens;
-  lensLabel: string;
-  records: ExchangeRecord[];
-  totalAvailableCount?: number;
-  selectedRecordId?: string;
-  actions: LensAction[];
-  emptyMessage: string;
-  resultContext?: string;
-  query: DrawerQueryState;
-  onQueryChange: (query: DrawerQueryState) => void;
-  onSelect: (id: string) => void;
-  onOpen: (id: string) => void;
-  onToggleSave: (id: string) => void;
-  resultStatus?: DrawerResultStatus;
-  hasMore?: boolean;
-  loadingMore?: boolean;
-  onLoadMore?: () => void;
-  onRetry?: () => void;
+  state: DrawerState; onStateChange: (state: DrawerState) => void; lens: ExchangeLens; lensLabel: string;
+  records: ExchangeRecord[]; totalAvailableCount?: number; selectedRecordId?: string; actions: LensAction[];
+  activeActionIds?: string[]; onAction?: (action: LensAction) => void; emptyMessage: string; resultContext?: string;
+  query: DrawerQueryState; onQueryChange: (query: DrawerQueryState) => void; onSelect: (id: string) => void;
+  onOpen: (id: string) => void; onToggleSave: (id: string) => void; resultStatus?: DrawerResultStatus;
+  hasMore?: boolean; loadingMore?: boolean; onLoadMore?: () => void; onRetry?: () => void;
 }
 
 export function ResultsDrawer({
-  state, onStateChange, lens, lensLabel, records, totalAvailableCount, selectedRecordId, actions, emptyMessage,
-  resultContext, query, onQueryChange, onSelect, onOpen, onToggleSave, resultStatus = "ready", hasMore = false,
+  state, onStateChange, lens, lensLabel, records, totalAvailableCount, selectedRecordId, actions, activeActionIds = [], onAction,
+  emptyMessage, resultContext, query, onQueryChange, onSelect, onOpen, onToggleSave, resultStatus = "ready", hasMore = false,
   loadingMore = false, onLoadMore, onRetry,
 }: ResultsDrawerProps) {
   const listRef = useRef<HTMLDivElement>(null);
@@ -47,35 +33,23 @@ export function ResultsDrawer({
   const filteredFrom = totalAvailableCount ?? records.length;
 
   useEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
+    const list = listRef.current; if (!list) return;
     const frame = window.requestAnimationFrame(() => { list.scrollTop = scrollByLens.current[lens] ?? 0; });
     return () => window.cancelAnimationFrame(frame);
   }, [lens]);
-
   useEffect(() => {
     if (!selectedRecordId || !listRef.current) return;
     const escapedId = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(selectedRecordId) : selectedRecordId;
     listRef.current.querySelector(`[data-record-id="${escapedId}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selectedRecordId]);
-
   useEffect(() => {
-    const root = listRef.current;
-    const target = loadMoreRef.current;
+    const root = listRef.current; const target = loadMoreRef.current;
     if (!root || !target || !hasMore || loadingMore || !onLoadMore || resultStatus !== "ready") return;
     const observer = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) onLoadMore(); }, { root, rootMargin: "180px 0px" });
-    observer.observe(target);
-    return () => observer.disconnect();
+    observer.observe(target); return () => observer.disconnect();
   }, [hasMore, loadingMore, onLoadMore, resultStatus, records.length]);
 
-  function finishDrag(y: number) {
-    if (dragStart.current === null) return;
-    const delta = y - dragStart.current;
-    dragStart.current = null;
-    if (delta < -42) onStateChange(higherDrawerState[state]);
-    if (delta > 42) onStateChange(lowerDrawerState[state]);
-  }
-
+  function finishDrag(y: number) { if (dragStart.current === null) return; const delta = y - dragStart.current; dragStart.current = null; if (delta < -42) onStateChange(higherDrawerState[state]); if (delta > 42) onStateChange(lowerDrawerState[state]); }
   function handleGrabberKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     if (event.key === "ArrowUp") { event.preventDefault(); onStateChange(higherDrawerState[state]); }
     if (event.key === "ArrowDown") { event.preventDefault(); onStateChange(lowerDrawerState[state]); }
@@ -93,29 +67,12 @@ export function ResultsDrawer({
         onPointerDown={(event) => { dragStart.current = event.clientY; event.currentTarget.setPointerCapture(event.pointerId); }}
         onPointerUp={(event) => finishDrag(event.clientY)} onPointerCancel={() => { dragStart.current = null; }}
         aria-label={stateLabel[state]} aria-controls={listId} aria-expanded={state !== "peek"}><span /></button>
-
       <div className={styles.header}>
-        <div className={styles.headingBlock}>
-          <p className={styles.eyebrow}>{lensLabel}</p>
-          <h2>{resultHeading}</h2>
-          <p className={styles.resultContext} aria-live="polite">
-            {resultContext ?? `${breakdown.mapped} mapped · ${breakdown.offMap} off-map`}{resultStatus === "refreshing" ? " · Refreshing…" : ""}
-          </p>
-        </div>
-        <div className={styles.headerActions}>
-          <label className={styles.sortControl}>
-            <span className="sr-only">Sort results</span>
-            <select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results">
-              <option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option>
-            </select>
-          </label>
-        </div>
+        <div className={styles.headingBlock}><p className={styles.eyebrow}>{lensLabel}</p><h2>{resultHeading}</h2><p className={styles.resultContext} aria-live="polite">{resultContext ?? `${breakdown.mapped} mapped · ${breakdown.offMap} off-map`}{resultStatus === "refreshing" ? " · Refreshing…" : ""}</p></div>
+        <div className={styles.headerActions}><label className={styles.sortControl}><span className="sr-only">Sort results</span><select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results"><option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option></select></label></div>
       </div>
-
-      {records.length > 0 ? <ActionRail actions={actions} /> : null}
-
-      <div className={styles.list} id={listId} ref={listRef} role="feed" aria-busy={resultStatus === "loading" || resultStatus === "refreshing" || loadingMore}
-        onScroll={(event) => { scrollByLens.current[lens] = event.currentTarget.scrollTop; }}>
+      {records.length > 0 ? <ActionRail actions={actions} activeActionIds={activeActionIds} onAction={onAction} /> : null}
+      <div className={styles.list} id={listId} ref={listRef} role="feed" aria-busy={resultStatus === "loading" || resultStatus === "refreshing" || loadingMore} onScroll={(event) => { scrollByLens.current[lens] = event.currentTarget.scrollTop; }}>
         {showSkeletons ? <div className={styles.skeletonStack} aria-label="Loading results"><div className={styles.skeletonCard} /><div className={styles.skeletonCard} /><div className={styles.skeletonCard} /></div> : null}
         {showFailure ? <div className={styles.stateMessage} role="status"><strong>{resultStatus === "offline" ? "You appear to be offline" : "Results could not be loaded"}</strong><p>{resultStatus === "offline" ? "Reconnect to refresh this Exchange view." : "Try loading the results again."}</p>{onRetry ? <button type="button" onClick={onRetry}>Retry</button> : null}</div> : null}
         {!showSkeletons && !showFailure && records.length ? records.map((record) => <RecordCard key={record.id} record={record} selected={record.id === selectedRecordId} onSelect={() => onSelect(record.id)} onOpen={() => onOpen(record.id)} onToggleSave={() => onToggleSave(record.id)} />) : null}
