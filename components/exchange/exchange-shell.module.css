@@ -1,0 +1,28 @@
+.actionNotice {
+  position: absolute;
+  z-index: 45;
+  left: 50%;
+  bottom: calc(var(--nav-height) + env(safe-area-inset-bottom) + 14px);
+  width: max-content;
+  max-width: min(88vw, 440px);
+  transform: translateX(-50%);
+  padding: 10px 14px;
+  border: 1px solid rgba(37, 41, 50, .14);
+  border-radius: 14px;
+  background: rgba(11, 11, 13, .92);
+  color: #f7f3ea;
+  box-shadow: 0 10px 30px rgba(11, 11, 13, .18);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (min-width: 900px) {
+  .actionNotice {
+    left: auto;
+    right: 24px;
+    bottom: 24px;
+    transform: none;
+  }
+}
