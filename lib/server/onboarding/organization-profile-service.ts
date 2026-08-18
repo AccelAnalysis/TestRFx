@@ -375,7 +375,7 @@ export async function createOrganizationInvitation(
       ${actor.organizationId}::uuid,
       ${email},
       ${role},
-      ${permissions},
+      ${JSON.stringify(permissions)}::jsonb,
       ${tokenHash},
       'pending',
       now() + interval '7 days',
