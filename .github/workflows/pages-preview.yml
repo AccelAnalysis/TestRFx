@@ -38,6 +38,19 @@ jobs:
       - name: Prepare static preview projection
         run: node scripts/prepare-pages-preview.mjs
 
+      - name: Remove runtime-only identity routes from static projection
+        run: |
+          rm -rf app/login/check-email
+          rm -rf app/login/complete
+          rm -rf app/login/link-expired
+          rm -rf app/login/link-invalid
+          rm -rf app/login/not-found
+          rm -rf app/login/rate-limited
+          rm -rf app/login/restricted
+          rm -rf app/login/session-expired
+          rm -rf app/login/support
+          rm -rf app/logout
+
       - name: Build static Pages preview
         run: npm run build
         env:
