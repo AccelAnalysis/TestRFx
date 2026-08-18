@@ -12,12 +12,14 @@ import {
   saveCapabilityTerms,
   upsertCapabilityClaim,
 } from "@/lib/server/capability-enrichment-repository";
+import { saveOrganizationProfileContext } from "@/lib/server/organization-profile-context-repository";
 import { ServiceConfigurationError } from "@/lib/server/postgres";
 import type { CapabilityEvidenceKind } from "@/lib/onboarding/capability-enrichment";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EVIDENCE_KINDS = new Set<CapabilityEvidenceKind>(["certification", "license", "case-study", "supporting-document"]);
 const TERM_FIELDS = new Set(["tags", "keywords", "specialties"]);
+const PROFILE_LIST_FIELDS = new Set(["industries", "service_offerings"]);
 
 function actorUserId(request: Request) {
   return request.headers.get("x-rfxchange-user-id")?.trim() || undefined;
@@ -40,6 +42,11 @@ function requireUuid(value: unknown, label: string) {
   const text = requiredString(value, label);
   if (!UUID.test(text)) throw new CapabilityServiceError(400, `${label} must be a UUID.`);
   return text;
+}
+
+function stringArray(value: unknown, label: string) {
+  if (!Array.isArray(value)) throw new CapabilityServiceError(400, `${label} must be an array.`);
+  return [...new Set(value.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean))].slice(0, 100);
 }
 
 function jsonError(error: unknown) {
@@ -68,16 +75,17 @@ export async function POST(request: Request) {
     await assertOrganizationMembership(userId, organizationId);
     if (!userId) throw new CapabilityServiceError(401, "Authenticated user context is required.");
 
+    if (action === "save-profile-list") {
+      const field = requiredString(payload.field, "field");
+      if (!PROFILE_LIST_FIELDS.has(field)) throw new CapabilityServiceError(400, "field must be industries or service_offerings.");
+      await saveOrganizationProfileContext({ organizationId, actorUserId: userId, field: field as "industries" | "service_offerings", values: stringArray(payload.values, "values") });
+      return NextResponse.json({ ok: true });
+    }
+
     if (action === "upsert-claim") {
       const id = optionalString(payload.id);
       if (id && !UUID.test(id)) throw new CapabilityServiceError(400, "id must be a UUID.");
-      const result = await upsertCapabilityClaim({
-        organizationId,
-        actorUserId: userId,
-        id,
-        name: requiredString(payload.name, "name"),
-        description: requiredString(payload.description, "description"),
-      });
+      const result = await upsertCapabilityClaim({ organizationId, actorUserId: userId, id, name: requiredString(payload.name, "name"), description: requiredString(payload.description, "description") });
       return NextResponse.json(result, { status: id ? 200 : 201 });
     }
 
@@ -92,13 +100,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "accept-amacs-mapping") {
-      await acceptAmacsMapping({
-        organizationId,
-        actorUserId: userId,
-        claimId: requireUuid(payload.claimId, "claimId"),
-        releaseId: requireUuid(payload.releaseId, "releaseId"),
-        conceptId: requiredString(payload.conceptId, "conceptId"),
-      });
+      await acceptAmacsMapping({ organizationId, actorUserId: userId, claimId: requireUuid(payload.claimId, "claimId"), releaseId: requireUuid(payload.releaseId, "releaseId"), conceptId: requiredString(payload.conceptId, "conceptId") });
       return NextResponse.json({ ok: true });
     }
 
@@ -110,16 +112,7 @@ export async function POST(request: Request) {
       if (sourceUrl) {
         try { new URL(sourceUrl); } catch { throw new CapabilityServiceError(400, "sourceUrl must be a valid absolute URL."); }
       }
-      const result = await addCapabilityEvidence({
-        organizationId,
-        actorUserId: userId,
-        claimId: requireUuid(payload.claimId, "claimId"),
-        kind,
-        label: requiredString(payload.label, "label"),
-        issuer: optionalString(payload.issuer),
-        sourceUrl,
-        notes: optionalString(payload.notes),
-      });
+      const result = await addCapabilityEvidence({ organizationId, actorUserId: userId, claimId: requireUuid(payload.claimId, "claimId"), kind, label: requiredString(payload.label, "label"), issuer: optionalString(payload.issuer), sourceUrl, notes: optionalString(payload.notes) });
       return NextResponse.json(result, { status: 201 });
     }
 
@@ -131,9 +124,7 @@ export async function POST(request: Request) {
     if (action === "save-terms") {
       const field = requiredString(payload.field, "field");
       if (!TERM_FIELDS.has(field)) throw new CapabilityServiceError(400, "field must be tags, keywords, or specialties.");
-      if (!Array.isArray(payload.values)) throw new CapabilityServiceError(400, "values must be an array.");
-      const values = [...new Set(payload.values.filter((value): value is string => typeof value === "string").map((value) => value.trim()).filter(Boolean))].slice(0, 100);
-      await saveCapabilityTerms({ organizationId, actorUserId: userId, field: field as "tags" | "keywords" | "specialties", values });
+      await saveCapabilityTerms({ organizationId, actorUserId: userId, field: field as "tags" | "keywords" | "specialties", values: stringArray(payload.values, "values") });
       return NextResponse.json({ ok: true });
     }
 
