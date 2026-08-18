@@ -4,7 +4,8 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 
 ## What is implemented
 
-- Public/acquisition shell with Marketing entry
+- Public/acquisition Marketing shell with campaign bar, narrative journey, shared public chrome, audience pages, Founding Membership, footer, and public bottom-matter destinations
+- Acquisition-context capture and query carryover into `/join` and `/signin`, which hand off to the existing Registration/Login shell
 - Identity shell with Login and Registration
 - Guided Onboarding shell boundary
 - Persistent authenticated Exchange composition
@@ -26,7 +27,10 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 
 ## Architecture
 
-RFx, Resources, Intelligence, and Capabilities are **lenses over one Exchange**, not separate applications. Menu is a utility surface. See [`docs/architecture/PLATFORM_SHELL.md`](docs/architecture/PLATFORM_SHELL.md).
+RFxchange is organized as three shells: Public / Acquisition, Identity & Onboarding, and the Authenticated Exchange. RFx, Resources, Intelligence, and Capabilities are **lenses over one Exchange**, not separate applications. Menu is a utility surface.
+
+- [`docs/architecture/PLATFORM_SHELL.md`](docs/architecture/PLATFORM_SHELL.md) — authenticated operating chassis
+- [`docs/architecture/MARKETING_SHELL.md`](docs/architecture/MARKETING_SHELL.md) — Public / Acquisition → Marketing structure and handoff contract
 
 ## Run locally
 
@@ -35,7 +39,7 @@ npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000` or jump directly to `http://localhost:3000/exchange/rfx`.
+Then open `http://localhost:3000` for Marketing or jump directly to `http://localhost:3000/exchange/rfx` for the reference Exchange.
 
 ## Validation
 
@@ -44,8 +48,8 @@ npm run typecheck
 npm run build
 ```
 
-GitHub Actions runs both commands on pull requests and pushes to `main`.
+GitHub Actions runs both commands on pull requests and pushes to `main` and `agent/**` branches.
 
 ## Intentional boundaries
 
-This chassis does **not** claim production completion for authentication, RFx response/team workflows, AMACS evidence, resource transactions, intelligence datasets, referrals/payments, notifications, or real map tiles. Those capabilities plug into the contracts already established here.
+This chassis does **not** claim production completion for authentication, durable acquisition analytics, legal policy content, RFx response/team workflows, AMACS evidence, resource transactions, intelligence datasets, referrals/payments, notifications, or real map tiles. Those capabilities plug into the contracts already established here.

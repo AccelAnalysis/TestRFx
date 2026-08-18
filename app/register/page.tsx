@@ -1,17 +1,17 @@
-import Link from "next/link";
+import { RegistrationForm } from "@/components/identity/registration-form";
+import { registrationContextFromSearchParams } from "@/lib/identity/registration";
 
-export default function RegisterPage() {
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const context = registrationContextFromSearchParams(params);
+
   return (
     <main className="identity-shell">
-      <section className="identity-card">
-        <p className="eyebrow">RFxchange registration</p>
-        <h1>Create your account</h1>
-        <label>Work email<input type="email" placeholder="you@company.com" /></label>
-        <label>Full name<input type="text" placeholder="Your name" /></label>
-        <label>Password<input type="password" placeholder="Create a password" /></label>
-        <Link className="button button-primary button-full" href="/onboarding">Create account</Link>
-        <p className="identity-footer">Already registered? <Link href="/login">Log in</Link></p>
-      </section>
+      <RegistrationForm initialContext={context} />
     </main>
   );
 }
