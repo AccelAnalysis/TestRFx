@@ -30,11 +30,14 @@ The shell never imports lens-specific workflow implementation. A lens supplies d
 - `ExchangeRecord` is the normalized projection consumed by map, card, selection, and detail primitives.
 - `LensAction` owns one of four governed action positions and explicitly exposes visibility, applicability, authorization, operational readiness, and an unavailable reason.
 - `DrawerState` is `peek | mid | expanded`.
+- `MapViewState` owns the persistent camera, geography, layer visibility, current provider bounds, and deliberately applied viewport-query bounds.
 - Menu is intentionally outside `ExchangeLens`.
 
 ## State continuity
 
-Opening record detail overlays the still-mounted Exchange shell. Closing it returns to the same lens, search query, selected marker/card, drawer state, and list scroll position. Menu behaves the same way. The reference map canvas is provider-neutral; a Mapbox/MapLibre adapter can replace it without changing lens contracts.
+Opening record detail overlays the still-mounted Exchange shell. Closing it returns to the same lens, search query, selected marker/card, drawer state, and list scroll position. Menu behaves the same way.
+
+The Persistent Map is now backed by a live MapLibre GL JS adapter while retaining provider-neutral shell state. Map rendering, clustering, heat treatment, and real camera bounds remain inside the map subsystem rather than lens pages. See [`PERSISTENT_MAP.md`](PERSISTENT_MAP.md).
 
 ## Responsive composition
 
@@ -42,7 +45,9 @@ Mobile uses a full-screen map, floating translucent search/controls, three-state
 
 ## Persistence boundary
 
-`db/schema.sql` defines the production-target PostgreSQL/PostGIS shape. The UI currently runs from deterministic seed records so the chassis can be exercised without requiring infrastructure credentials. `/api/exchange/results` demonstrates the application boundary and returns normalized records/actions instead of exposing tables to UI components.
+`db/schema.sql` defines the production-target PostgreSQL/PostGIS shape. The UI still runs from deterministic/reference records so the chassis can be exercised without requiring infrastructure credentials. `/api/exchange/results` demonstrates the application boundary and now accepts optional viewport bounds while still returning normalized records/actions rather than exposing tables to UI components.
+
+The map provider and browser Geolocation service are live. Authoritative organization/RFx/resource/intelligence/capability persistence, geographic authorization, PostGIS viewport queries, production geocoding, and production map style/tile SLAs remain external infrastructure boundaries rather than being simulated in the client.
 
 ## Progressive availability
 
@@ -53,9 +58,10 @@ Incomplete business workflows remain visible in their governed action positions 
 Product work should plug into the existing contracts rather than alter shell composition:
 
 - RFx: response, teaming, watch, issuer, and RFx lifecycle repositories.
-- Resources: offer/request, availability, connection, and fulfillment workflows.
-- Intelligence: real datasets, heat/polygon layers, comparison, tracking, and source provenance.
+- Resources: durable offer/request, availability, connection, and fulfillment repositories/services.
+- Intelligence: authoritative datasets, comparison/tracking provenance, and production geographic aggregations.
 - Capabilities: AMACS projection, capability evidence, organization discovery, matching, and publishing.
 - Referrals: cross-lens workflow launched from governed actions and managed from Menu.
 - Identity: real session/auth provider and server-side authorization.
 - Persistence: repository adapters backed by PostgreSQL/PostGIS and object storage.
+- Maps: production-approved style/tile service, authorized boundary data, geocoder, and server-side spatial querying.
