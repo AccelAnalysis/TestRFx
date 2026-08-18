@@ -1,8 +1,43 @@
 export type ExchangeLens = "rfx" | "resources" | "intelligence" | "capabilities";
 export type DrawerState = "peek" | "mid" | "expanded";
 export type ExchangeRecordType = "rfx" | "resource" | "intelligence" | "capability";
+export type ExchangeCardPlacement = "organic" | "featured" | "sponsored";
+export type ExchangeCardMediaKind = "category" | "logo" | "image" | "visualization";
+export type ExchangeStatusTone = "neutral" | "info" | "success" | "warning" | "critical";
+export type ExchangeRelationshipState =
+  | "saved"
+  | "watched"
+  | "following"
+  | "referred"
+  | "responded"
+  | "teamed"
+  | "requested"
+  | "connected"
+  | "owned";
 
 export type Coordinates = { lat: number; lng: number };
+
+export interface ExchangeCardMedia {
+  kind: ExchangeCardMediaKind;
+  label: string;
+  src?: string;
+  alt?: string;
+}
+
+export interface ExchangeCardStatus {
+  label: string;
+  tone?: ExchangeStatusTone;
+}
+
+export interface ExchangeCardProjection {
+  eyebrow?: string;
+  media?: ExchangeCardMedia;
+  classifications?: string[];
+  status?: ExchangeCardStatus;
+  relationships?: ExchangeRelationshipState[];
+  placement?: ExchangeCardPlacement;
+  distance?: string;
+}
 
 export interface ExchangeRecord {
   id: string;
@@ -16,6 +51,7 @@ export interface ExchangeRecord {
   ownedByViewer?: boolean;
   featured?: boolean;
   saved?: boolean;
+  card?: ExchangeCardProjection;
 }
 
 export interface LensAction {

@@ -12,7 +12,16 @@ export function filterExchangeRecords(records: ExchangeRecord[], lens: ExchangeL
   return records.filter((record) => {
     if (record.type !== typeByLens[lens]) return false;
     if (!query) return true;
-    return [record.title, record.organization, record.summary, record.geography, ...record.metadata]
+
+    const cardTerms = [
+      record.card?.eyebrow,
+      record.card?.status?.label,
+      ...(record.card?.classifications ?? []),
+      ...(record.card?.relationships ?? []),
+    ];
+
+    return [record.title, record.organization, record.summary, record.geography, ...record.metadata, ...cardTerms]
+      .filter(Boolean)
       .join(" ")
       .toLowerCase()
       .includes(query);

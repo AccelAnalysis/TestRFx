@@ -12,6 +12,8 @@ import { BottomNav } from "./bottom-nav";
 import { DetailSurface } from "./detail-surface";
 import { MenuSurface } from "./menu-surface";
 
+const initialSavedRecordIds = exchangeSeed.filter((record) => record.saved).map((record) => record.id);
+
 export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initialLens?: ExchangeLens; initialRecordId?: string }) {
   const [lens, setLens] = useState<ExchangeLens>(initialLens);
   const [search, setSearch] = useState("");
@@ -20,11 +22,16 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const [detailRecordId, setDetailRecordId] = useState<string | undefined>(initialRecordId);
   const [menuOpen, setMenuOpen] = useState(false);
   const [resetKey, setResetKey] = useState(0);
+  const [savedRecordIds, setSavedRecordIds] = useState<Set<string>>(() => new Set(initialSavedRecordIds));
 
   const definition = lensDefinitions[lens];
-  const records = useMemo(() => filterExchangeRecords(exchangeSeed, lens, search), [lens, search]);
-  const selectedRecord = exchangeSeed.find((record) => record.id === selectedRecordId);
-  const detailRecord = exchangeSeed.find((record) => record.id === detailRecordId);
+  const allRecords = useMemo(
+    () => exchangeSeed.map((record) => ({ ...record, saved: savedRecordIds.has(record.id) })),
+    [savedRecordIds],
+  );
+  const records = useMemo(() => filterExchangeRecords(allRecords, lens, search), [allRecords, lens, search]);
+  const selectedRecord = allRecords.find((record) => record.id === selectedRecordId);
+  const detailRecord = allRecords.find((record) => record.id === detailRecordId);
   const actionRecord = selectedRecord && records.some((record) => record.id === selectedRecord.id) ? selectedRecord : records[0];
   const actions = definition.actions(actionRecord);
 
@@ -68,11 +75,31 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     setUrl(lens);
   }
 
+  function toggleSaved(id: string) {
+    setSavedRecordIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   return (
     <main className="exchange-shell">
       <MapCanvas records={records} selectedRecordId={selectedRecordId} onSelect={(id) => { setSelectedRecordId(id); if (drawer === "peek") setDrawer("mid"); }} resetKey={resetKey} />
       <SearchControls value={search} placeholder={definition.searchPlaceholder} onChange={setSearch} onResetView={() => setResetKey((value) => value + 1)} />
-      <ResultsDrawer state={drawer} onStateChange={setDrawer} lensLabel={definition.label} records={records} selectedRecordId={selectedRecordId} actions={actions} emptyMessage={definition.emptyMessage} onSelect={setSelectedRecordId} onOpen={openDetail} />
+      <ResultsDrawer
+        state={drawer}
+        onStateChange={setDrawer}
+        lensLabel={definition.label}
+        records={records}
+        selectedRecordId={selectedRecordId}
+        actions={actions}
+        emptyMessage={definition.emptyMessage}
+        onSelect={setSelectedRecordId}
+        onOpen={openDetail}
+        onToggleSave={toggleSaved}
+      />
       <BottomNav activeLens={lens} onLensChange={changeLens} onMenu={() => setMenuOpen(true)} />
       {detailRecord ? <DetailSurface record={detailRecord} actions={definition.actions(detailRecord)} onClose={closeDetail} /> : null}
       {menuOpen ? <MenuSurface onClose={() => setMenuOpen(false)} /> : null}
