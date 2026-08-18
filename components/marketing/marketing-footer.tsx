@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { ConversionLink } from "./acquisition-context";
-import { marketingFooterGroups } from "@/lib/marketing/navigation";
+import {
+  PUBLIC_DESTINATIONS,
+  PUBLIC_FOOTER_GROUPS,
+} from "@/lib/public/destinations";
 import styles from "./marketing.module.css";
 
 export function MarketingFooter() {
@@ -15,24 +18,29 @@ export function MarketingFooter() {
       </div>
 
       <div className={styles.footerGrid}>
-        {marketingFooterGroups.map((group) => (
-          <section className={styles.footerGroup} key={group.label}>
+        {PUBLIC_FOOTER_GROUPS.map((group) => (
+          <section className={styles.footerGroup} key={group.id}>
             <h2>{group.label}</h2>
             <nav aria-label={`${group.label} footer links`}>
-              {group.links.map((link) =>
-                "conversion" in link && link.conversion ? (
-                  <ConversionLink key={link.href} href={link.href}>{link.label}</ConversionLink>
+              {group.destinationIds.map((destinationId) => {
+                const destination = PUBLIC_DESTINATIONS[destinationId];
+                return destination.kind === "identity-entry" ? (
+                  <ConversionLink key={destinationId} href={destination.href}>
+                    {destination.label}
+                  </ConversionLink>
                 ) : (
-                  <Link key={link.href} href={link.href}>{link.label}</Link>
-                ),
-              )}
+                  <Link key={destinationId} href={destination.href}>
+                    {destination.label}
+                  </Link>
+                );
+              })}
             </nav>
           </section>
         ))}
       </div>
 
       <div className={styles.footerBottom}>
-        <span>RFxchange reference marketing shell</span>
+        <span>RFxchange public acquisition shell</span>
         <span>Public / Acquisition → Identity → Exchange</span>
       </div>
     </footer>
