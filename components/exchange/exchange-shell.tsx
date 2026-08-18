@@ -9,12 +9,14 @@ import type {
   ExchangeSearchState,
   GeolocationStatus,
   MapDisplayMode,
+  MapViewState,
   RecentSearch,
   SavedSearch,
 } from "@/lib/exchange/contracts";
 import { exchangeSeed } from "@/lib/exchange/seed";
 import { applyExchangeFilters, createExchangeFilters } from "@/lib/exchange/filter";
 import { lensDefinitions, lensOrder } from "@/lib/exchange/lenses";
+import { createDefaultMapView } from "@/lib/exchange/map-model";
 import {
   activeFilterCount,
   defaultSearchState,
@@ -24,7 +26,7 @@ import {
   searchStateToParams,
   typeByLens,
 } from "@/lib/exchange/search";
-import { MapCanvas } from "./map-canvas";
+import { PersistentMap } from "./persistent-map";
 import { SearchControls } from "./search-controls";
 import { FloatingControls } from "./floating-controls";
 import { ResultsDrawer } from "./results-drawer";
@@ -48,13 +50,12 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const [searchByLens, setSearchByLens] = useState<Record<ExchangeLens, ExchangeSearchState>>(initialSearchStates);
   const [filtersByLens, setFiltersByLens] = useState<Record<ExchangeLens, ExchangeFilters>>(initialFloatingFilters);
   const [drawer, setDrawer] = useState<DrawerState>("mid");
+  const [mapView, setMapView] = useState<MapViewState>(createDefaultMapView);
   const [selectedRecordId, setSelectedRecordId] = useState<string | undefined>(initialRecordId);
   const [detailRecordId, setDetailRecordId] = useState<string | undefined>(initialRecordId);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [resetKey, setResetKey] = useState(0);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
-  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>("2d");
   const [geolocationStatus, setGeolocationStatus] = useState<GeolocationStatus>("idle");
   const [viewerLocation, setViewerLocation] = useState<Coordinates | undefined>();
   const [viewportDirty, setViewportDirty] = useState(false);
@@ -102,9 +103,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   }, []);
 
   useEffect(() => {
-    if (selectedRecordId && !records.some((record) => record.id === selectedRecordId)) {
-      setSelectedRecordId(undefined);
-    }
+    if (selectedRecordId && !records.some((record) => record.id === selectedRecordId)) setSelectedRecordId(undefined);
   }, [records, selectedRecordId]);
 
   function persistRecent(next: RecentSearch[]) {
@@ -166,6 +165,11 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     setUrl(next, undefined, "replace", carried);
   }
 
+  function selectRecord(id: string) {
+    setSelectedRecordId(id);
+    if (drawer === "peek") setDrawer("mid");
+  }
+
   function openDetail(id: string) {
     setSelectedRecordId(id);
     setDetailRecordId(id);
@@ -182,8 +186,12 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   }
 
   function resetMapView() {
-    setResetKey((value) => value + 1);
+    setMapView(createDefaultMapView());
     setViewportDirty(false);
+  }
+
+  function setMapDisplayMode(mode: MapDisplayMode) {
+    setMapView((current) => ({ ...current, camera: { ...current.camera, mode, pitch: mode === "3d" ? 42 : 0 } }));
   }
 
   function locateViewer() {
@@ -196,7 +204,6 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
       (position) => {
         setViewerLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
         setGeolocationStatus("located");
-        resetMapView();
       },
       (error) => setGeolocationStatus(error.code === 1 ? "denied" : "unavailable"),
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
@@ -211,13 +218,15 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
 
   return (
     <main className="exchange-shell">
-      <MapCanvas
+      <PersistentMap
+        lens={lens}
         records={records}
         selectedRecordId={selectedRecordId}
-        onSelect={(id) => { setSelectedRecordId(id); if (drawer === "peek") setDrawer("mid"); }}
-        resetKey={resetKey}
-        displayMode={mapDisplayMode}
+        drawerState={drawer}
+        view={mapView}
         viewerLocation={viewerLocation}
+        onViewChange={(next) => { setMapView(next); setViewportDirty(true); }}
+        onSelect={selectRecord}
       />
       <SearchControls
         state={searchState}
@@ -237,7 +246,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
         search={searchState.query}
         filters={floatingFilters}
         onFiltersChange={updateFloatingFilters}
-        mapDisplayMode={mapDisplayMode}
+        mapDisplayMode={mapView.camera.mode}
         onMapDisplayModeChange={setMapDisplayMode}
         geolocationStatus={geolocationStatus}
         onLocate={locateViewer}
@@ -245,7 +254,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
         searchAreaAvailable={viewportDirty}
         onSearchArea={() => setViewportDirty(false)}
       />
-      <ResultsDrawer state={drawer} onStateChange={setDrawer} lensLabel={definition.label} records={records} selectedRecordId={selectedRecordId} actions={actions} emptyMessage={definition.emptyMessage} resultContext={resultContext} onSelect={setSelectedRecordId} onOpen={openDetail} />
+      <ResultsDrawer state={drawer} onStateChange={setDrawer} lensLabel={definition.label} records={records} selectedRecordId={selectedRecordId} actions={actions} emptyMessage={definition.emptyMessage} resultContext={resultContext} onSelect={selectRecord} onOpen={openDetail} />
       <BottomNav activeLens={lens} onLensChange={changeLens} onMenu={() => setMenuOpen(true)} />
       {detailRecord ? <DetailSurface record={detailRecord} actions={definition.actions(detailRecord)} onClose={closeDetail} /> : null}
       {menuOpen ? <MenuSurface onClose={() => setMenuOpen(false)} /> : null}

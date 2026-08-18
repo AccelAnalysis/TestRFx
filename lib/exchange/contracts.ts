@@ -11,6 +11,33 @@ export type RecordRelationshipFilter = "all" | "mine" | "others";
 
 export type Coordinates = { lat: number; lng: number };
 
+export interface MapCamera {
+  center: Coordinates;
+  zoom: number;
+  bearing: number;
+  pitch: number;
+  mode: MapDisplayMode;
+}
+
+export interface MapBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+export interface MapGeographyContext {
+  id: string;
+  label: string;
+  scope: "authorized" | "selected" | "reference";
+}
+
+export interface MapViewState {
+  camera: MapCamera;
+  geography: MapGeographyContext;
+  queriedBounds?: MapBounds;
+}
+
 export interface ExchangeRecord {
   id: string;
   type: ExchangeRecordType;
@@ -122,8 +149,8 @@ export interface ExchangeViewState {
   search: ExchangeSearchState;
   filtersByLens: Record<ExchangeLens, ExchangeFilters>;
   drawer: DrawerState;
+  map: MapViewState;
   selectedRecordId?: string;
   detailRecordId?: string;
   menuOpen: boolean;
-  map: ExchangeMapState;
 }
