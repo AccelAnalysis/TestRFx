@@ -2,10 +2,23 @@ import Link from "next/link";
 import {
   PUBLIC_DESTINATIONS,
   PUBLIC_FOOTER_GROUPS,
+  type PublicDestinationId,
 } from "@/lib/public/destinations";
 import styles from "./public-shell.module.css";
 
-export function PublicFooter() {
+export function PublicFooter({
+  joinHref = PUBLIC_DESTINATIONS.join.href,
+  signInHref = PUBLIC_DESTINATIONS.signIn.href,
+}: {
+  joinHref?: string;
+  signInHref?: string;
+} = {}) {
+  const destinationHref = (destinationId: PublicDestinationId) => {
+    if (destinationId === "join") return joinHref;
+    if (destinationId === "signIn") return signInHref;
+    return PUBLIC_DESTINATIONS[destinationId].href;
+  };
+
   return (
     <footer className={styles.footer}>
       <div className={styles.footerLead}>
@@ -24,7 +37,7 @@ export function PublicFooter() {
                 {group.destinationIds.map((destinationId) => {
                   const destination = PUBLIC_DESTINATIONS[destinationId];
                   return (
-                    <Link href={destination.href} key={destinationId}>
+                    <Link href={destinationHref(destinationId)} key={destinationId}>
                       {destination.label}
                     </Link>
                   );
