@@ -7,7 +7,6 @@ import {
   normalizeOrganizationTerm,
   sanitizeOrganizationType,
   sanitizeOrganizationUserRole,
-  type OrganizationAccessReview,
   type OrganizationCandidate,
   type OrganizationEntryContext,
   type OrganizationInvitation,
@@ -93,7 +92,9 @@ async function ensureActor(sql: Sql, session: OnboardingSession): Promise<Actor>
     RETURNING id::text, email, display_name
   `;
   const row = rows[0];
-  if (!row) throw new OrganizationWorkflowError("Verified account identity could not be established.", 500, "actor_unavailable");
+  if (!row) {
+    throw new OrganizationWorkflowError("Verified account identity could not be established.", 500, "actor_unavailable");
+  }
   return { id: row.id, email: row.email, displayName: row.display_name };
 }
 
@@ -143,7 +144,7 @@ async function candidateById(sql: Sql, organizationId: string): Promise<Organiza
   return rows[0] ? candidateFromRow(rows[0]) : null;
 }
 
-async function writeState(
+async function persistPendingState(
   sql: Sql,
   actorId: string,
   resolution: OrganizationResolution,
@@ -169,10 +170,10 @@ async function writeState(
       ${resolution.membershipState},
       ${resolution.authorityState},
       ${resolution.role ?? null},
-      ${resolution.status === "connected" ? "status.connected" : "status.pending"},
+      'status.pending',
       ${resolution.requestId ?? null}::uuid,
       ${resolution.claimId ?? null}::uuid,
-      ${getDatabase().json(acquisitionContext(context))},
+      ${sql.json(acquisitionContext(context))},
       now()
     )
     ON CONFLICT (user_id) DO UPDATE SET
@@ -336,7 +337,9 @@ export async function getOrganizationState(session: OnboardingSession): Promise<
     role: row.organization_role ?? undefined,
     requestId: row.request_id ?? undefined,
     claimId: row.claim_id ?? undefined,
-    nextPath: connected ? `/onboarding/geography?organizationId=${encodeURIComponent(row.id)}&organizationName=${encodeURIComponent(row.name)}` : "/onboarding/organization?step=status.pending",
+    nextPath: connected
+      ? `/onboarding/geography?organizationId=${encodeURIComponent(row.id)}&organizationName=${encodeURIComponent(row.name)}`
+      : "/onboarding/organization?step=status.pending",
   };
 }
 
@@ -358,12 +361,20 @@ export async function resolveInvitation(session: OnboardingSession, rawToken: st
     LIMIT 1
   `;
   const invitation = rows[0];
-  if (!invitation) throw new OrganizationWorkflowError("This organization invitation is invalid or has expired.", 404, "invitation_invalid");
+  if (!invitation) {
+    throw new OrganizationWorkflowError("This organization invitation is invalid or has expired.", 404, "invitation_invalid");
+  }
   if (invitation.invited_email.trim().toLowerCase() !== session.email.trim().toLowerCase()) {
-    throw new OrganizationWorkflowError("This invitation was issued to a different verified email address.", 403, "invitation_email_mismatch");
+    throw new OrganizationWorkflowError(
+      "This invitation was issued to a different verified email address.",
+      403,
+      "invitation_email_mismatch",
+    );
   }
   const organization = await candidateById(sql, invitation.organization_id);
-  if (!organization) throw new OrganizationWorkflowError("The invited organization no longer exists.", 404, "organization_not_found");
+  if (!organization) {
+    throw new OrganizationWorkflowError("The invited organization no longer exists.", 404, "organization_not_found");
+  }
   return {
     id: invitation.invitation_id,
     organization,
@@ -387,18 +398,13 @@ export async function acceptInvitation(session: OnboardingSession, rawToken: str
       RETURNING id::text, organization_id::text, role
     `;
     const accepted = rows[0];
-    if (!accepted) throw new OrganizationWorkflowError("This invitation is no longer available.", 409, "invitation_already_used");
+    if (!accepted) {
+      throw new OrganizationWorkflowError("This invitation is no longer available.", 409, "invitation_already_used");
+    }
 
     await tx`
       INSERT INTO organization_memberships (organization_id, user_id, role, permissions, status, is_primary)
-      VALUES (
-        ${accepted.organization_id}::uuid,
-        ${actor.id}::uuid,
-        ${accepted.role},
-        ${tx.json([])},
-        'active',
-        true
-      )
+      VALUES (${accepted.organization_id}::uuid, ${actor.id}::uuid, ${accepted.role}, ${tx.json([])}, 'active', true)
       ON CONFLICT (organization_id, user_id) DO UPDATE SET
         role = EXCLUDED.role,
         status = 'active',
@@ -407,10 +413,35 @@ export async function acceptInvitation(session: OnboardingSession, rawToken: str
     `;
 
     const resolution = connectedResolution(invitation.organization, "invitation", "invited", accepted.role);
-    await writeState(tx, actor.id, resolution, context);
+    await tx`
+      INSERT INTO organization_onboarding_state (
+        user_id, organization_id, resolution_mode, membership_state, authority_state,
+        organization_role, current_step, request_id, claim_id, acquisition_context, updated_at
+      ) VALUES (
+        ${actor.id}::uuid, ${resolution.organizationId}::uuid, ${resolution.mode}, ${resolution.membershipState},
+        ${resolution.authorityState}, ${resolution.role ?? null}, 'status.connected', NULL, NULL,
+        ${tx.json(acquisitionContext(context))}, now()
+      )
+      ON CONFLICT (user_id) DO UPDATE SET
+        organization_id = EXCLUDED.organization_id,
+        resolution_mode = EXCLUDED.resolution_mode,
+        membership_state = EXCLUDED.membership_state,
+        authority_state = EXCLUDED.authority_state,
+        organization_role = EXCLUDED.organization_role,
+        current_step = EXCLUDED.current_step,
+        request_id = NULL,
+        claim_id = NULL,
+        acquisition_context = EXCLUDED.acquisition_context,
+        updated_at = now()
+    `;
     await tx`
       INSERT INTO activity_events (event_name, actor_user_id, organization_id, payload)
-      VALUES ('OrganizationInvitationAccepted', ${actor.id}::uuid, ${accepted.organization_id}::uuid, ${tx.json({ invitationId: invitation.id, role: accepted.role })})
+      VALUES (
+        'OrganizationInvitationAccepted',
+        ${actor.id}::uuid,
+        ${accepted.organization_id}::uuid,
+        ${tx.json({ invitationId: invitation.id, role: accepted.role })}
+      )
     `;
     return resolution;
   });
@@ -424,7 +455,9 @@ export async function requestOrganizationAccess(
   const actor = await ensureActor(sql, session);
   const candidate = await candidateById(sql, input.organizationId);
   if (!candidate) throw new OrganizationWorkflowError("Organization not found.", 404, "organization_not_found");
-  if (candidate.claimState === "unclaimed") throw new OrganizationWorkflowError("Unclaimed organizations must use the claim workflow.", 409, "claim_required");
+  if (candidate.claimState === "unclaimed") {
+    throw new OrganizationWorkflowError("Unclaimed organizations must use the claim workflow.", 409, "claim_required");
+  }
   await assertPrimaryOrganizationAvailable(sql, actor.id, candidate.id);
 
   const requestedRole = sanitizeOrganizationUserRole(input.requestedRole);
@@ -437,7 +470,9 @@ export async function requestOrganizationAccess(
     RETURNING id::text
   `;
   const requestId = rows[0]?.id;
-  if (!requestId) throw new OrganizationWorkflowError("Access request could not be created.", 500, "request_failed");
+  if (!requestId) {
+    throw new OrganizationWorkflowError("Access request could not be created.", 500, "request_failed");
+  }
 
   const resolution: OrganizationResolution = {
     status: "pending",
@@ -452,10 +487,15 @@ export async function requestOrganizationAccess(
     requestId,
     nextPath: `/onboarding/organization?step=status.pending&request=${encodeURIComponent(requestId)}`,
   };
-  await writeState(sql, actor.id, resolution, input.context);
+  await persistPendingState(sql, actor.id, resolution, input.context);
   await sql`
     INSERT INTO activity_events (event_name, actor_user_id, organization_id, payload)
-    VALUES ('OrganizationAccessRequested', ${actor.id}::uuid, ${candidate.id}::uuid, ${sql.json({ requestId, requestedRole })})
+    VALUES (
+      'OrganizationAccessRequested',
+      ${actor.id}::uuid,
+      ${candidate.id}::uuid,
+      ${sql.json({ requestId, requestedRole })}
+    )
   `;
   return resolution;
 }
@@ -473,26 +513,43 @@ export async function claimOrganization(
   const actor = await ensureActor(sql, session);
   const candidate = await candidateById(sql, input.organizationId);
   if (!candidate) throw new OrganizationWorkflowError("Organization not found.", 404, "organization_not_found");
-  if (candidate.claimState !== "unclaimed") throw new OrganizationWorkflowError("This organization is already claimed. Request access instead.", 409, "already_claimed");
+  if (candidate.claimState !== "unclaimed") {
+    throw new OrganizationWorkflowError("This organization is already claimed. Request access instead.", 409, "already_claimed");
+  }
   await assertPrimaryOrganizationAvailable(sql, actor.id, candidate.id);
 
   const domainMatches = Boolean(candidate.domain && emailDomain(actor.email) === normalizeDomain(candidate.domain));
   if (input.authorityMethod === "domain_email" && !domainMatches) {
-    throw new OrganizationWorkflowError("Your verified email domain does not match the organization's primary domain.", 409, "domain_mismatch");
+    throw new OrganizationWorkflowError(
+      "Your verified email domain does not match the organization's primary domain.",
+      409,
+      "domain_mismatch",
+    );
   }
 
   if (domainMatches && input.authorityMethod === "domain_email") {
     return sql.begin(async (tx) => {
       const claimRows = await tx<{ id: string }[]>`
         INSERT INTO organization_claims (
-          organization_id, claimant_user_id, authority_method, evidence_note, status, acquisition_context, resolved_at
+          organization_id, claimant_user_id, authority_method, evidence_note, status,
+          acquisition_context, resolved_at
         ) VALUES (
-          ${candidate.id}::uuid, ${actor.id}::uuid, 'domain_email', ${input.evidenceNote?.trim() || null}, 'approved', ${tx.json(acquisitionContext(input.context))}, now()
+          ${candidate.id}::uuid,
+          ${actor.id}::uuid,
+          'domain_email',
+          ${input.evidenceNote?.trim() || null},
+          'approved',
+          ${tx.json(acquisitionContext(input.context))},
+          now()
         )
         RETURNING id::text
       `;
       const claimId = claimRows[0]?.id;
-      await tx`UPDATE organization_identity SET claim_state = 'claimed', updated_at = now() WHERE organization_id = ${candidate.id}::uuid`;
+      await tx`
+        UPDATE organization_identity
+        SET claim_state = 'claimed', updated_at = now()
+        WHERE organization_id = ${candidate.id}::uuid
+      `;
       await tx`
         INSERT INTO organization_memberships (organization_id, user_id, role, permissions, status, is_primary)
         VALUES (
@@ -510,21 +567,71 @@ export async function claimOrganization(
           is_primary = true,
           updated_at = now()
       `;
-      const resolution = { ...connectedResolution(candidate, "claim", "domain-verified", "primary_admin"), claimId };
-      await writeState(tx, actor.id, resolution, input.context);
+      const resolution = {
+        ...connectedResolution(candidate, "claim", "domain-verified", "primary_admin"),
+        claimId,
+      };
+      await tx`
+        INSERT INTO organization_onboarding_state (
+          user_id, organization_id, resolution_mode, membership_state, authority_state,
+          organization_role, current_step, request_id, claim_id, acquisition_context, updated_at
+        ) VALUES (
+          ${actor.id}::uuid, ${candidate.id}::uuid, 'claim', 'active', 'domain-verified',
+          'primary_admin', 'status.connected', NULL, ${claimId ?? null}::uuid,
+          ${tx.json(acquisitionContext(input.context))}, now()
+        )
+        ON CONFLICT (user_id) DO UPDATE SET
+          organization_id = EXCLUDED.organization_id,
+          resolution_mode = EXCLUDED.resolution_mode,
+          membership_state = EXCLUDED.membership_state,
+          authority_state = EXCLUDED.authority_state,
+          organization_role = EXCLUDED.organization_role,
+          current_step = EXCLUDED.current_step,
+          request_id = NULL,
+          claim_id = EXCLUDED.claim_id,
+          acquisition_context = EXCLUDED.acquisition_context,
+          updated_at = now()
+      `;
       await tx`
         INSERT INTO activity_events (event_name, actor_user_id, organization_id, payload)
-        VALUES ('OrganizationClaimApproved', ${actor.id}::uuid, ${candidate.id}::uuid, ${tx.json({ claimId, authorityMethod: "domain_email" })})
+        VALUES (
+          'OrganizationClaimApproved',
+          ${actor.id}::uuid,
+          ${candidate.id}::uuid,
+          ${tx.json({ claimId, authorityMethod: "domain_email" })}
+        )
       `;
       return resolution;
     });
   }
 
+  const existingClaims = await sql<{ id: string }[]>`
+    SELECT id::text
+    FROM organization_claims
+    WHERE organization_id = ${candidate.id}::uuid
+      AND claimant_user_id <> ${actor.id}::uuid
+      AND status IN ('pending', 'conflict')
+  `;
+  const claimStatus = existingClaims.length ? "conflict" : "pending";
+  if (existingClaims.length) {
+    await sql`
+      UPDATE organization_claims
+      SET status = 'conflict'
+      WHERE organization_id = ${candidate.id}::uuid
+        AND status = 'pending'
+    `;
+  }
+
   const rows = await sql<{ id: string }[]>`
     INSERT INTO organization_claims (
-      organization_id, claimant_user_id, authority_method, evidence_note, acquisition_context
+      organization_id, claimant_user_id, authority_method, evidence_note, status, acquisition_context
     ) VALUES (
-      ${candidate.id}::uuid, ${actor.id}::uuid, 'manual_review', ${input.evidenceNote?.trim().slice(0, 1200) || null}, ${sql.json(acquisitionContext(input.context))}
+      ${candidate.id}::uuid,
+      ${actor.id}::uuid,
+      'manual_review',
+      ${input.evidenceNote?.trim().slice(0, 1200) || null},
+      ${claimStatus},
+      ${sql.json(acquisitionContext(input.context))}
     )
     ON CONFLICT (organization_id, claimant_user_id, status) DO UPDATE SET
       evidence_note = EXCLUDED.evidence_note,
@@ -547,10 +654,15 @@ export async function claimOrganization(
     claimId,
     nextPath: `/onboarding/organization?step=status.pending&organization=${encodeURIComponent(candidate.id)}`,
   };
-  await writeState(sql, actor.id, resolution, input.context);
+  await persistPendingState(sql, actor.id, resolution, input.context);
   await sql`
     INSERT INTO activity_events (event_name, actor_user_id, organization_id, payload)
-    VALUES ('OrganizationClaimSubmitted', ${actor.id}::uuid, ${candidate.id}::uuid, ${sql.json({ claimId, authorityMethod: "manual_review" })})
+    VALUES (
+      'OrganizationClaimSubmitted',
+      ${actor.id}::uuid,
+      ${candidate.id}::uuid,
+      ${sql.json({ claimId, authorityMethod: "manual_review", competingClaim: existingClaims.length > 0 })}
+    )
   `;
   return resolution;
 }
@@ -567,7 +679,9 @@ export async function createOrganization(
   const type = sanitizeOrganizationType(input.type);
   const website = input.website?.trim().slice(0, 300) || undefined;
   const domain = normalizeDomain(website);
-  if (!name || !type) throw new OrganizationWorkflowError("Organization name and type are required.", 400, "invalid_organization");
+  if (!name || !type) {
+    throw new OrganizationWorkflowError("Organization name and type are required.", 400, "invalid_organization");
+  }
 
   const matches = await searchOrganizations({ query: name, domain });
   const highConfidence = matches.filter((candidate) =>
@@ -596,18 +710,29 @@ export async function createOrganization(
       RETURNING id::text
     `;
     const organizationId = organizationRows[0]?.id;
-    if (!organizationId) throw new OrganizationWorkflowError("Organization could not be created.", 500, "create_failed");
+    if (!organizationId) {
+      throw new OrganizationWorkflowError("Organization could not be created.", 500, "create_failed");
+    }
 
     await tx`
       INSERT INTO organization_identity (
         organization_id, organization_type, website, primary_domain, claim_state, created_source, created_by_user_id
       ) VALUES (
-        ${organizationId}::uuid, ${type}, ${website ?? null}, ${domain || null}, 'claimed', 'onboarding', ${actor.id}::uuid
+        ${organizationId}::uuid,
+        ${type},
+        ${website ?? null},
+        ${domain || null},
+        'claimed',
+        'onboarding',
+        ${actor.id}::uuid
       )
     `;
     await tx`
-      INSERT INTO organization_profiles (organization_id, description, website, primary_domain, capability_seed, profile_status)
-      VALUES (${organizationId}::uuid, '', ${website ?? null}, ${domain || null}, '', 'in_progress')
+      INSERT INTO organization_profiles (
+        organization_id, description, website, primary_domain, capability_seed, profile_status
+      ) VALUES (
+        ${organizationId}::uuid, '', ${website ?? null}, ${domain || null}, '', 'in_progress'
+      )
       ON CONFLICT (organization_id) DO NOTHING
     `;
     await tx`
@@ -632,124 +757,36 @@ export async function createOrganization(
       claimState: "claimed",
     };
     const resolution = connectedResolution(candidate, "create", "self-attested", "primary_admin");
-    await writeState(tx, actor.id, resolution, input.context);
+
     await tx`
-      INSERT INTO activity_events (event_name, actor_user_id, organization_id, payload)
-      VALUES ('OrganizationCreated', ${actor.id}::uuid, ${organizationId}::uuid, ${tx.json({ type, domain: domain || null })})
+      INSERT INTO organization_onboarding_state (
+        user_id, organization_id, resolution_mode, membership_state, authority_state,
+        organization_role, current_step, request_id, claim_id, acquisition_context, updated_at
+      ) VALUES (
+        ${actor.id}::uuid, ${organizationId}::uuid, 'create', 'active', 'self-attested',
+        'primary_admin', 'status.connected', NULL, NULL, ${tx.json(acquisitionContext(input.context))}, now()
+      )
+      ON CONFLICT (user_id) DO UPDATE SET
+        organization_id = EXCLUDED.organization_id,
+        resolution_mode = EXCLUDED.resolution_mode,
+        membership_state = EXCLUDED.membership_state,
+        authority_state = EXCLUDED.authority_state,
+        organization_role = EXCLUDED.organization_role,
+        current_step = EXCLUDED.current_step,
+        request_id = NULL,
+        claim_id = NULL,
+        acquisition_context = EXCLUDED.acquisition_context,
+        updated_at = now()
     `;
-    return resolution;
-  });
-}
-
-async function authorizedAccessReview(sql: Sql, actorId: string, requestId: string) {
-  const rows = await sql<{
-    request_id: string;
-    organization_id: string;
-    requester_user_id: string;
-    requester_email: string;
-    requester_name: string;
-    requested_role: string;
-    created_at: Date;
-  }[]>`
-    SELECT
-      r.id::text AS request_id,
-      r.organization_id::text,
-      r.requester_user_id::text,
-      u.email AS requester_email,
-      u.display_name AS requester_name,
-      r.requested_role,
-      r.created_at
-    FROM organization_join_requests r
-    JOIN users u ON u.id = r.requester_user_id
-    JOIN organization_memberships reviewer
-      ON reviewer.organization_id = r.organization_id
-      AND reviewer.user_id = ${actorId}::uuid
-      AND reviewer.status = 'active'
-    WHERE r.id = ${requestId}::uuid
-      AND r.status = 'pending'
-      AND (reviewer.role = 'primary_admin' OR reviewer.permissions ? 'organization.members.manage')
-    LIMIT 1
-  `;
-  return rows[0] ?? null;
-}
-
-export async function getAccessReview(session: OnboardingSession, requestId: string): Promise<OrganizationAccessReview> {
-  const sql = getDatabase();
-  const actor = await ensureActor(sql, session);
-  const row = await authorizedAccessReview(sql, actor.id, requestId);
-  if (!row) throw new OrganizationWorkflowError("This access request is unavailable or you are not authorized to review it.", 404, "access_review_unavailable");
-  const organization = await candidateById(sql, row.organization_id);
-  if (!organization) throw new OrganizationWorkflowError("Organization not found.", 404, "organization_not_found");
-  return {
-    requestId: row.request_id,
-    organization,
-    requesterEmail: row.requester_email,
-    requesterName: row.requester_name,
-    requestedRole: row.requested_role,
-    createdAt: row.created_at.toISOString(),
-  };
-}
-
-export async function reviewAccessRequest(
-  session: OnboardingSession,
-  input: { requestId: string; decision: "approve" | "deny" },
-) {
-  const sql = getDatabase();
-  const actor = await ensureActor(sql, session);
-  const review = await authorizedAccessReview(sql, actor.id, input.requestId);
-  if (!review) throw new OrganizationWorkflowError("This access request is unavailable or you are not authorized to review it.", 404, "access_review_unavailable");
-
-  return sql.begin(async (tx) => {
-    const status = input.decision === "approve" ? "approved" : "denied";
-    const updated = await tx<{ requester_user_id: string; organization_id: string; requested_role: string }[]>`
-      UPDATE organization_join_requests
-      SET status = ${status}, resolved_at = now(), resolved_by_user_id = ${actor.id}::uuid
-      WHERE id = ${input.requestId}::uuid AND status = 'pending'
-      RETURNING requester_user_id::text, organization_id::text, requested_role
-    `;
-    const request = updated[0];
-    if (!request) throw new OrganizationWorkflowError("This access request has already been resolved.", 409, "access_already_resolved");
-
-    if (input.decision === "approve") {
-      const primaryRows = await tx<{ exists: boolean }[]>`
-        SELECT EXISTS(
-          SELECT 1 FROM organization_memberships
-          WHERE user_id = ${request.requester_user_id}::uuid AND is_primary = true AND status = 'active'
-        ) AS exists
-      `;
-      const isPrimary = !primaryRows[0]?.exists;
-      await tx`
-        INSERT INTO organization_memberships (organization_id, user_id, role, permissions, status, is_primary)
-        VALUES (
-          ${request.organization_id}::uuid,
-          ${request.requester_user_id}::uuid,
-          ${request.requested_role},
-          ${tx.json([])},
-          'active',
-          ${isPrimary}
-        )
-        ON CONFLICT (organization_id, user_id) DO UPDATE SET
-          role = EXCLUDED.role,
-          status = 'active',
-          is_primary = CASE WHEN organization_memberships.is_primary THEN true ELSE EXCLUDED.is_primary END,
-          updated_at = now()
-      `;
-      await tx`
-        UPDATE organization_onboarding_state
-        SET membership_state = 'active', authority_state = 'invited', current_step = 'status.connected', updated_at = now()
-        WHERE user_id = ${request.requester_user_id}::uuid AND request_id = ${input.requestId}::uuid
-      `;
-    }
-
     await tx`
       INSERT INTO activity_events (event_name, actor_user_id, organization_id, payload)
       VALUES (
-        ${input.decision === "approve" ? "OrganizationAccessApproved" : "OrganizationAccessDenied"},
+        'OrganizationCreated',
         ${actor.id}::uuid,
-        ${request.organization_id}::uuid,
-        ${tx.json({ requestId: input.requestId, requesterUserId: request.requester_user_id })}
+        ${organizationId}::uuid,
+        ${tx.json({ type, domain: domain || null })}
       )
     `;
-    return { status, requestId: input.requestId };
+    return resolution;
   });
 }
