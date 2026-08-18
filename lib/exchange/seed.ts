@@ -55,18 +55,6 @@ export const exchangeSeed: ExchangeRecord[] = [
     resource: { category: "Data & Intelligence", availability: "scheduled", availabilityLabel: "Scheduled access", capacity: "Project-based seats", serviceArea: "Hampton Roads", visibility: "off-map", terms: "Data-use restrictions and project eligibility apply.", status: "active" },
   },
   {
-    id: "intel-001", type: "intelligence", title: "Maritime supplier concentration is rising", organization: "RFxchange Intelligence",
-    summary: "Capability density increased around the Norfolk–Portsmouth corridor in the reference dataset.", geography: "Hampton Roads, VA",
-    metadata: ["Market signal", "30-day view", "Maritime"], location: { lat: 36.84, lng: -76.32 },
-    card: { eyebrow: "Market Signal", media: { kind: "visualization", label: "Signal" }, classifications: ["Maritime", "Supply Density"], status: { label: "Updated", tone: "info" }, relationships: ["following"] },
-  },
-  {
-    id: "intel-002", type: "intelligence", title: "Training demand exceeds visible local supply", organization: "RFxchange Intelligence",
-    summary: "Reference insight demonstrating off-map intelligence in the drawer.", geography: "Virginia",
-    metadata: ["Demand signal", "Workforce", "Off-map record"],
-    card: { eyebrow: "Demand Signal", media: { kind: "visualization", label: "Insight" }, classifications: ["Workforce", "Training"], status: { label: "Current", tone: "info" } },
-  },
-  {
     id: "cap-001", type: "capability", title: "Industrial Electrical Installation", organization: "Tidewater Technical Services",
     summary: "Commercial and industrial electrical installation and maintenance capability.", geography: "Portsmouth, VA",
     metadata: ["AMACS mapped", "Electrical", "Field service"], location: { lat: 36.84, lng: -76.34 },

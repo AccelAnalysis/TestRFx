@@ -28,7 +28,7 @@ export const DEFAULT_MAP_VIEW: MapViewState = {
   },
 };
 
-export type MapOverlayMode = "points" | "availability" | "heat" | "density";
+export type MapOverlayMode = "points" | "availability" | "density";
 
 export interface LensMapPresentation {
   label: string;
@@ -39,7 +39,7 @@ export interface LensMapPresentation {
 export const lensMapPresentations: Record<ExchangeLens, LensMapPresentation> = {
   rfx: { label: "RFx opportunities", shortLabel: "RFx", overlay: "points" },
   resources: { label: "Resources", shortLabel: "Resources", overlay: "availability" },
-  intelligence: { label: "Market intelligence", shortLabel: "Intelligence", overlay: "heat" },
+  intelligence: { label: "Market intelligence", shortLabel: "Intelligence", overlay: "points" },
   capabilities: { label: "Organization capabilities", shortLabel: "Capabilities", overlay: "density" },
 };
 
