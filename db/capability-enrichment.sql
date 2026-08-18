@@ -1,6 +1,11 @@
 -- Capability Enrichment persistence and immutable AMACS runtime projection.
 -- Apply after db/schema.sql and db/organization-profile.sql.
 
+-- Industry & Services is source-defined as enrichment context, but it remains
+-- canonical organization-profile data. Do not create a second copy in capability records.
+ALTER TABLE organization_profiles
+  ADD COLUMN IF NOT EXISTS service_offerings text[] NOT NULL DEFAULT '{}';
+
 CREATE TABLE amacs_runtime_releases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   version text NOT NULL UNIQUE,
