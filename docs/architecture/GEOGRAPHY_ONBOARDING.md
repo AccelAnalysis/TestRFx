@@ -2,173 +2,231 @@
 
 ## Purpose
 
-Geography establishes the spatial identity that an organization carries into RFxchange. It sits after organization selection/creation and before organization profile, capability enrichment, and Exchange-ready completion.
+Geography establishes the spatial identity that an organization carries into RFxchange. It remains inside the Identity & Onboarding shell, after Organization Selection / Creation and before Organization Profile, Capability Enrichment, and Exchange-ready Completion.
 
-The Geography subsystem answers five separate questions without collapsing them into one address field:
+The subsystem keeps five meanings separate:
 
-1. **Primary geography** — where the organization enters RFxchange.
-2. **Base location** — where the organization is actually based.
-3. **Map placement** — the geocoded/confirmed location used by the platform.
-4. **Public location visibility** — exact, approximate, or locality-only presentation.
+1. **Primary geography** — the authoritative locality that establishes the organization's initial RFxchange market context.
+2. **Base location** — the organization's physical operating address.
+3. **Map placement** — the geocoded point the user confirms.
+4. **Location visibility** — whether Exchange presentation is exact, approximate, or locality-only.
 5. **Service geography** — where the organization can provide products or services.
 
-These outputs become one `GeographyContext` consumed downstream. The authenticated Exchange does not own onboarding Geography and the Geography route does not create another Exchange lens.
+The authenticated Exchange consumes the resulting `GeographyContext`; Geography does not create an Exchange lens or a parallel map application.
 
-## Route and composition
+## Hierarchical route tree
 
-The reference implementation lives at:
+Geography is not a single wizard with hidden in-memory steps. Every supported child and grandchild workflow has a deep-linkable route:
 
 ```text
 /onboarding/geography
+|
++-- primary-locality
+|   +-- /search
+|   +-- /availability
+|
++-- base-location
+|   +-- /address
+|   +-- /geocode
+|   +-- /mismatch          conditional
+|
++-- map-placement
+|   +-- /confirm
+|
++-- privacy
+|   +-- /visibility
+|
++-- service-geography
+|   +-- /coverage
+|   +-- /localities        conditional
+|
++-- review
+    +-- /summary
+    +-- /complete
 ```
 
-It remains inside the Identity & Onboarding shell. It deliberately does **not** render the authenticated Exchange bottom navigation, persistent result drawer, lens action rail, or domain cards.
+The tree is defined in `lib/onboarding/geography.ts`, rendered as nested navigation in the Identity shell, and used to generate static parameters for the GitHub Pages preview projection. Browser Back/Forward and direct links therefore preserve navigation semantics instead of depending on an integer step in one component.
 
-The six internal Geography stages are:
+Conditional children are source-supported workflow branches rather than invented navigation:
+
+- `base-location/mismatch` appears only when the authoritative geocoder places the address in a different locality than the selected primary geography.
+- `service-geography/localities` appears only when the organization chooses named localities as its service-coverage mode.
+
+## Primary locality: search -> availability / boundary
+
+The source registration flow requires geography search and market-boundary establishment. The implementation now uses the U.S. Census Bureau's TIGERweb REST services rather than an in-repository geography list.
+
+`GET /api/onboarding/geography/search?q=...` searches current county and place layers and returns normalized `GeographyOption` records containing:
+
+- Census GEOID
+- name
+- state
+- geography type
+- RFxchange release state
+- source provenance
+
+`GET /api/onboarding/geography/search?id=...` re-resolves a selected geography server-side and retrieves its current bounding extent in WGS84. The availability screen exposes both the Census identity and the RFxchange activation state before allowing continuation.
+
+### Release policy
+
+Census answers what a geography **is**. RFxchange policy separately determines whether that geography is open for primary activation.
+
+Server configuration uses GEOIDs:
 
 ```text
-Primary locality
-  -> Base location
-  -> Map placement
-  -> Privacy
-  -> Service geography
-  -> Review / validation
+RFXCHANGE_RELEASED_GEOGRAPHY_IDS
+RFXCHANGE_LIMITED_GEOGRAPHY_IDS
+RFXCHANGE_RESTRICTED_GEOGRAPHY_IDS
 ```
 
-The top progress rail keeps Geography positioned in the larger onboarding lifecycle:
+The default released GEOID is `51093` (Isle of Wight County, Virginia), matching the current local-first launch direction. A browser-supplied `releaseState` is never accepted as authoritative: the final completion route re-resolves the geography and reapplies server policy.
+
+## Base location: address -> geocode -> mismatch
+
+The source registration flow explicitly requires:
 
 ```text
-Account -> Organization -> Geography -> Profile -> Capabilities -> Exchange ready
+physical address
+  -> geocode address
+  -> marker placement
 ```
 
-## Contracts
-
-`lib/onboarding/geography.ts` owns the reference contracts:
-
-- `GeographyReleaseState`
-- `LocationVisibility`
-- `ServiceAreaMode`
-- `GeographyOption`
-- `GeographyDraft`
-- `GeographyContext`
-
-The critical distinction is that primary geography, base location, public presentation, and service territory remain separate fields. Downstream RFx matching, Resources, Intelligence, Capabilities, referrals, and search should consume those separate meanings instead of inferring all geography from one address.
-
-## Availability and server validation
-
-The reference geography registry demonstrates the platform states:
+`POST /api/onboarding/geography/geocode` uses the U.S. Census Geocoder. The server sends street, city, state, and ZIP; the response is normalized into:
 
 ```text
-released | visible | limited | restricted
+matchedAddress
+coordinates.latitude
+coordinates.longitude
+county
+place
+source = census_geocoder
 ```
 
-A locality may be visible in the network without being released for primary organization activation. `POST /api/onboarding/geography` performs the completion validation and rejects a primary geography that is not released/selectable.
+The response is also compared with the selected primary geography.
 
-This is an application-boundary demonstration. Production must replace the in-repo registry with authoritative server-side policy and must never trust a browser-supplied release state.
+### Locality mismatch
 
-## Map and geocoding boundary
+When the selected primary geography and address geography differ, the workflow does not silently overwrite either one. The conditional child route offers the two previously specified resolutions:
 
-The route contains a provider-neutral map preview so the user begins learning the map-first visual language before entering the authenticated Exchange.
+1. **Use detected geography** — change the primary geography to the Census-resolved locality. Final completion still requires that locality to be released.
+2. **Keep selected geography** — preserve the original primary geography and require an explanation for the exception.
 
-The reference preview does **not** claim to geocode the submitted street address. Production integration should resolve:
+Final completion performs the comparison again server-side.
+
+## Map placement
+
+The previous simulated CSS map and percentage-position marker were removed.
+
+After Census geocoding, `/map-placement/confirm` renders a real OpenStreetMap embed centered on the returned coordinates and places the marker at that geocoded point. The user explicitly confirms placement before Geography can complete.
+
+The map is still bounded to onboarding. It does not import the authenticated Exchange map or create a second Exchange navigation system.
+
+## Location privacy
+
+`/privacy/visibility` keeps canonical location separate from public presentation:
 
 ```text
-entered address
-  -> address autocomplete / normalization
-  -> geocoder
-  -> point
-  -> authoritative locality intersection
-  -> user confirmation
-  -> persisted primary location
+exact
+  -> public coordinate = confirmed geocoded point
+
+approximate
+  -> public coordinate = primary-locality centroid when available
+
+locality_only
+  -> no public organization coordinate
 ```
 
-A Mapbox/MapLibre or equivalent adapter can replace the reference preview without changing `GeographyDraft` or `GeographyContext`.
-
-## Privacy boundary
-
-The canonical location and public projection are intentionally separate.
-
-```text
-canonical point
-   |
-   +-- exact public projection
-   +-- approximate safe projection
-   +-- locality-only projection
-```
-
-Home-based organizations can therefore retain a canonical internal location while choosing a less precise public representation. Production authorization and privacy policy are server responsibilities.
+Home-based organizations receive the source-supported privacy warning, but the user retains the explicit visibility choice.
 
 ## Service geography
 
-The reference UI supports:
+`/service-geography/coverage` supports the previously defined modes:
 
 - selected localities
 - statewide
 - nationwide
 - remote / virtual
 
-The persistence extension also supports named organization-geography relationships while the existing PostGIS `locations.service_area` field remains available for more advanced radius/custom-polygon territory later.
+When `selected localities` is chosen, `/service-geography/localities` uses the same Census-backed locality search instead of a static list. Service localities may be visible even when they are not released for primary RFxchange activation because service territory and launch eligibility are distinct concepts.
 
-Service geography is independent of the primary locality release state: an organization can be based in one released market and serve additional areas.
+Final completion re-resolves selected service-geography IDs server-side so browser labels and release-state values do not become canonical truth.
 
-## Persistence
+## Review and completion
 
-`db/geography-extension.sql` extends the operating-chassis reference schema with:
+`/review/summary` provides a consolidated review with edit controls that return to the exact owning child workflow:
 
-- authoritative named `geographies`
-- geography parent hierarchy
-- adjacency
-- boundary and centroid geometry
-- map bounds/default camera metadata
-- release state
-- geography linkage and privacy on organization locations
-- one primary location per organization
-- `organization_geographies` relationships for primary/service/branch/other geography
+- Primary geography -> Primary locality / Search
+- Base location -> Base location / Physical address
+- Map placement -> Map placement / Confirm marker
+- Public location -> Location privacy / Visibility preference
+- Service geography -> Service geography / Coverage mode
 
-The extension is kept separate from `db/schema.sql` so Geography remains a bounded integration module while the repository is evolving in parallel.
+`/review/complete` calls `POST /api/onboarding/geography`.
 
-## Reference persistence and resume behavior
+That endpoint does not trust the browser's derived geography. It:
 
-The current UI stores an incomplete Geography draft in `sessionStorage` so Save & Exit and browser refresh preserve progress. On successful server validation it stores the normalized `GeographyContext` under:
+1. validates the draft shape;
+2. re-resolves the primary geography through Census TIGERweb;
+3. re-geocodes the address through the Census Geocoder;
+4. recomputes locality mismatch;
+5. applies RFxchange release policy;
+6. re-resolves named service localities;
+7. constructs the normalized `GeographyContext`.
+
+The returned context identifies the real services used:
 
 ```text
-rfxchange.geography-context
+geography: US Census TIGERweb
+geocoder: US Census Geocoder
+map: OpenStreetMap
 ```
 
-and returns to the onboarding shell with `?step=profile`.
+## GeographyContext handoff
 
-This is not a production persistence claim. A real onboarding repository should persist the draft and normalized geography context against the authenticated user, active organization, lifecycle state, and audit trail.
-
-## Operating-chassis handoff
-
-A validated Geography context should provide downstream consumers with at least:
+The normalized output contains:
 
 ```text
 primaryGeography
-primaryLocation
+primaryLocation.matchedAddress
+primaryLocation.coordinates
 publicLocation.visibility
+publicLocation.coordinates
 serviceArea
 availabilityState
-mapCamera
+mapCamera.center
+mapCamera.bounds
+source
 ```
 
-Organization Profile should consume that context rather than asking for the same base geography again. Exchange-ready completion can then activate the organization marker only after the other minimum profile/capability gates pass.
+The browser stores the validated context under `rfxchange.geography-context` so the current client-side onboarding modules can hand it to later stages without putting the physical address in a URL. The Profile handoff passes only organization identity and the primary geography name in the route.
 
-On first authenticated Exchange entry, the persistent map can initialize from `mapCamera.geographyId` while the actual map service resolves authoritative bounds/camera data.
+Canonical database persistence is intentionally not fabricated here. The repository still lacks one production authenticated organization/session repository shared by all onboarding modules. Once that repository is introduced, the same server-validated `GeographyContext` maps directly to the existing Postgres/PostGIS geography schema rather than changing this route tree.
 
-## Production integration points
+## Persistence target
 
-The shell and contracts are ready for these replacements without redesigning the flow:
+`db/geography-extension.sql` remains the production relational/geospatial target for:
 
-- authenticated organization context and permissions
-- authoritative FIPS/geography/boundary service
-- geography release-policy service
-- address autocomplete and geocoder
-- locality/address mismatch resolution
-- Postgres/PostGIS repositories
-- audit/activity events
-- organization profile handoff
-- Exchange-ready marker activation
-- first-Exchange camera initialization
+- named geographies and GEOIDs
+- parent hierarchy and adjacency
+- boundary and centroid geometry
+- map bounds / camera metadata
+- release state
+- organization location privacy
+- primary organization location
+- organization primary/service/branch geography relationships
 
-The governing rule remains the same as the larger RFxchange chassis: Geography supplies normalized onboarding context to the platform; it does not create a parallel application or a new authenticated lens.
+The existing base schema also provides PostGIS `geography(Point, 4326)` and `geometry(MultiPolygon, 4326)` fields for physical points and advanced service territories.
+
+## Save / resume
+
+Incomplete Geography state is stored in `localStorage` under a versioned draft key. This is a real browser persistence mechanism for the current client-only onboarding state and survives refresh/browser restart on the same device.
+
+It is not described as canonical organization persistence. Canonical persistence must attach the validated geography to the authenticated organization and audit trail when the shared identity repository is available.
+
+## Static GitHub Pages preview
+
+GitHub Pages is a static host and therefore cannot execute the runtime Census proxy API routes. The nested Geography routes are still statically generated so the information architecture can be reviewed. Live Census search, geocoding, and completion require the server-capable Next.js runtime; the UI reports service unavailability rather than substituting mocked geography data.
+
+## Governing chassis rule
+
+Geography supplies normalized onboarding state to the platform. It does not change the persistent Exchange composition. Marker activation remains an Exchange-ready outcome after downstream profile/capability gates pass; completing Geography alone does not publish the organization into the Exchange.
