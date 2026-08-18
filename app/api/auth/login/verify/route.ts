@@ -79,6 +79,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (result.state !== "authenticated") {
+      return noStore<LoginVerifyApiResponse>(
+        { state: "invalid", message: "Identity provider returned an unsupported verification state." },
+        502,
+      );
+    }
+
     const nextPath = resolvePostLoginDestination(result.identity.readiness, result.returnTo);
     const response = noStore<LoginVerifyApiResponse>(
       { state: "authenticated", nextPath },
