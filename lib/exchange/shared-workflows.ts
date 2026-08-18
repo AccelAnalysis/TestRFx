@@ -35,7 +35,9 @@ export interface SharedWorkflowLaunch {
   workflow: SharedWorkflowId;
   lens: ExchangeLens;
   record: ExchangeRecord;
-  actor: ExchangeActorContext;
+  // Actor identity is intentionally not required on the client launch contract. The
+  // workflow API resolves the authenticated user and active organization server-side.
+  actor?: ExchangeActorContext;
   source: WorkflowSource;
 }
 
@@ -59,6 +61,9 @@ export interface ReferenceMatch {
   reasons: string[];
 }
 
+// Retained only for the legacy standalone service-preview component. Authenticated workflow
+// execution never sends or trusts this client value; app/api/exchange/workflows resolves actor
+// identity through the trusted server boundary.
 export const referenceActorContext: ExchangeActorContext = {
   userId: "reference-user",
   organizationId: "reference-organization",
@@ -97,37 +102,25 @@ export function relationshipKindForWorkflow(workflow: SharedWorkflowId): Relatio
   return sharedWorkflowDefinitions[workflow].relationshipKind;
 }
 
+/** @deprecated Reference-only helper retained for isolated story/demo consumers. */
 export function buildReferenceWorkflowEvent(launch: SharedWorkflowLaunch, payload: Record<string, unknown> = {}): SharedWorkflowEvent {
+  const actor = launch.actor ?? referenceActorContext;
   const eventNames: Record<SharedWorkflowId, string> = {
-    save: "RecordSaved",
-    watch: "RFxWatched",
-    track: "IntelligenceTracked",
-    follow: "OrganizationFollowed",
-    share: "RecordShared",
-    refer: "ReferralCreated",
-    match: "MatchRequested",
-    team: "TeamingRequested",
-    connect: "ConnectionRequested",
+    save: "RecordSaved", watch: "RFxWatched", track: "IntelligenceTracked", follow: "OrganizationFollowed",
+    share: "RecordShared", refer: "ReferralCreated", match: "MatchRequested", team: "TeamingRequested", connect: "ConnectionRequested",
   };
-
   return {
     id: `${launch.workflow}-${Date.now()}-${launch.record.id}`,
-    eventName: eventNames[launch.workflow],
-    workflow: launch.workflow,
-    lens: launch.lens,
-    recordId: launch.record.id,
-    recordTitle: launch.record.title,
-    actorOrganizationId: launch.actor.organizationId,
-    actorOrganizationName: launch.actor.organizationName,
-    source: launch.source,
-    occurredAt: new Date().toISOString(),
-    payload,
+    eventName: eventNames[launch.workflow], workflow: launch.workflow, lens: launch.lens,
+    recordId: launch.record.id, recordTitle: launch.record.title,
+    actorOrganizationId: actor.organizationId, actorOrganizationName: actor.organizationName,
+    source: launch.source, occurredAt: new Date().toISOString(), payload,
   };
 }
 
+/** @deprecated Production matching executes through app/api/exchange/workflows. */
 export function getReferenceMatches(record: ExchangeRecord, records: ExchangeRecord[]): ReferenceMatch[] {
   const sourceMetadata = new Set(record.metadata.map((item) => item.trim().toLowerCase()));
-
   return records
     .filter((candidate) => candidate.id !== record.id && candidate.organization !== record.organization)
     .map((candidate) => {
@@ -135,18 +128,9 @@ export function getReferenceMatches(record: ExchangeRecord, records: ExchangeRec
       const reasons: string[] = [];
       let score = overlap.length * 30;
       if (overlap.length) reasons.push(`${overlap.length} shared metadata signal${overlap.length === 1 ? "" : "s"}`);
-      if (candidate.geography === record.geography) {
-        score += 25;
-        reasons.push("same Exchange geography");
-      }
-      if (candidate.location && record.location) {
-        score += 10;
-        reasons.push("both map-addressable");
-      }
-      if (candidate.type !== record.type) {
-        score += 5;
-        reasons.push("cross-domain relationship");
-      }
+      if (candidate.geography === record.geography) { score += 25; reasons.push("same Exchange geography"); }
+      if (candidate.location && record.location) { score += 10; reasons.push("both map-addressable"); }
+      if (candidate.type !== record.type) { score += 5; reasons.push("cross-domain relationship"); }
       return { record: candidate, score, reasons };
     })
     .filter((candidate) => candidate.score > 0)
