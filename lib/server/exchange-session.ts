@@ -41,16 +41,20 @@ export async function requireExchangeActor(request: NextRequest): Promise<Exchan
     JOIN organization_memberships m
       ON m.organization_id = s.active_organization_id
      AND m.user_id = s.user_id
-    JOIN users u ON u.id = s.user_id
     WHERE encode(s.token_hash, 'hex') = ${tokenHash}
       AND s.revoked_at IS NULL
       AND s.expires_at > now()
-      AND COALESCE(u.account_status, 'active') <> 'restricted'
     LIMIT 1
   `;
 
   const row = rows[0] as Record<string, unknown> | undefined;
   if (!row) throw new AuthenticationRequiredError("The RFxchange session is invalid or expired.");
+
+  await sql`
+    UPDATE exchange_sessions
+    SET last_seen_at = now()
+    WHERE encode(token_hash, 'hex') = ${tokenHash}
+  `;
 
   return {
     userId: String(row.user_id),
