@@ -1,5 +1,20 @@
 export type OrganizationClaimMode = "claimed" | "created" | "selected";
 
+export const ORGANIZATION_TYPE_OPTIONS = [
+  "Business",
+  "Supplier",
+  "Buyer / Issuer",
+  "Government",
+  "Economic Development Organization",
+  "Resource Provider",
+  "Chamber / Association",
+  "Lender / Capital Provider",
+  "University / Education",
+  "Nonprofit",
+  "Other",
+] as const;
+export type OrganizationType = (typeof ORGANIZATION_TYPE_OPTIONS)[number];
+
 export type OrganizationRole =
   | "business"
   | "supplier"
@@ -36,6 +51,7 @@ export type OrganizationProfileSubmission = {
   context: OrganizationProfileContext;
   displayName: string;
   legalName: string;
+  organizationType: OrganizationType | "";
   description: string;
   website: string;
   primaryDomain: string;
@@ -57,6 +73,7 @@ export type OrganizationProfileSubmission = {
 export type OrganizationProfileField =
   | "organization"
   | "displayName"
+  | "organizationType"
   | "description"
   | "website"
   | "primaryDomain"
@@ -130,6 +147,7 @@ export type OrganizationVerification = {
 export type OrganizationProfileSnapshot = {
   organizationId: string;
   organizationName: string;
+  viewerRole: string;
   profileStatus: "in_progress" | "complete" | "enriched";
   profile: Omit<OrganizationProfileSubmission, "context">;
   geography: OrganizationGeographySummary;
@@ -173,6 +191,7 @@ export const ORGANIZATION_GOAL_OPTIONS: ReadonlyArray<{ id: OrganizationGoal; la
 
 const roleIds = new Set<OrganizationRole>(ORGANIZATION_ROLE_OPTIONS.map((option) => option.id));
 const goalIds = new Set<OrganizationGoal>(ORGANIZATION_GOAL_OPTIONS.map((option) => option.id));
+const organizationTypeIds = new Set<string>(ORGANIZATION_TYPE_OPTIONS);
 const claimModes = new Set<OrganizationClaimMode>(["claimed", "created", "selected"]);
 
 function single(value: string | string[] | undefined) {
@@ -255,6 +274,8 @@ export function validateOrganizationProfilePayload(value: unknown, requireComple
   const context = sanitizeContext(value.context);
   const displayName = clean(value.displayName, 180);
   const legalName = clean(value.legalName, 180);
+  const organizationTypeCandidate = clean(value.organizationType, 120);
+  const organizationType = organizationTypeIds.has(organizationTypeCandidate) ? organizationTypeCandidate as OrganizationType : "";
   const description = cleanLong(value.description, 1200);
   const website = clean(value.website, 300);
   const primaryDomain = normalizeDomain(clean(value.primaryDomain, 180));
@@ -273,7 +294,7 @@ export function validateOrganizationProfilePayload(value: unknown, requireComple
   const goals = sanitizedArray(value.goals, goalIds);
 
   const completion: OrganizationProfileCompletion = {
-    identity: Boolean(displayName && description.length >= 40),
+    identity: Boolean(displayName && organizationType && description.length >= 40),
     contact: Boolean(contactName && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)),
     role: roles.length > 0,
     visibility: typeof searchable === "boolean" && typeof mapVisible === "boolean" && typeof publicContact === "boolean",
@@ -288,6 +309,7 @@ export function validateOrganizationProfilePayload(value: unknown, requireComple
 
   if (requireComplete) {
     if (!displayName) errors.displayName = "Enter the organization name used in RFxchange.";
+    if (!organizationType) errors.organizationType = "Select the organization type established during organization setup.";
     if (!description || description.length < 40) errors.description = "Describe the organization in at least 40 characters.";
     if (roles.length === 0) errors.roles = "Select at least one way the organization participates.";
     if (!contactName) errors.contactName = "Enter a primary organization contact.";
@@ -304,6 +326,7 @@ export function validateOrganizationProfilePayload(value: unknown, requireComple
       context,
       displayName,
       legalName,
+      organizationType,
       description,
       website,
       primaryDomain,
