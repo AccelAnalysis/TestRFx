@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConversionLink } from "@/components/marketing/acquisition-context";
 import {
   PUBLIC_DESTINATIONS,
   PUBLIC_HEADER_DESTINATIONS,
@@ -15,20 +16,21 @@ export function PublicHeader() {
         <nav className={styles.primaryNav} aria-label="Public navigation">
           {PUBLIC_HEADER_DESTINATIONS.map((destinationId) => {
             const destination = PUBLIC_DESTINATIONS[destinationId];
+            const label = "headerLabel" in destination ? destination.headerLabel : destination.label;
             return (
               <Link href={destination.href} key={destinationId}>
-                {destination.label}
+                {label}
               </Link>
             );
           })}
         </nav>
         <div className={styles.headerActions}>
-          <Link className={styles.textAction} href={PUBLIC_DESTINATIONS.signIn.href}>
+          <ConversionLink className={styles.textAction} href={PUBLIC_DESTINATIONS.signIn.href}>
             Sign In
-          </Link>
-          <Link className={styles.primaryAction} href={PUBLIC_DESTINATIONS.join.href}>
+          </ConversionLink>
+          <ConversionLink className={styles.primaryAction} href={PUBLIC_DESTINATIONS.join.href}>
             Join Free
-          </Link>
+          </ConversionLink>
         </div>
       </div>
     </header>
