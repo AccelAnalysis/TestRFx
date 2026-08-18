@@ -10,10 +10,10 @@ type FlowState = "idle" | "submitting" | "sent" | "error";
 
 interface LoginFlowProps {
   initialReturnTo: string;
-  registrationHref: string;
+  registrationHref?: string;
 }
 
-export function LoginFlow({ initialReturnTo, registrationHref }: LoginFlowProps) {
+export function LoginFlow({ initialReturnTo, registrationHref = "/register" }: LoginFlowProps) {
   const [email, setEmail] = useState("");
   const [flowState, setFlowState] = useState<FlowState>("idle");
   const [message, setMessage] = useState("");
