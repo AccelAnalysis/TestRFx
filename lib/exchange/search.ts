@@ -30,23 +30,28 @@ function normalized(value: string) {
 }
 
 function searchableFields(record: ExchangeRecord) {
+  const cardTerms = [
+    record.card?.eyebrow,
+    record.card?.status?.label,
+    ...(record.card?.classifications ?? []),
+    ...(record.card?.relationships ?? []),
+  ].filter((value): value is string => Boolean(value));
   return [
     { name: "title", value: record.title, weight: 5 },
     { name: "organization", value: record.organization, weight: 4 },
     { name: "summary", value: record.summary, weight: 3 },
     { name: "geography", value: record.geography, weight: 2 },
     ...record.metadata.map((value) => ({ name: "metadata", value, weight: 2 })),
+    ...cardTerms.map((value) => ({ name: "card", value, weight: 2 })),
   ];
 }
 
 function matchRecord(record: ExchangeRecord, query: string) {
   const terms = normalized(query).split(/\s+/).filter(Boolean);
   if (!terms.length) return { matches: true, score: 0, matchedFields: [] as string[] };
-
   const fields = searchableFields(record);
   const matchedFields = new Set<string>();
   let score = 0;
-
   for (const term of terms) {
     let termMatched = false;
     for (const field of fields) {
@@ -58,7 +63,6 @@ function matchRecord(record: ExchangeRecord, query: string) {
     }
     if (!termMatched) return { matches: false, score: 0, matchedFields: [] as string[] };
   }
-
   return { matches: true, score, matchedFields: [...matchedFields] };
 }
 
@@ -70,7 +74,7 @@ function passesFilters(record: ExchangeRecord, filters: ExchangeSearchFilters) {
   if (filters.ownership === "mine" && !record.ownedByViewer) return false;
   if (filters.ownership === "others" && record.ownedByViewer) return false;
   if (filters.metadata.length) {
-    const metadata = record.metadata.map(normalized);
+    const metadata = [...record.metadata, ...(record.card?.classifications ?? []), ...(record.card?.relationships ?? [])].map(normalized);
     if (!filters.metadata.every((tag) => metadata.some((value) => value.includes(normalized(tag))))) return false;
   }
   return true;
@@ -83,13 +87,11 @@ export function searchExchangeRecords(records: ExchangeRecord[], lens: ExchangeL
     .map((record) => ({ record, match: matchRecord(record, state.query) }))
     .filter((result) => result.match.matches)
     .map(({ record, match }) => ({ record, match: { score: match.score, matchedFields: match.matchedFields } }));
-
   results.sort((left, right) => {
     if (state.sort === "title") return left.record.title.localeCompare(right.record.title);
     if (state.sort === "geography") return left.record.geography.localeCompare(right.record.geography) || left.record.title.localeCompare(right.record.title);
     return right.match.score - left.match.score || Number(Boolean(right.record.featured)) - Number(Boolean(left.record.featured)) || left.record.title.localeCompare(right.record.title);
   });
-
   return {
     lens,
     state,
@@ -104,21 +106,18 @@ export function getSearchSuggestions(records: ExchangeRecord[], lens: ExchangeLe
   const typed = normalized(query);
   const lensRecords = records.filter((record) => record.type === typeByLens[lens]);
   const suggestions = new Map<string, SearchSuggestion>();
-
   function add(kind: SearchSuggestion["kind"], label: string, description: string) {
     const key = `${kind}:${normalized(label)}`;
     if (suggestions.has(key)) return;
     if (typed && !normalized(`${label} ${description}`).includes(typed)) return;
     suggestions.set(key, { id: key, kind, label, description, query: label });
   }
-
   for (const record of lensRecords) {
     add("record", record.title, `${record.organization} · ${record.geography}`);
     add("organization", record.organization, `Organization · ${record.geography}`);
     add("geography", record.geography, "Geography");
-    for (const metadata of record.metadata) add("metadata", metadata, `${record.organization} · ${record.type}`);
+    for (const metadata of [...record.metadata, ...(record.card?.classifications ?? [])]) add("metadata", metadata, `${record.organization} · ${record.type}`);
   }
-
   return [...suggestions.values()].slice(0, limit);
 }
 

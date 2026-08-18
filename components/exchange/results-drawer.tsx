@@ -10,7 +10,7 @@ const upState: Record<DrawerState, DrawerState> = { peek: "mid", mid: "expanded"
 const downState: Record<DrawerState, DrawerState> = { peek: "peek", mid: "peek", expanded: "mid" };
 const stateLabel: Record<DrawerState, string> = { peek: "Expand results", mid: "Expand results", expanded: "Collapse results" };
 
-export function ResultsDrawer({ state, onStateChange, lensLabel, records, selectedRecordId, actions, emptyMessage, resultContext, onSelect, onOpen }: {
+export function ResultsDrawer({ state, onStateChange, lensLabel, records, selectedRecordId, actions, emptyMessage, resultContext, onSelect, onOpen, onToggleSave }: {
   state: DrawerState;
   onStateChange: (state: DrawerState) => void;
   lensLabel: string;
@@ -21,6 +21,7 @@ export function ResultsDrawer({ state, onStateChange, lensLabel, records, select
   resultContext?: string;
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
+  onToggleSave: (id: string) => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const dragStart = useRef<number | null>(null);
@@ -56,7 +57,7 @@ export function ResultsDrawer({ state, onStateChange, lensLabel, records, select
       <ActionRail actions={actions} />
       <div className="result-list" ref={listRef} aria-live="polite">
         {records.length ? records.map((record) => (
-          <RecordCard key={record.id} record={record} selected={record.id === selectedRecordId} onSelect={() => onSelect(record.id)} onOpen={() => onOpen(record.id)} />
+          <RecordCard key={record.id} record={record} selected={record.id === selectedRecordId} onSelect={() => onSelect(record.id)} onOpen={() => onOpen(record.id)} onToggleSave={() => onToggleSave(record.id)} />
         )) : <div className="empty-state"><strong>No results</strong><p>{emptyMessage}</p></div>}
       </div>
     </section>
