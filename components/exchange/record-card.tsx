@@ -38,7 +38,7 @@ export function RecordCard({ record, selected, onSelect, onOpen, onToggleSave }:
     >
       <button className={styles.main} type="button" onClick={() => { onSelect(); onOpen(); }} onFocus={onSelect} aria-label={`Open ${record.type} record: ${record.title}`} disabled={unavailable} aria-describedby={reason ? reasonId : undefined}>
         <div className={`${styles.media} ${mediaClass[record.type]}`} style={{ position: "relative", overflow: "hidden" }}>
-          {media?.src ? <img src={media.src} alt={media.alt ?? ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} /> : null}
+          {media?.src ? <img src={media.src} alt={media.alt ?? ""} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
           <span className={styles.mediaLabel} style={{ position: "relative", zIndex: 1 }}>{media?.label ?? mediaLabels[record.type]}</span>
           {placement !== "organic" ? <span className={styles.placement} style={{ position: "relative", zIndex: 1 }}>{placement === "sponsored" ? "Sponsored" : "Featured"}</span> : null}
         </div>
