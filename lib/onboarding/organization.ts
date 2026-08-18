@@ -27,6 +27,8 @@ export type OrganizationClaimState = "unclaimed" | "claimed" | "verified";
 export type OrganizationResolutionMode = "claim" | "join" | "create" | "invitation";
 export type OrganizationMembershipState = "active" | "pending-approval" | "authority-pending";
 export type OrganizationAuthorityState = "invited" | "admin-approved" | "domain-verified" | "self-attested" | "pending-review";
+export type OrganizationAuthorityMethod = "domain_email" | "registry_record" | "supporting_document" | "manual_review";
+export type OrganizationClaimEvidenceType = "registry_record" | "supporting_document" | "authority_note";
 
 export type OrganizationStep =
   | "welcome"
@@ -86,12 +88,22 @@ export interface OrganizationAccessReview {
   createdAt: string;
 }
 
+export interface OrganizationClaimEvidence {
+  id: string;
+  type: OrganizationClaimEvidenceType;
+  label?: string;
+  reference?: string;
+  url?: string;
+  createdAt: string;
+}
+
 export interface OrganizationClaimReviewItem {
   claimId: string;
   claimantEmail: string;
   claimantName: string;
-  authorityMethod: "domain_email" | "manual_review";
+  authorityMethod: OrganizationAuthorityMethod;
   evidenceNote?: string;
+  evidence: OrganizationClaimEvidence[];
   status: "pending" | "conflict";
   createdAt: string;
 }
@@ -140,8 +152,10 @@ export type OrganizationMutationRequest = {
   type?: OrganizationType;
   website?: string;
   requestedRole?: OrganizationUserRole;
-  authorityMethod?: "domain_email" | "manual_review";
+  authorityMethod?: OrganizationAuthorityMethod;
   evidenceNote?: string;
+  evidenceUrl?: string;
+  evidenceReference?: string;
   invitationToken?: string;
   requestId?: string;
   claimId?: string;
@@ -219,6 +233,12 @@ const validSteps = new Set<OrganizationStep>([
 ]);
 const validTypes = new Set<OrganizationType>(organizationTypes);
 const validRoles = new Set<OrganizationUserRole>(organizationUserRoles.map((role) => role.id));
+const validAuthorityMethods = new Set<OrganizationAuthorityMethod>([
+  "domain_email",
+  "registry_record",
+  "supporting_document",
+  "manual_review",
+]);
 
 type SearchParamsLike = Record<string, string | string[] | undefined>;
 
@@ -256,6 +276,11 @@ export function sanitizeOrganizationType(value: unknown): OrganizationType | nul
 export function sanitizeOrganizationUserRole(value: unknown): OrganizationUserRole {
   const role = clean(value, 80) as OrganizationUserRole;
   return validRoles.has(role) ? role : "viewer";
+}
+
+export function sanitizeOrganizationAuthorityMethod(value: unknown): OrganizationAuthorityMethod {
+  const method = clean(value, 80) as OrganizationAuthorityMethod;
+  return validAuthorityMethods.has(method) ? method : "manual_review";
 }
 
 export function organizationContextFromSearchParams(params: SearchParamsLike): OrganizationEntryContext {
