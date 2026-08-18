@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import type { ExchangeRecord } from "@/lib/exchange/contracts";
 import { buildParticipantInsight, getIntelligenceDetail, updateParticipantInsight, type IntelligenceInsightInput, type IntelligenceWorkflow } from "@/lib/exchange/intelligence";
 
+const referenceMode = process.env.NEXT_PUBLIC_RFXCHANGE_REFERENCE_MODE === "1";
+
 function sourceFrom(record?: ExchangeRecord) {
   return record?.metadata.find((item) => item.startsWith("Source:"))?.replace(/^Source:\s*/, "") ?? "Participant observation";
 }
@@ -69,7 +71,7 @@ export function IntelligenceWorkflowSurface({
 
         {workflow === "add" || workflow === "edit" ? (
           <form className="intelligence-form" onSubmit={submitInsight}>
-            <p className="workflow-boundary">Reference-session contribution only. Production persistence, authorization, source verification, and revision history plug in behind this workflow.</p>
+            <p className="workflow-boundary">{referenceMode ? "Static preview: contributions are visible for inspection but are not persisted." : "This contribution is written through the authenticated Intelligence service. Source verification and revision governance remain explicit provenance concerns."}</p>
             <label>Insight title<input required value={input.title} onChange={(event) => updateField("title", event.target.value)} /></label>
             <label>Observation<textarea required rows={4} value={input.summary} onChange={(event) => updateField("summary", event.target.value)} /></label>
             <div className="intelligence-form-grid">
@@ -85,7 +87,7 @@ export function IntelligenceWorkflowSurface({
         {workflow === "note" ? (
           <form className="intelligence-form" onSubmit={submitNote}>
             <p className="workflow-subject">{record?.title}</p>
-            <p className="workflow-boundary">Notes are kept in this mounted reference session. Production must enforce personal, organization, or shared visibility server-side.</p>
+            <p className="workflow-boundary">{referenceMode ? "Static preview: note persistence is disabled." : "Notes are persisted by the Intelligence service under the authenticated user and active organization context."}</p>
             <label>Note<textarea autoFocus required rows={6} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context, commentary, or a decision note…" /></label>
             <div className="workflow-actions"><button type="button" onClick={onClose}>Cancel</button><button className="workflow-primary" type="submit">Save note</button></div>
           </form>
@@ -93,7 +95,7 @@ export function IntelligenceWorkflowSurface({
 
         {workflow === "compare" ? (
           <div className="intelligence-compare">
-            <p className="workflow-boundary">Comparison uses the visible TestRFx reference records only. Missing data is shown as missing rather than interpreted as zero.</p>
+            <p className="workflow-boundary">Comparison is computed from the Intelligence records currently returned by the Exchange service. Missing values remain missing rather than being interpreted as zero.</p>
             <label>Compare with<select value={comparisonId} onChange={(event) => setComparisonId(event.target.value)}>{comparisonOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
             <div className="compare-grid">
               {[record, comparison].map((item, index) => {
