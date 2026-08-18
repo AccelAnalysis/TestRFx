@@ -16,9 +16,7 @@ import styles from "./public-shell.module.css";
 
 function footerGroupFor(page: PublicInfoPageDefinition) {
   return PUBLIC_FOOTER_GROUPS.find((group) =>
-    group.destinationIds.includes(
-      page.destinationId as (typeof group.destinationIds)[number],
-    ),
+    group.destinationIds.some((destinationId) => destinationId === page.destinationId),
   );
 }
 
