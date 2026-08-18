@@ -109,9 +109,9 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
 
   const loadResults = useCallback(async (cursor?: string, append = false) => {
     if (referenceMode) return;
-    if (append) setLoadingMore(true); else setResultStatus(recordsState.some((record) => record.type === typeByLens[lens]) ? "refreshing" : "loading");
+    if (append) setLoadingMore(true); else setResultStatus("loading");
     try {
-      const response = await fetch(exchangeResultsUrl(lens, searchByLens[lens], cursor), { headers: { accept: "application/json" } });
+      const response = await fetch(exchangeResultsUrl(lens, searchState, cursor), { headers: { accept: "application/json" } });
       const body = await response.json().catch(() => ({})) as Partial<ExchangeResultsApiResponse> & { error?: string };
       if (!response.ok || !body.records || !body.summary) throw new Error(body.error ?? "Exchange results could not be loaded.");
       setRecordsState((current) => {
@@ -127,11 +127,11 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
       if (typeof navigator !== "undefined" && !navigator.onLine) setResultStatus("offline"); else setResultStatus("error");
       setActionNotice(error instanceof Error ? error.message : "Exchange results could not be loaded.");
     } finally { setLoadingMore(false); }
-  }, [lens, searchByLens, recordsState]);
+  }, [lens, searchState]);
 
   useEffect(() => { try { const recent = localStorage.getItem(recentStorageKey); const saved = localStorage.getItem(savedStorageKey); if (recent) setRecentSearches(JSON.parse(recent)); if (saved) setSavedSearches(JSON.parse(saved)); } catch {} }, []);
   useEffect(() => { function syncFromUrl() { const parts = location.pathname.split("/").filter(Boolean); const urlLens = parts[1]; if (urlLens === "rfx" || urlLens === "resources" || urlLens === "intelligence" || urlLens === "capabilities") { const urlState = searchStateFromParams(new URLSearchParams(location.search)); setLens(urlLens); setSearchByLens((current) => ({ ...current, [urlLens]: urlState })); const recordId = parts[2]; setSelectedByLens((current) => ({ ...current, [urlLens]: recordId })); setDetailRecordId(recordId); } } syncFromUrl(); addEventListener("popstate", syncFromUrl); return () => removeEventListener("popstate", syncFromUrl); }, []);
-  useEffect(() => { if (referenceMode) return; const timeout = setTimeout(() => { void loadResults(); }, 160); return () => clearTimeout(timeout); }, [lens, searchState, loadResults]);
+  useEffect(() => { if (referenceMode) return; const timeout = setTimeout(() => { void loadResults(); }, 160); return () => clearTimeout(timeout); }, [loadResults]);
   useEffect(() => { if (selectedRecordId && resultStatus === "ready" && !records.some((record) => record.id === selectedRecordId)) setSelectedByLens((current) => ({ ...current, [lens]: undefined })); }, [records, selectedRecordId, lens, resultStatus]);
   useEffect(() => { if (!actionNotice) return; const timeout = setTimeout(() => setActionNotice(""), 3600); return () => clearTimeout(timeout); }, [actionNotice]);
   useEffect(() => { if (!resourceNotice) return; const timeout = setTimeout(() => setResourceNotice(undefined), 4200); return () => clearTimeout(timeout); }, [resourceNotice]);
