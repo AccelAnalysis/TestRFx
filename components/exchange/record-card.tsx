@@ -43,12 +43,14 @@ export function RecordCard({
   onSelect,
   onOpen,
   onToggleSave,
+  onRefer,
 }: {
   record: ExchangeRecord;
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
   onToggleSave: () => void;
+  onRefer?: () => void;
 }) {
   const placement = record.card?.placement ?? (record.featured ? "featured" : "organic");
   const status = record.card?.status;
@@ -129,6 +131,12 @@ export function RecordCard({
       >
         <span aria-hidden>{record.saved ? "★" : "☆"}</span>
       </button>
+
+      {record.type === "resource" && onRefer ? (
+        <button type="button" className={styles.refer} onClick={onRefer} aria-label={`Refer resource: ${record.title}`}>
+          Refer
+        </button>
+      ) : null}
     </article>
   );
 }
