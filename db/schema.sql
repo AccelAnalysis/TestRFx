@@ -1,5 +1,5 @@
--- RFxchange reference data foundation.
--- PostgreSQL + PostGIS is the canonical target for production persistence.
+-- RFxchange data foundation.
+-- PostgreSQL + PostGIS is the canonical transactional persistence target.
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
@@ -75,12 +75,67 @@ CREATE TABLE rfx_records (
   requirements jsonb NOT NULL DEFAULT '[]'::jsonb
 );
 
+-- Resources are discoverable Exchange offers. Requests are transactional records
+-- created against an offer rather than separate public Resource listings.
 CREATE TABLE resources (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   exchange_record_id uuid NOT NULL UNIQUE REFERENCES exchange_records(id) ON DELETE CASCADE,
-  resource_mode text NOT NULL CHECK (resource_mode IN ('offer', 'request')),
-  availability jsonb NOT NULL DEFAULT '{}'::jsonb
+  resource_mode text NOT NULL DEFAULT 'offer' CHECK (resource_mode IN ('offer', 'request')),
+  category text NOT NULL,
+  availability_state text NOT NULL CHECK (availability_state IN ('available', 'limited', 'scheduled')),
+  availability_label text NOT NULL,
+  availability jsonb NOT NULL DEFAULT '{}'::jsonb,
+  capacity text,
+  service_area_label text,
+  visibility text NOT NULL DEFAULT 'off-map' CHECK (visibility IN ('public-location', 'service-area', 'off-map')),
+  terms text,
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'archived')),
+  sponsored boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX resources_status_idx ON resources(status, availability_state);
+CREATE INDEX resources_category_idx ON resources(category);
+
+CREATE TABLE resource_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  exchange_record_id uuid NOT NULL REFERENCES exchange_records(id) ON DELETE CASCADE,
+  requester_organization_id uuid NOT NULL REFERENCES organizations(id),
+  requester_user_id uuid NOT NULL REFERENCES users(id),
+  scope text NOT NULL,
+  needed_by date,
+  message text NOT NULL,
+  status text NOT NULL DEFAULT 'submitted' CHECK (status IN ('submitted', 'connected', 'closed')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX resource_requests_record_idx ON resource_requests(exchange_record_id, created_at DESC);
+CREATE INDEX resource_requests_requester_idx ON resource_requests(requester_organization_id, created_at DESC);
+
+-- The Resources source explicitly distinguishes Save and Follow. These are
+-- durable user/organization relationships with a Resource record.
+CREATE TABLE resource_relationships (
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  exchange_record_id uuid NOT NULL REFERENCES exchange_records(id) ON DELETE CASCADE,
+  kind text NOT NULL CHECK (kind IN ('saved', 'following')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, exchange_record_id, kind)
+);
+
+-- "Share" in the Resources source leads to a send-to-organization workflow.
+CREATE TABLE resource_shares (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  exchange_record_id uuid NOT NULL REFERENCES exchange_records(id) ON DELETE CASCADE,
+  sender_organization_id uuid NOT NULL REFERENCES organizations(id),
+  sender_user_id uuid NOT NULL REFERENCES users(id),
+  recipient_organization_id uuid NOT NULL REFERENCES organizations(id),
+  message text,
+  status text NOT NULL DEFAULT 'sent',
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX resource_shares_record_idx ON resource_shares(exchange_record_id, created_at DESC);
 
 CREATE TABLE intelligence_records (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -97,16 +152,31 @@ CREATE TABLE favorites (
   PRIMARY KEY (user_id, exchange_record_id)
 );
 
+-- Recipient policy and fee are read before a cross-lens referral is submitted.
+CREATE TABLE referral_policies (
+  organization_id uuid PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
+  policy_summary text,
+  fee_summary text,
+  active boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE referrals (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   sender_organization_id uuid NOT NULL REFERENCES organizations(id),
   recipient_organization_id uuid NOT NULL REFERENCES organizations(id),
+  actor_user_id uuid REFERENCES users(id),
   exchange_record_id uuid REFERENCES exchange_records(id),
   status text NOT NULL DEFAULT 'proposed',
+  message text,
   terms jsonb NOT NULL DEFAULT '{}'::jsonb,
+  policy_snapshot jsonb,
+  fee_snapshot jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX referrals_sender_idx ON referrals(sender_organization_id, created_at DESC);
+CREATE INDEX referrals_recipient_idx ON referrals(recipient_organization_id, created_at DESC);
 
 CREATE TABLE activity_events (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
