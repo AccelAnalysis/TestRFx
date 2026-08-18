@@ -29,7 +29,6 @@ import { ResourceWorkflowSurface, type ResourceWorkflow } from "./resource-workf
 import { DrawerWorkflowNavigator } from "./drawer-workflow-navigator";
 import { SharedWorkflowSurface } from "./shared-workflow-surface";
 import { RfxWorkflowSurface } from "./rfx-workflow-surface";
-import { ReferralPolicySurface } from "./referral-policy-surface";
 import styles from "./exchange-shell.module.css";
 
 const recentStorageKey = "rfxchange:recent-searches";
@@ -73,7 +72,6 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const [drawerWorkflow, setDrawerWorkflow] = useState<DrawerFlow>();
   const [sharedWorkflow, setSharedWorkflow] = useState<SharedWorkflowLaunch>();
   const [rfxWorkflow, setRfxWorkflow] = useState<RfxFlow>();
-  const [referralPolicyRecordId, setReferralPolicyRecordId] = useState<string>();
   const [resultStatus, setResultStatus] = useState<DrawerResultStatus>(referenceMode ? "ready" : "loading");
   const [serverSummary, setServerSummary] = useState({ total: 0, mapped: 0, offMap: 0 });
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -105,7 +103,6 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const intelligenceWorkflowRecord = intelligenceWorkflow?.recordId ? allRecords.find((record) => record.id === intelligenceWorkflow.recordId) : undefined;
   const capabilityWorkflowProfile = capabilityWorkflow ? getCapabilityProfileByExchangeRecordId(capabilityWorkflow.recordId) : undefined;
   const rfxWorkflowRecord = rfxWorkflow?.recordId ? allRecords.find((record) => record.id === rfxWorkflow.recordId) : undefined;
-  const referralPolicyRecord = referralPolicyRecordId ? allRecords.find((record) => record.id === referralPolicyRecordId) : undefined;
 
   const loadResults = useCallback(async (cursor?: string, append = false) => {
     if (referenceMode) return;
@@ -158,7 +155,15 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   function openDetail(id: string) { selectRecord(id); setDetailRecordId(id); setUrl(lens, id, "push", searchState); }
   function closeDetail() { setDetailRecordId(undefined); setUrl(lens, undefined, "replace", searchState); }
   function relationshipActive(recordId: string, workflow: SharedWorkflowId) { return Boolean(relationshipState[recordId]?.[workflow]); }
-  function actionIsActive(record: ExchangeRecord | undefined, action: LensAction) { if (!record || !action.toggle) return false; if (action.toggle === "save") return savedRecordIds.has(record.id) || Boolean(record.saved); if (action.toggle === "watch") return relationshipActive(record.id, "watch"); if (action.toggle === "track") return relationshipActive(record.id, "track"); return relationshipActive(record.id, "follow") || Boolean(record.card?.relationships?.includes("following")); }
+  function persistedRelationshipActive(record: ExchangeRecord | undefined, workflow: SharedWorkflowId) {
+    if (!record) return false;
+    if (relationshipActive(record.id, workflow)) return true;
+    if (workflow === "save") return savedRecordIds.has(record.id) || Boolean(record.saved) || Boolean(record.card?.relationships?.includes("saved"));
+    if (workflow === "watch" || workflow === "track") return Boolean(record.card?.relationships?.includes("watched"));
+    if (workflow === "follow") return Boolean(record.card?.relationships?.includes("following"));
+    return false;
+  }
+  function actionIsActive(record: ExchangeRecord | undefined, action: LensAction) { if (!record || !action.toggle) return false; if (action.toggle === "save") return persistedRelationshipActive(record, "save"); if (action.toggle === "watch") return persistedRelationshipActive(record, "watch"); if (action.toggle === "track") return persistedRelationshipActive(record, "track"); return persistedRelationshipActive(record, "follow"); }
   function activeActionIds(record: ExchangeRecord | undefined, resolved: LensAction[]) { return resolved.filter((action) => actionIsActive(record, action)).map((action) => action.id); }
 
   async function postDomainWorkflow(body: Record<string, unknown>) {
@@ -180,13 +185,13 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   async function toggleSaved(recordId: string) {
     const record = allRecords.find((item) => item.id === recordId); if (!record) return;
     if (referenceMode) { setActionNotice("The static preview does not simulate saved-state persistence."); return; }
-    const active = savedRecordIds.has(recordId) || Boolean(record.saved);
+    const active = persistedRelationshipActive(record, "save");
     try {
       const response = await fetch("/api/exchange/workflows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actionId: "save", lens, recordId, source: "action-rail", payload: { active: !active } }) });
       const body = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Save workflow failed.");
       setSavedRecordIds((current) => { const next = new Set(current); if (active) next.delete(recordId); else next.add(recordId); return next; });
-      setRecordsState((current) => current.map((item) => item.id === recordId ? { ...item, saved: !active } : item));
+      setRecordsState((current) => current.map((item) => item.id === recordId ? { ...item, saved: !active, card: item.card ? { ...item.card, relationships: (item.card.relationships ?? []).filter((relationship) => relationship !== "saved").concat(!active ? ["saved"] : []) } : item.card } : item));
     } catch (error) { setActionNotice(error instanceof Error ? error.message : "Save workflow failed."); }
   }
 
@@ -218,7 +223,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     if (event.workflow === "save") {
       const active = event.payload.active !== false;
       setSavedRecordIds((current) => { const next = new Set(current); if (active) next.add(event.recordId); else next.delete(event.recordId); return next; });
-      setRecordsState((current) => current.map((item) => item.id === event.recordId ? { ...item, saved: active } : item));
+      setRecordsState((current) => current.map((item) => item.id === event.recordId ? { ...item, saved: active, card: item.card ? { ...item.card, relationships: (item.card.relationships ?? []).filter((relationship) => relationship !== "saved").concat(active ? ["saved"] : []) } : item.card } : item));
     }
     if (event.workflow === "watch" || event.workflow === "track" || event.workflow === "follow") {
       const active = event.payload.active !== false;
@@ -241,7 +246,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const detailActions = detailRecord ? definition.actions(detailRecord) : [];
   const detailActiveActionIds = activeActionIds(detailRecord, detailActions);
   const drawerWorkflowRecord = drawerWorkflow?.recordId ? allRecords.find((record) => record.id === drawerWorkflow.recordId) : actionRecord;
-  const sharedWorkflowActive = sharedWorkflow ? (sharedWorkflow.workflow === "save" ? savedRecordIds.has(sharedWorkflow.record.id) || Boolean(sharedWorkflow.record.saved) : relationshipActive(sharedWorkflow.record.id, sharedWorkflow.workflow)) : false;
+  const sharedWorkflowActive = sharedWorkflow ? persistedRelationshipActive(sharedWorkflow.record, sharedWorkflow.workflow) : false;
 
   return <main className="exchange-shell">
     <PersistentMap lens={lens} records={visibleRecords} selectedRecordId={selectedRecordId} drawerState={drawer} view={mapView} viewerLocation={viewerLocation} onViewChange={(next) => { setMapView(next); setViewportDirty(true); }} onSelect={selectRecord} />
@@ -251,10 +256,9 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     <BottomNav activeLens={lens} onLensChange={changeLens} onMenu={() => setMenuOpen(true)} />
     {detailRecord ? <DetailSurface record={detailRecord} actions={detailActions} activeActionIds={detailActiveActionIds} notes={intelligenceNotes[detailRecord.id] ?? []} onAction={(action) => handleAction(action, detailRecord)} onClose={closeDetail} /> : null}
     {menuOpen ? <MenuSurface onClose={() => setMenuOpen(false)} /> : null}
-    {drawerWorkflow ? <DrawerWorkflowNavigator root={drawerWorkflow.root} record={drawerWorkflowRecord} onClose={() => setDrawerWorkflow(undefined)} onExecute={(execution, node) => executeDrawerWorkflow(execution, node, drawerWorkflowRecord)} onInspectReferralPolicy={() => { if (drawerWorkflowRecord) { setReferralPolicyRecordId(drawerWorkflowRecord.id); setDrawerWorkflow(undefined); } }} /> : null}
+    {drawerWorkflow ? <DrawerWorkflowNavigator root={drawerWorkflow.root} record={drawerWorkflowRecord} onClose={() => setDrawerWorkflow(undefined)} onExecute={(execution, node) => executeDrawerWorkflow(execution, node, drawerWorkflowRecord)} /> : null}
     {sharedWorkflow ? <SharedWorkflowSurface launch={sharedWorkflow} records={allRecords} active={sharedWorkflowActive} onClose={() => setSharedWorkflow(undefined)} onComplete={handleSharedComplete} /> : null}
     {rfxWorkflow ? <RfxWorkflowSurface command={rfxWorkflow.command} record={rfxWorkflowRecord} onClose={() => setRfxWorkflow(undefined)} onComplete={(result) => { setRfxWorkflow(undefined); setActionNotice(result.message); void loadResults(); if (result.recordId) setSelectedByLens((current) => ({ ...current, rfx: result.recordId })); }} /> : null}
-    {referralPolicyRecord ? <ReferralPolicySurface record={referralPolicyRecord} onClose={() => setReferralPolicyRecordId(undefined)} /> : null}
     {resourceWorkflow ? <ResourceWorkflowSurface workflow={resourceWorkflow} record={resourceWorkflowRecord} onClose={() => setResourceWorkflow(undefined)} onCreate={(draft) => { void createResource(draft); }} onUpdate={(recordId, draft) => { void updateResource(recordId, draft); }} onRequest={(recordId, request) => { void requestResource(recordId, request); }} onArchive={(recordId) => { void archiveResource(recordId); }} /> : null}
     {intelligenceWorkflow ? <IntelligenceWorkflowSurface workflow={intelligenceWorkflow.mode} record={intelligenceWorkflowRecord} records={allRecords} onClose={() => setIntelligenceWorkflow(undefined)} onCreate={(record) => { void createInsight(record); }} onUpdate={(record) => { void updateInsight(record); }} onAddNote={(recordId, note) => { void addIntelligenceNote(recordId, note); }} /> : null}
     {capabilityWorkflow && capabilityWorkflowProfile ? <CapabilityWorkflowSurface profile={capabilityWorkflowProfile} mode={capabilityWorkflow.mode} onClose={() => setCapabilityWorkflow(undefined)} /> : null}
