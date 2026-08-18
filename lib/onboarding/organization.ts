@@ -26,7 +26,7 @@ export type OrganizationUserRole = (typeof organizationUserRoles)[number]["id"];
 export type OrganizationClaimState = "unclaimed" | "claimed" | "verified";
 export type OrganizationResolutionMode = "claim" | "join" | "create" | "invitation";
 export type OrganizationMembershipState = "active" | "pending-approval" | "authority-pending";
-export type OrganizationAuthorityState = "invited" | "domain-verified" | "self-attested" | "pending-review";
+export type OrganizationAuthorityState = "invited" | "admin-approved" | "domain-verified" | "self-attested" | "pending-review";
 
 export type OrganizationStep =
   | "welcome"
