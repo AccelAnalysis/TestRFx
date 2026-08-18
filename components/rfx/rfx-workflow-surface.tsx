@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { ExchangeLens, ExchangeRecord } from "@/lib/exchange/contracts";
 import type { RfxWorkflowEntry, RfxWorkflowField, RfxWorkflowNode, RfxWorkspace, RfxWorkspaceEnvelope, RfxWorkspaceValue } from "@/lib/rfx/contracts";
 import { getRfxDetail } from "@/lib/rfx/catalog";
-import { findWorkflowNode, perspectiveForEntry, rfxContextActionTree, rootForEntry, workflowBreadcrumbs, workflowTreeFor } from "@/lib/rfx/workflow-tree";
+import { findWorkflowNode, perspectiveForEntry, rfxContextActionTree, workflowBreadcrumbs, workflowTreeFor } from "@/lib/rfx/workflow-tree";
 import { completeWorkspaceNode, setPursuitState, setRfxStatus, setWorkspaceValues } from "@/lib/rfx/workspace";
 import { loadRfxWorkspace, saveRfxWorkspace } from "@/lib/rfx/workspace-client";
 import styles from "./rfx-workflow-surface.module.css";
@@ -65,21 +65,24 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
     setEnvelope({ ...envelope, workspace: setWorkspaceValues(workspace, { [id]: value }) });
   }
 
-  function navigate(path: string[]) {
+  async function navigate(path: string[]) {
     if (!workspace || !envelope) return;
-    setEnvelope({ ...envelope, workspace: { ...workspace, activePath: path, updatedAt: new Date().toISOString() } });
+    const next = { ...workspace, activePath: path, updatedAt: new Date().toISOString() };
+    setEnvelope({ ...envelope, workspace: next });
     setMessage("");
+    const saved = await saveRfxWorkspace(next, envelope.persistence);
+    setEnvelope(saved);
   }
 
   function openChild(child: RfxWorkflowNode) {
     if (!workspace) return;
-    navigate([...workspace.activePath, child.id]);
+    void navigate([...workspace.activePath, child.id]);
   }
 
   function goBack() {
     if (!workspace) return;
     if (workspace.activePath.length <= 1) { onClose(); return; }
-    navigate(workspace.activePath.slice(0, -1));
+    void navigate(workspace.activePath.slice(0, -1));
   }
 
   async function addListItem(event: FormEvent) {
@@ -90,6 +93,7 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
     const note = fields.slice(1).map((field) => valueAsString(workspace.values[field.id])).filter(Boolean).join(" · ");
     const item = { id: `${node.id}-${Date.now()}`, nodeId: node.id, label, note: note || undefined, createdAt: new Date().toISOString() };
     let next: RfxWorkspace = { ...workspace, items: [...workspace.items, item], version: workspace.version + 1, updatedAt: new Date().toISOString() };
+    if (node.id === "participate") next = setPursuitState(next, "teaming");
     const clear = Object.fromEntries(fields.map((field) => [field.id, null])) as Record<string, RfxWorkspaceValue>;
     next = setWorkspaceValues(next, clear);
     await persist(next, "Item added");
@@ -104,12 +108,20 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
     }
     if (current.id === "draft") next = setPursuitState(next, "drafting");
     if (current.id === "validate-compliance") next = setPursuitState(next, "ready");
-    if (current.id === "hosted-submission" && valueAsString(next.values["submission.hostedDecision"]) === "Submit final response") next = setPursuitState(next, "submitted");
+    if (current.id === "hosted-submission" && valueAsString(next.values["submission.hostedDecision"]) === "Submit final response") {
+      next = setPursuitState(next, "submitted");
+      next = { ...next, items: [...next.items, { id: `submission-receipt-${Date.now()}`, nodeId: "submission-receipt", label: `RFxchange submission v${next.version}`, status: "submitted", createdAt: new Date().toISOString() }] };
+    }
     if (current.id === "clarify" && perspective === "responder") next = setPursuitState(next, "clarification");
     if (current.id === "execute") next = setPursuitState(next, "executing");
     if (current.id === "report-outcome") next = setPursuitState(next, "outcome-reported");
     if (current.id === "publication-readiness") next = setRfxStatus(next, "ready");
     if (current.id === "publish" && valueAsString(next.values["publish.confirmation"]) === "Publish RFx") next = setRfxStatus(next, "open");
+    if (current.id === "draft-save-publish") {
+      const action = valueAsString(next.values["manage.lifecycleAction"]);
+      if (action === "Save draft") next = setRfxStatus(next, "draft");
+      if (action === "Publish" || action === "Update published RFx") next = setRfxStatus(next, "open");
+    }
     if (current.id === "evaluation") next = setRfxStatus(next, "evaluation");
     if (current.id === "clarification" && perspective === "issuer") next = setRfxStatus(next, "clarification");
     if (current.id === "close") {
@@ -118,6 +130,14 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
       if (close === "Cancel RFx") next = setRfxStatus(next, "cancelled");
     }
     if (current.id === "select-award-connect") next = setRfxStatus(next, "selected");
+    if (current.id === "advance") {
+      const advance = valueAsString(next.values["decision.advance"]);
+      if (advance === "Evaluation") next = setRfxStatus(next, "evaluation");
+      if (advance === "Clarification") next = setRfxStatus(next, "clarification");
+      if (advance === "Selected / awarded") next = setRfxStatus(next, "awarded");
+      if (advance === "Execution / relationship") next = setRfxStatus(next, "executing");
+      if (advance === "Completed") next = setRfxStatus(next, "completed");
+    }
     if (current.id === "completed") next = setRfxStatus(next, "completed");
     return next;
   }
@@ -159,11 +179,30 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
     }
   }
 
-  function handoff(current: RfxWorkflowNode) {
-    if (current.handoff === "capabilities") { onLensHandoff("capabilities"); return; }
-    if (current.handoff === "resources") { onLensHandoff("resources"); return; }
-    if (current.handoff === "referrals") { onOpenMenu(); return; }
-    setMessage("Record the authoritative external submission reference here after completing submission in the issuer system.");
+  async function handoff(current: RfxWorkflowNode) {
+    if (!workspace) return;
+    if (current.fields?.length && !requiredFieldsComplete(current, workspace)) { setMessage("Complete the required handoff fields before continuing."); return; }
+    let next = completeWorkspaceNode(workspace, current.id);
+    if (current.handoff === "referrals") {
+      const fields = current.fields ?? [];
+      const organization = valueAsString(workspace.values[fields[0]?.id]).trim();
+      const note = fields[1] ? valueAsString(workspace.values[fields[1].id]) : "";
+      if (organization) next = { ...next, items: [...next.items, { id: `refer-${Date.now()}`, nodeId: current.id, label: organization, note: note || undefined, status: "created", createdAt: new Date().toISOString() }] };
+      await persist(next, "Referral context saved");
+      onOpenMenu();
+      return;
+    }
+    if (current.handoff === "external-submission") {
+      const reference = valueAsString(workspace.values["submission.externalReference"]).trim();
+      if (!reference) { setMessage("Enter the external confirmation or reference after submitting in the issuer system."); return; }
+      next = setPursuitState(next, "submitted");
+      next = { ...next, items: [...next.items, { id: `external-submission-${Date.now()}`, nodeId: current.id, label: reference, status: "externally-confirmed", createdAt: new Date().toISOString() }] };
+      await persist(next, "External submission confirmation recorded");
+      return;
+    }
+    await persist(next, "RFx context saved before handoff");
+    if (current.handoff === "capabilities") onLensHandoff("capabilities");
+    if (current.handoff === "resources") onLensHandoff("resources");
   }
 
   if (!workspace || !node) return <div className={styles.backdrop}><section className={styles.panel}><div className={styles.loading}>Loading RFx workspace…</div></section></div>;
@@ -191,7 +230,7 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
 
         <nav className={styles.breadcrumbs} aria-label="RFx workflow location">
           <button type="button" onClick={goBack}>←</button>
-          {crumbs.map((crumb, index) => <button key={`${crumb.id}-${index}`} type="button" className={index === crumbs.length - 1 ? styles.currentCrumb : ""} onClick={() => navigate(workspace.activePath.slice(0, index + 1))}>{crumb.label}</button>)}
+          {crumbs.map((crumb, index) => <button key={`${crumb.id}-${index}`} type="button" className={index === crumbs.length - 1 ? styles.currentCrumb : ""} onClick={() => void navigate(workspace.activePath.slice(0, index + 1))}>{crumb.label}</button>)}
         </nav>
 
         <div className={styles.workspaceMeta}><span>{envelope.persistence === "postgres" ? "Shared Postgres workspace" : "Local device workspace"}</span><span>v{workspace.version}</span>{workspace.pursuitState ? <span>Pursuit: {workspace.pursuitState}</span> : null}{workspace.rfxStatus ? <span>RFx: {workspace.rfxStatus}</span> : null}</div>
@@ -201,7 +240,8 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
 
           {node.children?.length ? <div className={styles.childGrid}>{node.children.map((child) => <button key={child.id} type="button" className={styles.childCard} onClick={() => openChild(child)}><div><strong>{child.label}</strong><p>{child.description}</p></div><span>›</span></button>)}</div> : null}
 
-          {!node.children?.length && node.kind === "list" ? <form className={styles.form} onSubmit={(event) => void addListItem(event)}>{node.fields?.map((field) => <Field key={field.id} field={field} value={workspace.values[field.id]} onChange={(value) => updateValue(field.id, value)} />)}<button className={styles.primary} type="submit" disabled={saving}>Add item</button>{nodeItems.length ? <div className={styles.items}>{nodeItems.map((item) => <article key={item.id}><strong>{item.label}</strong>{item.note ? <small>{item.note}</small> : null}</article>)}</div> : null}</form> : null}
+          {!node.children?.length && node.kind === "list" && node.fields?.length ? <form className={styles.form} onSubmit={(event) => void addListItem(event)}>{node.fields.map((field) => <Field key={field.id} field={field} value={workspace.values[field.id]} onChange={(value) => updateValue(field.id, value)} />)}<button className={styles.primary} type="submit" disabled={saving}>Add item</button>{nodeItems.length ? <div className={styles.items}>{nodeItems.map((item) => <article key={item.id}><strong>{item.label}</strong>{item.note ? <small>{item.note}</small> : null}</article>)}</div> : null}</form> : null}
+          {!node.children?.length && node.kind === "list" && !node.fields?.length ? <div className={styles.items}>{nodeItems.length ? nodeItems.map((item) => <article key={item.id}><strong>{item.label}</strong>{item.note ? <small>{item.note}</small> : null}</article>) : <article><strong>No records yet</strong><small>This list will populate from the RFx transaction workspace as activity occurs.</small></article>}</div> : null}
 
           {!node.children?.length && node.kind !== "list" && node.fields?.length ? <div className={styles.form}>{node.fields.map((field) => <Field key={field.id} field={field} value={workspace.values[field.id]} onChange={(value) => updateValue(field.id, value)} />)}</div> : null}
 
@@ -209,16 +249,16 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
 
           {!node.children?.length && node.kind === "review" ? <div className={styles.review}><strong>Current RFx context</strong><p>{detail?.scope ?? record.summary}</p><div className={styles.reviewGrid}><span>Type: {detail?.rfxType ?? "RFx"}</span><span>Status: {workspace.rfxStatus ?? detail?.status ?? "open"}</span><span>Geography: {detail?.performanceGeography ?? record.geography}</span><span>Requirements: {detail?.requirements.length ?? 0}</span></div></div> : null}
 
-          {!node.children?.length && node.kind === "status" ? <div className={styles.review}><strong>Current state</strong>{workspace.pursuitState ? <p>Pursuit: {workspace.pursuitState}</p> : null}{workspace.rfxStatus ? <p>RFx: {workspace.rfxStatus}</p> : null}<p>{detail?.match?.summary ?? node.description}</p>{node.id === "outcome" ? <div className={styles.badges}>{[record.saved ? "Saved" : null, workspace.pursuitState === "submitted" ? "Submitted" : null, workspace.items.some((item) => item.nodeId.includes("team")) ? "Teamed" : null, workspace.items.some((item) => item.nodeId.includes("refer")) ? "Referred" : null].filter(Boolean).map((state) => <span key={state}>{state}</span>)}</div> : null}</div> : null}
+          {!node.children?.length && node.kind === "status" ? <div className={styles.review}><strong>Current state</strong>{workspace.pursuitState ? <p>Pursuit: {workspace.pursuitState}</p> : null}{workspace.rfxStatus ? <p>RFx: {workspace.rfxStatus}</p> : null}<p>{detail?.match?.summary ?? node.description}</p>{node.id === "outcome" ? <div className={styles.badges}>{[record.saved ? "Saved" : null, workspace.pursuitState === "submitted" ? "Submitted" : null, workspace.pursuitState === "teaming" ? "Teamed" : null, workspace.items.some((item) => item.nodeId.includes("refer")) ? "Referred" : null].filter(Boolean).map((state) => <span key={state}>{state}</span>)}</div> : null}</div> : null}
 
-          {!node.children?.length && node.kind === "handoff" ? <div className={styles.handoff}><strong>{node.label}</strong><p>{node.description}</p>{node.fields?.map((field) => <Field key={field.id} field={field} value={workspace.values[field.id]} onChange={(value) => updateValue(field.id, value)} />)}<button type="button" className={styles.primary} onClick={() => handoff(node)}>{node.handoff === "capabilities" ? "Open Capabilities" : node.handoff === "resources" ? "Open Resources" : node.handoff === "referrals" ? "Open Referrals Management" : "Record external submission"}</button></div> : null}
+          {!node.children?.length && node.kind === "handoff" ? <div className={styles.handoff}><strong>{node.label}</strong><p>{node.description}</p>{node.fields?.map((field) => <Field key={field.id} field={field} value={workspace.values[field.id]} onChange={(value) => updateValue(field.id, value)} />)}<button type="button" className={styles.primary} onClick={() => void handoff(node)}>{node.handoff === "capabilities" ? "Open Capabilities" : node.handoff === "resources" ? "Open Resources" : node.handoff === "referrals" ? "Save referral & open management" : "Record external confirmation"}</button></div> : null}
 
           {(node.id === "invite" || node.id === "internal-collaborators" || node.id === "invite-team") ? <button type="button" className={styles.secondary} onClick={() => void shareInvitation()}>Share RFx collaboration link</button> : null}
 
           {!node.children?.length && node.kind !== "list" && node.kind !== "handoff" ? <div className={styles.actions}><button type="button" className={styles.primary} disabled={saving} onClick={() => void completeCurrent()}>{saving ? "Saving…" : isComplete ? "Save changes" : "Save & complete step"}</button></div> : null}
         </main>
 
-        <footer className={styles.footer}><span>{message || "Changes are persisted as you complete workflow steps."}</span><button type="button" onClick={onClose}>Return to Exchange</button></footer>
+        <footer className={styles.footer}><span>{message || "Changes are persisted as you move through the RFx workflow."}</span><button type="button" onClick={onClose}>Return to Exchange</button></footer>
       </section>
     </div>
   );
