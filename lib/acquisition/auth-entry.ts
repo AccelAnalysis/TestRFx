@@ -5,7 +5,10 @@ export type AuthEntrySearchParams = Record<string, string | string[] | undefined
 export type AuthEntryContext = {
   returnTo?: string;
   source?: string;
+  medium?: string;
   campaign?: string;
+  content?: string;
+  partner?: string;
   referral?: string;
   invitation?: string;
   organization?: string;
@@ -17,7 +20,10 @@ export type AuthEntryContext = {
 const CONTEXT_KEYS = [
   "returnTo",
   "source",
+  "medium",
   "campaign",
+  "content",
+  "partner",
   "referral",
   "invitation",
   "organization",
@@ -58,14 +64,17 @@ export function sanitizeReturnTo(value: string | undefined) {
 export function parseAuthEntryContext(searchParams: AuthEntrySearchParams): AuthEntryContext {
   return {
     returnTo: sanitizeReturnTo(first(searchParams.returnTo)),
-    source: compact(first(searchParams.source)),
-    campaign: compact(first(searchParams.campaign)),
-    referral: compact(first(searchParams.referral)),
+    source: compact(first(searchParams.source) ?? first(searchParams.utm_source)),
+    medium: compact(first(searchParams.medium) ?? first(searchParams.utm_medium)),
+    campaign: compact(first(searchParams.campaign) ?? first(searchParams.utm_campaign)),
+    content: compact(first(searchParams.content) ?? first(searchParams.utm_content)),
+    partner: compact(first(searchParams.partner)),
+    referral: compact(first(searchParams.referral) ?? first(searchParams.ref)),
     invitation: compact(first(searchParams.invitation), 500),
     organization: compact(first(searchParams.organization)),
     membership: compact(first(searchParams.membership)),
     geography: compact(first(searchParams.geography)),
-    record: compact(first(searchParams.record)),
+    record: compact(first(searchParams.record) ?? first(searchParams.opportunity)),
   };
 }
 
@@ -115,8 +124,10 @@ export function describeAuthEntryContext(context: AuthEntryContext) {
   if (context.geography) details.push({ label: "Geography", value: context.geography });
   if (context.record) details.push({ label: "Requested record", value: context.record });
   if (context.campaign) details.push({ label: "Campaign", value: context.campaign });
+  if (context.partner) details.push({ label: "Partner", value: context.partner });
   if (context.referral) details.push({ label: "Referral", value: context.referral });
   if (context.source) details.push({ label: "Source", value: context.source });
+  if (context.medium) details.push({ label: "Medium", value: context.medium });
   if (context.invitation) details.push({ label: "Invitation", value: "Invitation context retained" });
   if (context.returnTo) details.push({ label: "Continue to", value: context.returnTo });
 
