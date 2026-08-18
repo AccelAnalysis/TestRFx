@@ -1,0 +1,30 @@
+.shell {
+  min-height: 100vh;
+  padding: 24px;
+  background: radial-gradient(circle at 20% 20%, rgba(46,94,170,.1), transparent 32%), radial-gradient(circle at 85% 75%, rgba(214,162,58,.14), transparent 32%), #f7f3ea;
+}
+
+.frame { width: min(980px, 100%); margin: 0 auto; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 22px; }
+.brand { font-size: 20px; font-weight: 900; letter-spacing: -.04em; text-decoration: none; }
+.header a:last-child { color: #5c626b; font-size: 12px; font-weight: 760; }
+.intro { padding: 26px; border: 1px solid rgba(37,41,50,.13); border-radius: 24px; background: rgba(255,255,255,.82); box-shadow: 0 14px 34px rgba(11,11,13,.07); }
+.intro h1 { margin: 0 0 10px; font-size: clamp(32px, 5vw, 50px); letter-spacing: -.045em; }
+.intro p { max-width: 720px; color: #61666e; line-height: 1.55; }
+.tree { display: grid; gap: 12px; margin: 18px 0 0; padding: 0; list-style: none; }
+.node { border: 1px solid rgba(37,41,50,.12); border-radius: 18px; background: rgba(255,255,255,.78); overflow: hidden; }
+.nodeHeader { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; gap: 11px; align-items: center; padding: 15px 16px; text-decoration: none; }
+.nodeHeader > span:first-child { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; background: #252932; color: white; font-size: 12px; font-weight: 850; }
+.nodeHeader strong { display: block; font-size: 14px; }
+.nodeHeader small { display: block; margin-top: 3px; color: #6a7078; font-size: 11px; line-height: 1.35; }
+.nodeHeader > span:last-child { color: #8a6418; font-weight: 900; }
+.children { margin: 0; padding: 0 16px 14px 60px; list-style: none; display: grid; gap: 6px; }
+.children a { display: flex; justify-content: space-between; gap: 12px; padding: 9px 11px; border-radius: 10px; background: rgba(247,243,234,.7); color: #555b64; font-size: 11px; font-weight: 720; text-decoration: none; }
+.children a span:last-child { color: #8a6418; }
+.note { margin-top: 18px; padding: 15px; border: 1px solid rgba(214,162,58,.28); border-radius: 14px; background: rgba(255,249,232,.78); color: #625633; font-size: 12px; line-height: 1.5; }
+
+@media (max-width: 600px) {
+  .shell { padding: 16px; }
+  .intro { padding: 20px; }
+  .children { padding-left: 48px; }
+}
