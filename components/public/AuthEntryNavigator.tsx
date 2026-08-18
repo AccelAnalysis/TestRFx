@@ -10,7 +10,7 @@ import {
   type AuthEntryResolvedNode,
   authEntryNodeHref,
   resolveAuthEntryDestination,
-} from "@/lib/acquisition/auth-entry-navigation";
+} from "@/lib/acquisition/auth-entry-navigation-complete";
 import styles from "./auth-entry-navigator.module.css";
 
 const maturityLabels = {
