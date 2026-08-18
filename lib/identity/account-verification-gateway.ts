@@ -85,7 +85,11 @@ class HttpAccountVerificationGateway implements AccountVerificationGateway {
     email: string;
     context: AccountVerificationContext;
   }) {
-    return this.call(input);
+    return this.call({
+      action: input.action,
+      email: input.email,
+      context: input.context,
+    });
   }
 
   verifyChallenge(token: string) {
