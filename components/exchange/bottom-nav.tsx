@@ -3,9 +3,19 @@
 import { lensDefinitions, lensOrder } from "@/lib/exchange/lenses";
 import type { ExchangeLens } from "@/lib/exchange/contracts";
 
-export function BottomNav({ activeLens, onLensChange, onMenu }: { activeLens: ExchangeLens; onLensChange: (lens: ExchangeLens) => void; onMenu: () => void }) {
+export function BottomNav({
+  activeLens,
+  menuOpen,
+  onLensChange,
+  onMenu,
+}: {
+  activeLens: ExchangeLens;
+  menuOpen?: boolean;
+  onLensChange: (lens: ExchangeLens) => void;
+  onMenu: () => void;
+}) {
   return (
-    <nav className="bottom-nav" aria-label="Exchange lenses">
+    <nav className="bottom-nav" aria-label="Exchange navigation">
       {lensOrder.map((lens) => {
         const definition = lensDefinitions[lens];
         return (
@@ -15,7 +25,7 @@ export function BottomNav({ activeLens, onLensChange, onMenu }: { activeLens: Ex
           </button>
         );
       })}
-      <button onClick={onMenu}>
+      <button onClick={onMenu} aria-haspopup="dialog" aria-expanded={menuOpen} aria-label="Open Menu utilities">
         <span className="nav-icon" aria-hidden>☰</span>
         <span>Menu</span>
       </button>
