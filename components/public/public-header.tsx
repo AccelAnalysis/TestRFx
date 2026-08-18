@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConversionLink } from "@/components/marketing/acquisition-context";
 import {
   PUBLIC_DESTINATIONS,
   PUBLIC_HEADER_DESTINATIONS,
@@ -29,12 +30,12 @@ export function PublicHeader({
           })}
         </nav>
         <div className={styles.headerActions}>
-          <Link className={styles.textAction} href={signInHref}>
+          <ConversionLink className={styles.textAction} href={signInHref}>
             Sign In
-          </Link>
-          <Link className={styles.primaryAction} href={joinHref}>
+          </ConversionLink>
+          <ConversionLink className={styles.primaryAction} href={joinHref}>
             Join Free
-          </Link>
+          </ConversionLink>
         </div>
       </div>
     </header>
