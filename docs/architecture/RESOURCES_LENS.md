@@ -4,7 +4,7 @@ The Resources experience is a lens inside the authenticated RFxchange Exchange c
 
 ## Shell contract
 
-When `resources` is active, the chassis keeps the persistent Exchange composition mounted and injects Resource-specific records, facets, action resolution, and detail/workflow content.
+When `resources` is active, the chassis keeps the persistent Exchange composition mounted and injects Resource-specific records, action resolution, nested workflow state, detail content, and service calls.
 
 ```text
 Exchange shell
@@ -12,93 +12,152 @@ Exchange shell
 ├── Universal search               shared, Resources placeholder/corpus
 ├── Floating controls              shared
 ├── Three-state result drawer      shared
-│   ├── Resource facets            Resources adapter
+│   ├── Search / Filters / Sort / Geography shell controls
 │   ├── Four action positions      shared positions / Resources actions
+│   ├── Resources workflow tree    Resources nested navigation
 │   └── Resource record cards      shared cards / Resources projection
 ├── Detail controller              shared / Resources detail body
 ├── Bottom navigation              shared
 └── Shared services
-    ├── Saved & Watchlist
     ├── Referrals
-    ├── Notifications
     ├── Authorization
-    └── Activity / audit
+    ├── Activity / audit
+    └── Menu → Referrals Management
 ```
 
-The result drawer remains authoritative: a Resource can be visible in the list without having a map location. The reference data includes mapped, off-map, owned, external, and sponsored examples.
+The result drawer remains authoritative: a Resource can be visible in the list without having a map location. Mapped, off-map, and sponsored records are supported without equating map presence with Exchange presence.
 
-## Resource projection
+## Source-driven workflow hierarchy
 
-A Resource remains an `ExchangeRecord` and adds a typed `resource` projection containing category, availability, capacity, service area, visibility, terms, lifecycle status, and sponsored-placement state. The production domain can be richer; the shell only receives what it needs to render and govern interaction.
+The nested Resources hierarchy intentionally follows the source flow and does not add extra product branches.
+
+```text
+Resources
+├── My Organization’s Resources
+│   ├── Offer Resource
+│   │   └── Offer Resource modal
+│   ├── Edit Resource
+│   │   └── Manage / Edit Resource
+│   ├── Share
+│   │   └── Share menu / send resource
+│   └── Save / Archive
+│       └── Save or Archive action
+│
+├── Resources from Other Organizations
+│   ├── Request Resource
+│   │   └── Request Resource modal
+│   ├── View Resource Detail
+│   │   └── Resource detail view
+│   ├── Share
+│   │   └── Share menu / send to another organization
+│   └── Save
+│       └── Save / follow action
+│
+└── Cross-lens Referral Workflow
+    └── Refer from resource result or detail
+        └── Referral modal
+            └── Recipient referral policy / fee
+                └── Track in Menu → Referrals Management
+```
+
+The hierarchy has explicit nested navigation state (`ResourceNavigationState.path`). Closing the hierarchy or changing lenses closes the surface but does not erase the nested path, so reopening it restores the user's location. Search, Filters, Sort, and Geography remain shared Exchange controls rather than duplicate Resources submenu branches.
 
 ## Ownership-aware action rail
 
-The four chassis positions are stable while the action definitions change with ownership.
+The four chassis positions remain stable while the Resources actions match the source.
 
 | Position | Own organization | Other organization |
 | --- | --- | --- |
 | 1 | Offer | Request |
-| 2 | Edit | View |
+| 2 | Edit | View Detail |
 | 3 | Share | Share |
-| 4 | Archive | Save |
+| 4 | Save / Archive | Save → Save / Follow |
 
-`Offer`, `Edit`, `Request`, `Archive`, `View`, `Save`, and `Share` are operational in the reference client implementation. Production authorization and persistence still belong behind authenticated server/domain services.
+Referral is not inserted into a fifth action slot. It is reachable from the Resource result card, Resource Detail, and the Resources hierarchy because the source defines it as a cross-lens workflow.
 
-## Discovery controls
+## Resource services
 
-Resources supplies a drawer toolbar for:
-
-- category
-- availability
-- geography / map presence
-- ownership view and sort
-
-Universal search remains the chassis search control and searches the normalized record projection. Resource filters are retained while the user switches to another lens and returns.
-
-## Workflows
-
-### Offer
-
-The Offer surface captures Resource identity, category, description, availability, capacity, geography, service area, map visibility, and terms. The reference implementation publishes into client state. Production should replace that mutation with a Resources service/repository call and geocoding/organization-location policy where needed.
-
-### Edit / archive
-
-Owned Resources can be edited or archived. Archiving removes the Resource from active discovery but preserves the lifecycle concept for restoration/audit in the production domain.
-
-### Request
-
-Requests are modeled as a transaction against an offered Resource rather than as a second page architecture. The production data target is `resource_requests`, relating the Resource, requester organization, provider organization, requesting user, request details, and request status.
-
-### Save and share
-
-Save uses the common Exchange saved-record behavior. Share uses the Resource deep link. Production persistence for favorites remains a shared service concern.
-
-### Cross-lens referral
-
-Referral is intentionally not a fifth Resources action slot. Resource Detail exposes the integration point, while composition, recipient policy/fee handling, tracking, and management remain owned by the shared Referral workflow and Menu → Referrals Management.
-
-## State continuity
-
-The chassis now retains search, drawer state, and selected record separately for every lens. Therefore a user can move `Resources → RFx → Resources` and recover the prior Resource working context. Resource facet/sort state is also retained while the shell remains mounted.
-
-## Production boundaries
-
-The reference implementation proves the UI/domain contract, not production completion. Replace client-state mutations with:
+Resource mutations no longer report success from local React state. They call authenticated server routes backed by the Resources domain service and PostgreSQL/PostGIS target schema.
 
 ```text
-Resources lens
+Resources UI
    ↓
-Exchange API / BFF
+/api/exchange/resources/*
+   ↓
+server actor / organization membership resolution
    ↓
 Resources service
-   ├── offer repository
-   ├── request repository
-   ├── availability / fulfillment
-   ├── authorization
-   ├── activity events
-   └── notifications
+   ├── offer / edit / archive
+   ├── request
+   ├── save / follow relationships
+   ├── share / send-to-organization
+   └── activity events
    ↓
-PostgreSQL / PostGIS + object storage
+PostgreSQL / PostGIS
 ```
 
-Mapbox/MapLibre, authentication, server-side permissions, durable favorites, referral execution, object storage, provider notifications, and fulfillment remain chassis/shared-service integration points.
+The server resolves the actor from the `rfx_user_id` and `rfx_organization_id` secure session bridge (or server-only configured IDs in a development deployment), validates the organization membership, and applies role/permission checks before mutations. Missing database/session configuration returns a service error; the client does not simulate success.
+
+### Offer Resource
+
+`POST /api/exchange/resources` creates the canonical `exchange_records` identity and the Resource domain row in one database transaction. A public organization location is attached only when the user selects public-location visibility and the organization has a stored point. The service never fabricates a map location.
+
+### Manage / Edit Resource
+
+`PATCH /api/exchange/resources/{recordId}` validates ownership and Resource management permission, updates the shared Exchange projection and Resource domain fields, and records an activity event.
+
+### Save or Archive
+
+Save persists a `saved` Resource relationship. Archive validates ownership, marks both the Resource and shared Exchange record archived, removes it from active discovery, and writes an activity event.
+
+### Request Resource
+
+`POST /api/exchange/resources/{recordId}/requests` creates a durable `resource_requests` record. Requests are transactions against an offered Resource; they are not a second public Resource listing type. The schema supports the source lifecycle transition from `submitted` to `connected`/`closed` without inventing another Resources navigation branch.
+
+### Share / send resource
+
+`POST /api/exchange/resources/{recordId}/shares` resolves the receiving organization and persists the send operation in `resource_shares`. Resources no longer routes Share through a generic clipboard-only behavior.
+
+### Save / follow
+
+`PUT /api/exchange/resources/{recordId}/relationships` persists the exact source relationship choices: `saved` and `following`.
+
+## Cross-lens referral service
+
+The Resources referral flow uses shared referral routes rather than a Resources-only referral database.
+
+```text
+Resource result or detail
+   ↓
+Referral modal
+   ↓
+GET /api/exchange/referrals/policy
+   ↓
+Recipient referral policy / fee review
+   ↓
+POST /api/exchange/referrals
+   ↓
+Menu → Referrals Management
+   ↓
+GET /api/exchange/referrals
+```
+
+The referral write snapshots the recipient's currently published policy/fee text, links the Resource Exchange record, stores the sender/recipient organizations and actor, and emits a `ReferralCreated` activity event. Menu → Referrals Management now includes a live tracking panel for sent and received referrals instead of leaving this source step as a disabled placeholder.
+
+## Persistence targets
+
+The Resources portion of `db/schema.sql` now includes:
+
+- Resource category, availability, capacity, service-area label, visibility, terms, status, and sponsored state;
+- `resource_requests`;
+- durable Resource `saved` / `following` relationships;
+- `resource_shares`;
+- recipient `referral_policies`;
+- referrals with actor, message, policy snapshot, and fee snapshot;
+- `activity_events` for meaningful Resource/referral changes.
+
+## Preview versus runtime
+
+The repository retains deterministic Resources for the static GitHub Pages projection because GitHub Pages has no runtime database or API. In a runtime deployment, the client hydrates Resources from `GET /api/exchange/resources`. If the database/session boundary is unavailable, static/reference records may remain visible for presentation, but create/edit/request/share/save/follow/archive/referral actions fail visibly rather than mutating fake local domain state.
+
+The stable chassis remains unchanged: map, universal search, drawer, card framework, detail controller, bottom navigation, and Menu continue to be shared platform primitives while Resources supplies its domain behavior through governed contracts.
