@@ -14,9 +14,15 @@ const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }>
     { id: "watch", label: "Watch", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
   ]},
   resources: { own: [
-    { id: "offer-resource", label: "Offer", icon: "+", trigger: "modal" }, { id: "edit-resource", label: "Edit", icon: "✎", trigger: "modal", requiresRecord: true }, { id: "share", label: "Share", icon: "↗", trigger: "direct", requiresRecord: true }, { id: "archive-resource", label: "Archive", icon: "▣", trigger: "workflow", requiresRecord: true },
+    { id: "offer-resource", label: "Offer", icon: "+", trigger: "modal" },
+    { id: "edit-resource", label: "Edit", icon: "✎", trigger: "modal", requiresRecord: true },
+    { id: "share", label: "Share", icon: "↗", trigger: "workflow", requiresRecord: true },
+    { id: "save-archive", label: "Save / Archive", icon: "▣", trigger: "workflow", requiresRecord: true },
   ], other: [
-    { id: "request-resource", label: "Request", icon: "+", trigger: "modal", requiresRecord: true }, { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true }, { id: "share", label: "Share", icon: "↗", trigger: "direct", requiresRecord: true }, { id: "save", label: "Save", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "save" },
+    { id: "request-resource", label: "Request", icon: "+", trigger: "modal", requiresRecord: true },
+    { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true },
+    { id: "share", label: "Share", icon: "↗", trigger: "workflow", requiresRecord: true },
+    { id: "save-follow", label: "Save", icon: "☆", trigger: "workflow", requiresRecord: true },
   ]},
   intelligence: { own: [
     { id: "add-insight", label: "Add Insight", icon: "+", trigger: "modal" }, { id: "edit-insight", label: "Edit Insight", icon: "✎", trigger: "modal", requiresRecord: true }, { id: "compare", label: "Compare", icon: "⇄", trigger: "workflow", requiresRecord: true }, { id: "track", label: "Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "track" },
