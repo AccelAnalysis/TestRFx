@@ -40,7 +40,7 @@ export type RegistrationAccepted = {
   nextStep: "account_verification";
   handoffHref: string;
   context: RegistrationEntryContext;
-  adapter: "reference";
+  adapter: "provider";
 };
 
 export type RegistrationValidationResult =
