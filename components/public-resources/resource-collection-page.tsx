@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ResourceTree } from "@/components/public-resources/resource-tree";
+import { withBasePath } from "@/lib/exchange/base-path";
 import {
   findPublicResourceNodeByHref,
   publicResourceBreadcrumbs,
@@ -72,7 +73,7 @@ export function PublicResourceCollectionPage({ href }: { href: string }) {
                 <h2 id="download-title">Download the source-controlled worksheet</h2>
                 <p>This is a real file in the Public Resources publishing layer. It does not simulate saving or mutating an authenticated Exchange record.</p>
               </div>
-              <a className="button button-primary" href={node.downloadHref} download>Download worksheet</a>
+              <a className="button button-primary" href={withBasePath(node.downloadHref)} download>Download worksheet</a>
             </section>
           ) : null}
 
@@ -85,7 +86,7 @@ export function PublicResourceCollectionPage({ href }: { href: string }) {
               </div>
               <div className="resource-child-grid">
                 {aggregateDownloads.map((download) => (
-                  <a className="resource-child-card" href={download.downloadHref} download key={download.id}>
+                  <a className="resource-child-card" href={withBasePath(download.downloadHref!)} download key={download.id}>
                     <span>Download</span>
                     <h3>{download.label}</h3>
                     <p>{download.description}</p>
