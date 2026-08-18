@@ -1,10 +1,10 @@
-import CapabilityEnrichment from "@/components/onboarding/capability-enrichment";
+import { Suspense } from "react";
+import CapabilityEnrichmentRoute from "@/components/onboarding/capability-enrichment-route";
 
-export default async function CapabilityEnrichmentPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ organizationId?: string }>;
-}) {
-  const query = await searchParams;
-  return <CapabilityEnrichment path={[]} organizationId={query.organizationId} />;
+export default function CapabilityEnrichmentPage() {
+  return (
+    <Suspense fallback={null}>
+      <CapabilityEnrichmentRoute path={[]} />
+    </Suspense>
+  );
 }
