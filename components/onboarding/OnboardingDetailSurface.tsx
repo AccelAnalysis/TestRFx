@@ -1,207 +1,276 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import type {
-  OnboardingDetailDefinition,
-  OnboardingDetailField,
-  OnboardingDetailStatus,
-  OnboardingDetailValue,
+import {
+  getOnboardingDetailBreadcrumbs,
+  getOnboardingDetailNode,
+  getOnboardingDetailParentHref,
+  listOnboardingDetailDefinitions,
+  onboardingDetailHref,
+  type OnboardingDetailClassification,
+  type OnboardingDetailDefinition,
+  type OnboardingDetailNode,
+  type OnboardingDetailSubject,
+  type OnboardingServiceMaturity,
+  type OnboardingWorkflowTarget,
 } from "@/lib/onboarding/detail-surface";
 import styles from "./onboarding-detail-surface.module.css";
 
-type SaveState = "idle" | "dirty" | "saved";
-
-function collectValues(definition: OnboardingDetailDefinition): Record<string, OnboardingDetailValue> {
-  return Object.fromEntries(
-    definition.sections.flatMap((section) => section.fields.map((field) => [field.id, field.value])),
-  ) as Record<string, OnboardingDetailValue>;
+function classificationLabel(classification: OnboardingDetailClassification) {
+  if (classification === "required") return "Required";
+  if (classification === "recommended") return "Recommended";
+  if (classification === "conditional") return "Conditional";
+  return "Optional";
 }
 
-function statusClass(status: OnboardingDetailStatus): string {
-  switch (status) {
-    case "complete": return styles.complete;
-    case "blocked": return styles.blocked;
-    case "needs-action":
-    case "needs-confirmation": return styles.attention;
-    case "pending": return styles.pending;
-    default: return styles.optional;
-  }
+function classificationClass(classification: OnboardingDetailClassification) {
+  if (classification === "required") return styles.required;
+  if (classification === "recommended") return styles.recommended;
+  if (classification === "conditional") return styles.conditional;
+  return styles.optional;
 }
 
-function fieldIsMissing(field: OnboardingDetailField, value: OnboardingDetailValue | undefined): boolean {
-  if (!field.required || field.kind === "status") return false;
-  if (field.kind === "toggle") return value !== true;
-  return typeof value !== "string" || value.trim().length === 0;
+function maturityLabel(maturity: OnboardingServiceMaturity) {
+  if (maturity === "connected-reference") return "Connected API · reference adapter";
+  if (maturity === "production-pending") return "Production service pending";
+  return "Owning workflow only";
 }
 
-export function OnboardingDetailSurface({ definition }: { definition: OnboardingDetailDefinition }) {
-  const storageKey = `rfxchange:onboarding-detail:${definition.subject}`;
-  const [values, setValues] = useState<Record<string, OnboardingDetailValue>>(() => collectValues(definition));
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [showValidation, setShowValidation] = useState(false);
-  const [guidanceOpen, setGuidanceOpen] = useState(true);
+function withReturnTo(workflow: OnboardingWorkflowTarget, nestedReturnHref: string) {
+  if (!workflow.preserveReturnTo) return workflow.href;
+  const separator = workflow.href.includes("?") ? "&" : "?";
+  return `${workflow.href}${separator}returnTo=${encodeURIComponent(nestedReturnHref)}`;
+}
 
-  useEffect(() => {
-    try {
-      const stored = window.sessionStorage.getItem(storageKey);
-      if (!stored) return;
-      const parsed = JSON.parse(stored) as Record<string, OnboardingDetailValue>;
-      setValues((current) => ({ ...current, ...parsed }));
-      setSaveState("saved");
-    } catch {
-      // Reference drafts are disposable; malformed browser state must never block onboarding.
-    }
-  }, [storageKey]);
+function withOuterReturn(href: string, returnHref: string) {
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}returnTo=${encodeURIComponent(returnHref)}`;
+}
 
-  const requiredFields = useMemo(
-    () => definition.sections.flatMap((section) => section.fields).filter((field) => field.required),
-    [definition.sections],
+function isActiveBranch(activePath: readonly string[], candidatePath: readonly string[]) {
+  return candidatePath.every((segment, index) => activePath[index] === segment);
+}
+
+function NodeTree({
+  subject,
+  nodes,
+  activePath,
+  returnHref,
+  prefix = [],
+}: {
+  subject: OnboardingDetailSubject;
+  nodes: readonly OnboardingDetailNode[];
+  activePath: readonly string[];
+  returnHref: string;
+  prefix?: readonly string[];
+}) {
+  return (
+    <ul className={styles.nodeTree}>
+      {nodes.map((item) => {
+        const path = [...prefix, item.id];
+        const branchActive = isActiveBranch(activePath, path);
+        const exact = activePath.length === path.length && branchActive;
+        return (
+          <li key={item.id}>
+            <Link
+              className={`${styles.treeLink} ${exact ? styles.activeTreeLink : ""}`}
+              href={withOuterReturn(onboardingDetailHref(subject, path), returnHref)}
+              aria-current={exact ? "page" : undefined}
+            >
+              <span>{item.label}</span>
+              <small>{classificationLabel(item.classification)}</small>
+            </Link>
+            {item.children?.length ? (
+              <details className={styles.treeBranch} open={branchActive}>
+                <summary>{branchActive ? "Hide children" : "Show children"}</summary>
+                <NodeTree
+                  subject={subject}
+                  nodes={item.children}
+                  activePath={activePath}
+                  returnHref={returnHref}
+                  prefix={path}
+                />
+              </details>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
-  const missingRequired = useMemo(
-    () => requiredFields.filter((field) => fieldIsMissing(field, values[field.id])),
-    [requiredFields, values],
+}
+
+function WorkflowCard({ workflow, nestedReturnHref }: { workflow: OnboardingWorkflowTarget; nestedReturnHref: string }) {
+  const destination = withReturnTo(workflow, nestedReturnHref);
+  const { service } = workflow;
+  return (
+    <section className={styles.workflowCard}>
+      <div>
+        <p className={styles.cardEyebrow}>Owning workflow</p>
+        <h2>{workflow.label}</h2>
+        <p>
+          Detail Surface owns the hierarchy and return context. Canonical validation, authorization, persistence, payment,
+          taxonomy, evidence, and activation stay with the workflow that owns this item.
+        </p>
+      </div>
+      <Link className={styles.primaryAction} href={destination}>{workflow.label} →</Link>
+      <div className={styles.serviceBoundary}>
+        <div className={styles.serviceHeading}>
+          <strong>Service boundary</strong>
+          <span className={styles.maturityPill}>{maturityLabel(service.maturity)}</span>
+        </div>
+        {service.endpoint ? <code>{service.method} {service.endpoint}{service.action ? ` · ${service.action}` : ""}</code> : null}
+        <span>{service.owner}</span>
+        <p>{service.purpose}</p>
+      </div>
+    </section>
   );
+}
 
-  function updateValue(fieldId: string, value: OnboardingDetailValue) {
-    setValues((current) => ({ ...current, [fieldId]: value }));
-    setSaveState("dirty");
-  }
+export function OnboardingDetailSurface({
+  definition,
+  activePath,
+  returnHref,
+}: {
+  definition: OnboardingDetailDefinition;
+  activePath: readonly string[];
+  returnHref: string;
+}) {
+  const active = getOnboardingDetailNode(definition.subject, activePath);
+  if (!active) return null;
 
-  function saveReferenceDraft(): boolean {
-    setShowValidation(true);
-    if (missingRequired.length > 0 && definition.required) return false;
-    try {
-      window.sessionStorage.setItem(storageKey, JSON.stringify(values));
-      setSaveState("saved");
-    } catch {
-      setSaveState("idle");
-    }
-    return true;
-  }
-
-  function continueToNext() {
-    if (!saveReferenceDraft()) return;
-    window.location.assign(definition.nextHref);
-  }
+  const breadcrumbs = getOnboardingDetailBreadcrumbs(definition.subject, activePath);
+  const parentHref = getOnboardingDetailParentHref(definition.subject, activePath);
+  const currentHref = onboardingDetailHref(definition.subject, activePath);
+  const nestedReturnHref = withOuterReturn(currentHref, returnHref);
+  const definitions = listOnboardingDetailDefinitions();
 
   return (
     <main className={styles.shell}>
       <div className={styles.workspace}>
-        <aside className={styles.progressRail} aria-label="Onboarding progress">
+        <aside className={styles.progressRail} aria-label="Identity and onboarding detail navigation">
           <Link className={styles.brand} href="/onboarding">RFxchange</Link>
           <p className={styles.railEyebrow}>Identity & onboarding</p>
-          <ol>
-            {Array.from({ length: definition.totalSteps }, (_, index) => {
-              const step = index + 1;
-              const current = step === definition.step;
-              const complete = step < definition.step;
+          <nav className={styles.subjectTree} aria-label="Onboarding detail hierarchy">
+            {definitions.map((subjectDefinition) => {
+              const selected = subjectDefinition.subject === definition.subject;
               return (
-                <li className={current ? styles.currentStep : complete ? styles.completeStep : ""} key={step}>
-                  <span>{complete ? "✓" : step}</span>
-                  <div>
-                    <strong>{step === definition.step ? definition.title : `Stage ${step}`}</strong>
-                    <small>{current ? definition.statusLabel : complete ? "Established" : "Upcoming"}</small>
-                  </div>
-                </li>
+                <section className={styles.subjectGroup} key={subjectDefinition.subject}>
+                  <Link
+                    className={`${styles.subjectLink} ${selected && activePath.length === 0 ? styles.activeSubjectLink : ""}`}
+                    href={withOuterReturn(onboardingDetailHref(subjectDefinition.subject), returnHref)}
+                  >
+                    <span className={styles.stepNumber}>{subjectDefinition.step}</span>
+                    <span>
+                      <strong>{subjectDefinition.label}</strong>
+                      <small>{classificationLabel(subjectDefinition.classification)}</small>
+                    </span>
+                  </Link>
+                  {selected ? (
+                    <NodeTree
+                      subject={definition.subject}
+                      nodes={definition.children}
+                      activePath={activePath}
+                      returnHref={returnHref}
+                    />
+                  ) : null}
+                </section>
               );
             })}
-          </ol>
+          </nav>
           <p className={styles.referenceNote}>
-            Reference chassis: browser-session drafts demonstrate continuity only. Canonical persistence and domain validation remain owned by the connected onboarding service.
+            The tree is shell-owned. Domain values are not copied into Detail Surface; owning workflows and APIs retain their own truth.
           </p>
         </aside>
 
         <section className={styles.surface} aria-labelledby="detail-title">
           <header className={styles.topbar}>
-            <Link className={styles.backLink} href={definition.returnHref}>← Back</Link>
-            <div className={styles.saveIndicator} aria-live="polite">
-              {saveState === "saved" ? "Saved in this session ✓" : saveState === "dirty" ? "Unsaved changes" : "Reference detail"}
-            </div>
+            <Link className={styles.backLink} href={withOuterReturn(parentHref, returnHref)}>← Parent</Link>
+            <Link className={styles.exitLink} href={returnHref}>Exit detail</Link>
           </header>
 
           <div className={styles.content}>
+            <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+              <Link href={withOuterReturn("/onboarding/detail", returnHref)}>Detail Surface</Link>
+              {breadcrumbs.map((crumb, index) => (
+                <span key={crumb.href}>
+                  <span aria-hidden="true">/</span>
+                  {index === breadcrumbs.length - 1 ? (
+                    <strong>{crumb.label}</strong>
+                  ) : (
+                    <Link href={withOuterReturn(crumb.href, returnHref)}>{crumb.label}</Link>
+                  )}
+                </span>
+              ))}
+            </nav>
+
             <div className={styles.contextHeader}>
               <div>
-                <p className={styles.eyebrow}>{definition.eyebrow}</p>
-                <h1 id="detail-title">{definition.title}</h1>
-                <p className={styles.subject}>{definition.subjectLabel}</p>
+                <p className={styles.eyebrow}>Step {definition.step} of {definition.totalSteps} · {definition.label}</p>
+                <h1 id="detail-title">{active.label}</h1>
+                <p className={styles.description}>{active.description}</p>
               </div>
-              <span className={`${styles.statusPill} ${statusClass(definition.status)}`}>{definition.statusLabel}</span>
+              <span className={`${styles.statusPill} ${classificationClass(active.classification)}`}>
+                {classificationLabel(active.classification)}
+              </span>
             </div>
 
             <div className={styles.progressBar} aria-label={`Step ${definition.step} of ${definition.totalSteps}`}>
               <span style={{ width: `${(definition.step / definition.totalSteps) * 100}%` }} />
             </div>
-            <p className={styles.stepCaption}>Step {definition.step} of {definition.totalSteps} · {definition.required ? "Required readiness" : "Optional enrichment"}</p>
 
-            <section className={styles.summaryCard}>
-              <strong>{missingRequired.length > 0 ? `${missingRequired.length} required item${missingRequired.length === 1 ? "" : "s"} need attention` : "Detail is structurally complete"}</strong>
-              <p>{definition.completionSummary}</p>
+            <section className={styles.sourceCard}>
+              <strong>Source trace</strong>
+              <div>{active.sources.map((source) => <span key={source}>{source}</span>)}</div>
+              <p>
+                This node is represented in the supplied source flow or the previously agreed Detail Surface structure.
+                The hierarchy does not add unrelated product destinations.
+              </p>
             </section>
 
-            <section className={styles.guidance}>
-              <button type="button" onClick={() => setGuidanceOpen((open) => !open)} aria-expanded={guidanceOpen}>
-                <span>Why this matters</span><span>{guidanceOpen ? "−" : "+"}</span>
-              </button>
-              {guidanceOpen ? (
-                <div className={styles.guidanceGrid}>
-                  <div><strong>What is this?</strong><p>{definition.guidance.what}</p></div>
-                  <div><strong>Why RFxchange needs it</strong><p>{definition.guidance.why}</p></div>
-                  <div><strong>Who can see it?</strong><p>{definition.guidance.visibility}</p></div>
-                  <div><strong>What happens next?</strong><p>{definition.guidance.next}</p></div>
+            {active.children?.length ? (
+              <section className={styles.childrenSection}>
+                <div className={styles.sectionHeading}>
+                  <p className={styles.cardEyebrow}>Child workflows</p>
+                  <h2>{active.label} submenu</h2>
+                  <p>Select a child to move deeper. The nested URL is the navigation state, so direct links and refreshes preserve the exact branch.</p>
                 </div>
-              ) : null}
-            </section>
-
-            <div className={styles.sections}>
-              {definition.sections.map((section) => (
-                <section className={styles.formSection} key={section.id}>
-                  <div className={styles.sectionHeading}>
-                    <h2>{section.title}</h2>
-                    {section.description ? <p>{section.description}</p> : null}
-                  </div>
-                  <div className={styles.fieldList}>
-                    {section.fields.map((field) => {
-                      const value = values[field.id] ?? field.value;
-                      const invalid = showValidation && fieldIsMissing(field, value);
-                      return (
-                        <div className={`${styles.field} ${invalid ? styles.invalidField : ""}`} key={field.id}>
-                          <div className={styles.fieldLabel}>
-                            <label htmlFor={`detail-${field.id}`}>{field.label}{field.required ? <span> Required</span> : null}</label>
-                            {field.description ? <small>{field.description}</small> : null}
-                          </div>
-                          {field.kind === "textarea" ? (
-                            <textarea id={`detail-${field.id}`} value={String(value)} onChange={(event) => updateValue(field.id, event.target.value)} rows={4} />
-                          ) : field.kind === "select" ? (
-                            <select id={`detail-${field.id}`} value={String(value)} onChange={(event) => updateValue(field.id, event.target.value)}>
-                              {field.options?.map((option) => <option key={option}>{option}</option>)}
-                            </select>
-                          ) : field.kind === "toggle" ? (
-                            <label className={styles.toggle} htmlFor={`detail-${field.id}`}>
-                              <input id={`detail-${field.id}`} type="checkbox" checked={Boolean(value)} onChange={(event) => updateValue(field.id, event.target.checked)} />
-                              <span aria-hidden="true" />
-                              <em>{Boolean(value) ? "Yes" : "No"}</em>
-                            </label>
-                          ) : field.kind === "status" ? (
-                            <div className={styles.readOnlyStatus} id={`detail-${field.id}`}>{String(value)}</div>
-                          ) : (
-                            <input id={`detail-${field.id}`} value={String(value)} onChange={(event) => updateValue(field.id, event.target.value)} />
-                          )}
-                          {invalid ? <p className={styles.errorText}>Complete this required item before continuing.</p> : null}
+                <div className={styles.childGrid}>
+                  {active.children.map((child) => {
+                    const childPath = [...activePath, child.id];
+                    return (
+                      <Link
+                        className={styles.childCard}
+                        href={withOuterReturn(onboardingDetailHref(definition.subject, childPath), returnHref)}
+                        key={child.id}
+                      >
+                        <div>
+                          <span className={`${styles.miniPill} ${classificationClass(child.classification)}`}>
+                            {classificationLabel(child.classification)}
+                          </span>
+                          <h3>{child.label}</h3>
+                          <p>{child.description}</p>
                         </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              ))}
-            </div>
+                        <strong aria-hidden="true">›</strong>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : (
+              <section className={styles.leafCard}>
+                <p className={styles.cardEyebrow}>Leaf workflow</p>
+                <h2>This item has a concrete owner.</h2>
+                <p>
+                  No fake editable record or browser-only save is created here. Continue into the owning workflow for the actual action and validation.
+                </p>
+              </section>
+            )}
+
+            <WorkflowCard workflow={active.workflow} nestedReturnHref={nestedReturnHref} />
           </div>
 
           <footer className={styles.actionBar}>
-            <Link className={styles.secondaryAction} href={definition.returnHref}>Back</Link>
-            <button className={styles.secondaryAction} type="button" onClick={saveReferenceDraft}>Save & exit later</button>
-            <button className={styles.primaryAction} type="button" onClick={continueToNext}>{definition.nextLabel}</button>
+            <Link className={styles.secondaryAction} href={withOuterReturn(parentHref, returnHref)}>Parent</Link>
+            <Link className={styles.secondaryAction} href={returnHref}>Exit detail</Link>
+            <Link className={styles.primaryAction} href={withReturnTo(active.workflow, nestedReturnHref)}>{active.workflow.label}</Link>
           </footer>
         </section>
       </div>
