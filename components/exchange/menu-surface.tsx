@@ -11,6 +11,7 @@ import {
 } from "@/lib/exchange/menu";
 import styles from "./menu-surface.module.css";
 
+const menuSectionHandoffKey = "rfxchange:menu-section-handoff";
 const sectionGroups: { label: string; ids: MenuSectionId[] }[] = [
   { label: "Identity & organization", ids: ["organization", "profile", "security", "settings"] },
   { label: "Exchange activity", ids: ["referrals", "communications", "saved"] },
@@ -28,13 +29,29 @@ function scopeLabel(scope: string) {
 export function MenuSurface({
   onClose,
   context = referenceMenuContext,
+  initialSectionId,
 }: {
   onClose: () => void;
   context?: MenuViewerContext;
+  initialSectionId?: MenuSectionId;
 }) {
-  const [activeSectionId, setActiveSectionId] = useState<MenuSectionId | undefined>();
+  const [activeSectionId, setActiveSectionId] = useState<MenuSectionId | undefined>(initialSectionId);
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   const activeSection = activeSectionId ? menuSectionById[activeSectionId] : undefined;
+
+  useEffect(() => {
+    if (initialSectionId) {
+      setActiveSectionId(initialSectionId);
+      return;
+    }
+    try {
+      const handoff = sessionStorage.getItem(menuSectionHandoffKey) as MenuSectionId | null;
+      if (handoff && menuSectionById[handoff]) {
+        setActiveSectionId(handoff);
+        sessionStorage.removeItem(menuSectionHandoffKey);
+      }
+    } catch {}
+  }, [initialSectionId]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
