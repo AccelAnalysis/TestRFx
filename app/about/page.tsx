@@ -1,6 +1,6 @@
-import { PublicInfoPage } from "@/components/marketing/public-info-page";
-import { publicPageDefinitions } from "@/lib/marketing/navigation";
+import { PublicInfoPage } from "@/components/public/public-info-page";
+import { PUBLIC_INFO_PAGES } from "@/lib/public/pages";
 
 export default function AboutPage() {
-  return <PublicInfoPage definition={publicPageDefinitions.about} />;
+  return <PublicInfoPage page={PUBLIC_INFO_PAGES.about} />;
 }
