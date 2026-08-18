@@ -10,16 +10,20 @@ import {
   type OrganizationMutationRequest,
 } from "@/lib/onboarding/organization";
 import {
+  getOrganizationAccessReview,
+  getOrganizationClaimReview,
+  reviewOrganizationAccessRequest,
+  reviewOrganizationClaim,
+} from "@/lib/onboarding/organization-admin-repository";
+import {
   acceptInvitation,
   claimOrganization,
   createOrganization,
-  getAccessReview,
   getOrganization,
   getOrganizationState,
   OrganizationWorkflowError,
   requestOrganizationAccess,
   resolveInvitation,
-  reviewAccessRequest,
   searchOrganizations,
 } from "@/lib/onboarding/organization-repository";
 import { DatabaseConfigurationError } from "@/lib/server/database";
@@ -33,12 +37,8 @@ function noStore(body: unknown, status = 200) {
   });
 }
 
-function verifiedSession(request: NextRequest) {
-  return verifyOnboardingSessionToken(request.cookies.get(ONBOARDING_SESSION_COOKIE)?.value);
-}
-
 function requireSession(request: NextRequest) {
-  const session = verifiedSession(request);
+  const session = verifyOnboardingSessionToken(request.cookies.get(ONBOARDING_SESSION_COOKIE)?.value);
   if (!session) {
     throw new OrganizationWorkflowError(
       "Verify your account before connecting an organization.",
@@ -77,14 +77,13 @@ export async function GET(request: NextRequest) {
     }
 
     const invitation = params.get("invitation")?.trim();
-    if (invitation) {
-      return noStore({ invitation: await resolveInvitation(session, invitation) });
-    }
+    if (invitation) return noStore({ invitation: await resolveInvitation(session, invitation) });
 
     const requestId = params.get("request")?.trim();
-    if (requestId) {
-      return noStore({ review: await getAccessReview(session, requestId) });
-    }
+    if (requestId) return noStore({ review: await getOrganizationAccessReview(session, requestId) });
+
+    const claimId = params.get("claim")?.trim();
+    if (claimId) return noStore({ review: await getOrganizationClaimReview(session, claimId) });
 
     const organizationId = params.get("id")?.trim();
     if (organizationId) {
@@ -118,7 +117,7 @@ export async function POST(request: NextRequest) {
       if (!body.invitationToken?.trim()) {
         return noStore({ error: "Invitation token is required.", code: "invalid_request" }, 400);
       }
-      return noStore({ resolution: await acceptInvitation(session, body.invitationToken.trim(), body.context) }, 200);
+      return noStore({ resolution: await acceptInvitation(session, body.invitationToken.trim(), body.context) });
     }
 
     if (body.action === "request_access") {
@@ -168,8 +167,20 @@ export async function POST(request: NextRequest) {
         return noStore({ error: "Access request and decision are required.", code: "invalid_request" }, 400);
       }
       return noStore({
-        review: await reviewAccessRequest(session, {
+        review: await reviewOrganizationAccessRequest(session, {
           requestId: body.requestId.trim(),
+          decision: body.decision,
+        }),
+      });
+    }
+
+    if (body.action === "review_claim") {
+      if (!body.claimId?.trim() || (body.decision !== "approve" && body.decision !== "deny")) {
+        return noStore({ error: "Claim and decision are required.", code: "invalid_request" }, 400);
+      }
+      return noStore({
+        review: await reviewOrganizationClaim(session, {
+          claimId: body.claimId.trim(),
           decision: body.decision,
         }),
       });
