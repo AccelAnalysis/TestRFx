@@ -1,5 +1,6 @@
 import type { RfxPursuitState, RfxStatus, RfxWorkflowEntry, RfxWorkflowPerspective, RfxWorkspace, RfxWorkspaceValue } from "./contracts";
 import { perspectiveForEntry, rootForEntry } from "./workflow-tree";
+import "./workflow-source-extensions";
 
 export function createRfxWorkspace(recordId: string, entry: RfxWorkflowEntry): RfxWorkspace {
   const now = new Date().toISOString();
