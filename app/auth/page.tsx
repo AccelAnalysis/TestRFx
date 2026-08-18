@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { AuthEntryNavigator } from "@/components/public/AuthEntryNavigator";
-import { findAuthEntryNode } from "@/lib/acquisition/auth-entry-navigation";
+import { findAuthEntryNode } from "@/lib/acquisition/auth-entry-navigation-complete";
 
 export default function AuthEntryPage() {
   const resolved = findAuthEntryNode([]);
