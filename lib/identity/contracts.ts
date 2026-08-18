@@ -18,9 +18,17 @@ export interface MagicLinkChallengeAccepted {
   returnTo: string;
 }
 
+export type LoginApiErrorCode =
+  | "invalid_request"
+  | "account_not_found"
+  | "account_restricted"
+  | "rate_limited"
+  | "provider_unavailable"
+  | "request_failed";
+
 export interface LoginApiError {
   error: string;
-  code: "invalid_request" | "provider_unavailable" | "request_failed";
+  code: LoginApiErrorCode;
 }
 
 export interface IdentityReadinessSnapshot {
@@ -39,3 +47,37 @@ export interface AuthenticatedIdentityContext {
   activeOrganizationId?: string;
   readiness: IdentityReadinessSnapshot;
 }
+
+export type MagicLinkVerificationInput =
+  | { token: string; userAgent?: string }
+  | { challengeId: string; code: string; userAgent?: string };
+
+export type MagicLinkVerificationResult =
+  | {
+      state: "authenticated";
+      sessionToken: string;
+      expiresInSeconds: number;
+      returnTo?: string;
+      identity: AuthenticatedIdentityContext;
+    }
+  | {
+      state: "mfa_required";
+      challengeId: string;
+    }
+  | {
+      state: "expired" | "invalid" | "restricted";
+    };
+
+export type LoginVerifyApiResponse =
+  | {
+      state: "authenticated";
+      nextPath: string;
+    }
+  | {
+      state: "mfa_required";
+      challengeId: string;
+    }
+  | {
+      state: "expired" | "invalid" | "restricted";
+      message: string;
+    };
