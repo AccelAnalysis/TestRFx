@@ -83,10 +83,109 @@ const registrationSourceSupport: AuthEntryNode[] = [
   },
 ];
 
+const invitationChildren: AuthEntryNode[] = [
+  {
+    id: "validate-invitation",
+    label: "Validate Invitation",
+    summary: "Validate the source invitation before organization affiliation is granted.",
+    kind: "decision",
+    source: "Registration source",
+    sourceDetail: "No dedicated invitation-validation service exists on main. This state is preserved and handed to Organization Selection / Creation rather than simulated.",
+    destination: {
+      path: "/onboarding/organization",
+      label: "Continue to Organization Resolution",
+      owner: "Identity & Onboarding → Organization Selection / Creation",
+      service: "/api/onboarding/organizations",
+      maturity: "production-pending",
+      params: { mode: "invitation" },
+    },
+    children: [
+      {
+        id: "accept-join-organization",
+        label: "Accept / Join Organization",
+        summary: "Join the organization referenced by a valid invitation.",
+        kind: "handoff",
+        source: "Registration source",
+        destination: {
+          path: "/onboarding/organization",
+          label: "Resolve Organization Access",
+          owner: "Identity & Onboarding → Organization Selection / Creation",
+          service: "/api/onboarding/organizations",
+          maturity: "production-pending",
+          params: { mode: "invitation" },
+        },
+        children: [
+          {
+            id: "set-role-confirm-access",
+            label: "Set Role / Confirm Access",
+            summary: "Confirm the participant role and organization access after invitation acceptance.",
+            kind: "handoff",
+            source: "Registration source",
+            destination: {
+              path: "/onboarding/organization",
+              label: "Confirm Organization Access",
+              owner: "Identity & Onboarding → Organization Selection / Creation",
+              service: "/api/onboarding/organizations",
+              maturity: "production-pending",
+              params: { mode: "invitation" },
+            },
+          },
+        ],
+      },
+    ],
+  },
+];
+
+function patchNode(node: AuthEntryNode): AuthEntryNode {
+  const patched: AuthEntryNode = {
+    ...node,
+    children: node.children?.map(patchNode),
+  };
+
+  if (patched.id === "authenticate") {
+    patched.destination = {
+      path: "/login/verify",
+      label: "Verify Sign-In Link",
+      owner: "Identity & Onboarding → Login",
+      service: "/api/auth/login/verify",
+      maturity: "connected-api-boundary",
+    };
+  }
+
+  if (patched.id === "additional-verification") {
+    patched.destination = {
+      path: "/login/verify",
+      label: "Complete Additional Verification",
+      owner: "Identity & Onboarding → Login / MFA",
+      service: "/api/auth/login/verify",
+      maturity: "connected-api-boundary",
+    };
+  }
+
+  if (patched.id === "payment") {
+    patched.destination = {
+      path: "/onboarding/membership",
+      label: "Continue to Stripe Payment",
+      owner: "Identity & Onboarding → Membership / Stripe Checkout",
+      service: "/api/membership/checkout",
+      maturity: "connected-api-boundary",
+      params: { membership: "founding" },
+    };
+    patched.summary = "Stripe-hosted subscription checkout for the source-defined Founding Membership payment step.";
+  }
+
+  if (patched.id === "partner-invitation") {
+    patched.children = invitationChildren;
+  }
+
+  return patched;
+}
+
 function completeTree(): AuthEntryNode {
+  const patchedRoot = patchNode(baseAuthEntryTree);
   return {
-    ...baseAuthEntryTree,
-    children: (baseAuthEntryTree.children ?? []).map((child) => {
+    ...patchedRoot,
+    children: (patchedRoot.children ?? []).map((child) => {
       if (child.id === "sign-in") {
         return { ...child, children: [...(child.children ?? []), ...loginSourceSupport] };
       }
