@@ -10,7 +10,7 @@ const upState: Record<DrawerState, DrawerState> = { peek: "mid", mid: "expanded"
 const downState: Record<DrawerState, DrawerState> = { peek: "peek", mid: "peek", expanded: "mid" };
 const stateLabel: Record<DrawerState, string> = { peek: "Expand results", mid: "Expand results", expanded: "Collapse results" };
 
-export function ResultsDrawer({ state, onStateChange, lensLabel, records, selectedRecordId, actions, emptyMessage, onSelect, onOpen }: {
+export function ResultsDrawer({ state, onStateChange, lensLabel, records, selectedRecordId, actions, emptyMessage, resultContext, onSelect, onOpen }: {
   state: DrawerState;
   onStateChange: (state: DrawerState) => void;
   lensLabel: string;
@@ -18,6 +18,7 @@ export function ResultsDrawer({ state, onStateChange, lensLabel, records, select
   selectedRecordId?: string;
   actions: LensAction[];
   emptyMessage: string;
+  resultContext?: string;
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
 }) {
@@ -49,11 +50,11 @@ export function ResultsDrawer({ state, onStateChange, lensLabel, records, select
         aria-label={stateLabel[state]}
       ><span /></button>
       <div className="drawer-header">
-        <div><p className="eyebrow">{lensLabel}</p><h2>{records.length} result{records.length === 1 ? "" : "s"}</h2></div>
+        <div><p className="eyebrow">{lensLabel}</p><h2>{records.length} result{records.length === 1 ? "" : "s"}</h2>{resultContext ? <p className="drawer-result-context">{resultContext}</p> : null}</div>
         <div className="drawer-header-actions"><button type="button">Sort</button><button type="button">Filter</button></div>
       </div>
       <ActionRail actions={actions} />
-      <div className="result-list" ref={listRef}>
+      <div className="result-list" ref={listRef} aria-live="polite">
         {records.length ? records.map((record) => (
           <RecordCard key={record.id} record={record} selected={record.id === selectedRecordId} onSelect={() => onSelect(record.id)} onOpen={() => onOpen(record.id)} />
         )) : <div className="empty-state"><strong>No results</strong><p>{emptyMessage}</p></div>}
