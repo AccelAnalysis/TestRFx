@@ -89,7 +89,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const mapView = mapViewByLens[lens];
   const selectedRecordId = selectedByLens[lens];
   const definition = lensDefinitions[lens];
-  const allRecords = useMemo(() => recordsState.map((record) => ({ ...record, saved: savedRecordIds.has(record.id) || record.saved })), [recordsState, savedRecordIds]);
+  const allRecords = useMemo(() => recordsState.map((record) => ({ ...record, saved: savedRecordIds.has(record.id) ? true : record.saved })), [recordsState, savedRecordIds]);
   const referenceSearchResponse = useMemo(() => searchExchangeRecords(allRecords, lens, searchState), [allRecords, lens, searchState]);
   const lensServerRecords = useMemo(() => allRecords.filter((record) => record.type === typeByLens[lens]), [allRecords, lens]);
   const searchRecords = referenceMode ? referenceSearchResponse.results.map((result) => result.record) : lensServerRecords;
@@ -119,6 +119,14 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
         const priorLens = append ? current.filter((record) => record.type === typeByLens[lens]) : [];
         const merged = [...priorLens, ...body.records!].filter((record, index, items) => items.findIndex((candidate) => candidate.id === record.id) === index);
         return [...otherLenses, ...merged];
+      });
+      setSavedRecordIds((current) => {
+        const next = new Set(current);
+        for (const record of body.records!) {
+          if (record.saved) next.add(record.id);
+          else next.delete(record.id);
+        }
+        return next;
       });
       setServerSummary(body.summary);
       setNextCursor(body.nextCursor ?? null);
@@ -150,7 +158,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   function openDetail(id: string) { selectRecord(id); setDetailRecordId(id); setUrl(lens, id, "push", searchState); }
   function closeDetail() { setDetailRecordId(undefined); setUrl(lens, undefined, "replace", searchState); }
   function relationshipActive(recordId: string, workflow: SharedWorkflowId) { return Boolean(relationshipState[recordId]?.[workflow]); }
-  function actionIsActive(record: ExchangeRecord | undefined, action: LensAction) { if (!record || !action.toggle) return false; if (action.toggle === "save") return savedRecordIds.has(record.id); if (action.toggle === "watch") return relationshipActive(record.id, "watch"); if (action.toggle === "track") return relationshipActive(record.id, "track"); return relationshipActive(record.id, "follow"); }
+  function actionIsActive(record: ExchangeRecord | undefined, action: LensAction) { if (!record || !action.toggle) return false; if (action.toggle === "save") return savedRecordIds.has(record.id) || Boolean(record.saved); if (action.toggle === "watch") return relationshipActive(record.id, "watch"); if (action.toggle === "track") return relationshipActive(record.id, "track"); return relationshipActive(record.id, "follow") || Boolean(record.card?.relationships?.includes("following")); }
   function activeActionIds(record: ExchangeRecord | undefined, resolved: LensAction[]) { return resolved.filter((action) => actionIsActive(record, action)).map((action) => action.id); }
 
   async function postDomainWorkflow(body: Record<string, unknown>) {
@@ -172,12 +180,13 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   async function toggleSaved(recordId: string) {
     const record = allRecords.find((item) => item.id === recordId); if (!record) return;
     if (referenceMode) { setActionNotice("The static preview does not simulate saved-state persistence."); return; }
-    const active = savedRecordIds.has(recordId);
+    const active = savedRecordIds.has(recordId) || Boolean(record.saved);
     try {
       const response = await fetch("/api/exchange/workflows", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ actionId: "save", lens, recordId, source: "action-rail", payload: { active: !active } }) });
       const body = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Save workflow failed.");
       setSavedRecordIds((current) => { const next = new Set(current); if (active) next.delete(recordId); else next.add(recordId); return next; });
+      setRecordsState((current) => current.map((item) => item.id === recordId ? { ...item, saved: !active } : item));
     } catch (error) { setActionNotice(error instanceof Error ? error.message : "Save workflow failed."); }
   }
 
@@ -209,6 +218,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     if (event.workflow === "save") {
       const active = event.payload.active !== false;
       setSavedRecordIds((current) => { const next = new Set(current); if (active) next.add(event.recordId); else next.delete(event.recordId); return next; });
+      setRecordsState((current) => current.map((item) => item.id === event.recordId ? { ...item, saved: active } : item));
     }
     if (event.workflow === "watch" || event.workflow === "track" || event.workflow === "follow") {
       const active = event.payload.active !== false;
@@ -231,7 +241,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const detailActions = detailRecord ? definition.actions(detailRecord) : [];
   const detailActiveActionIds = activeActionIds(detailRecord, detailActions);
   const drawerWorkflowRecord = drawerWorkflow?.recordId ? allRecords.find((record) => record.id === drawerWorkflow.recordId) : actionRecord;
-  const sharedWorkflowActive = sharedWorkflow ? (sharedWorkflow.workflow === "save" ? savedRecordIds.has(sharedWorkflow.record.id) : relationshipActive(sharedWorkflow.record.id, sharedWorkflow.workflow)) : false;
+  const sharedWorkflowActive = sharedWorkflow ? (sharedWorkflow.workflow === "save" ? savedRecordIds.has(sharedWorkflow.record.id) || Boolean(sharedWorkflow.record.saved) : relationshipActive(sharedWorkflow.record.id, sharedWorkflow.workflow)) : false;
 
   return <main className="exchange-shell">
     <PersistentMap lens={lens} records={visibleRecords} selectedRecordId={selectedRecordId} drawerState={drawer} view={mapView} viewerLocation={viewerLocation} onViewChange={(next) => { setMapView(next); setViewportDirty(true); }} onSelect={selectRecord} />
