@@ -8,7 +8,10 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 - Identity shell with Login and Registration
 - Guided Onboarding shell boundary
 - Persistent authenticated Exchange composition
-- Provider-neutral full-screen reference map canvas
+- Provider-neutral Persistent Map subsystem with shared camera/geography state
+- Pointer + keyboard pan, zoom controls, clustering, selected-marker behavior, and 2D/3D reference modes
+- Lens-projected RFx/Resources map markers plus Intelligence heat and Capability density treatments
+- Explicit mapped/off-map result accounting without manufacturing coordinates
 - Translucent universal search and floating controls
 - Three-state bottom result drawer with pointer drag and non-gesture controls
 - Four governed lens action positions with progressive availability
@@ -26,7 +29,7 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 
 ## Architecture
 
-RFx, Resources, Intelligence, and Capabilities are **lenses over one Exchange**, not separate applications. Menu is a utility surface. See [`docs/architecture/PLATFORM_SHELL.md`](docs/architecture/PLATFORM_SHELL.md).
+RFx, Resources, Intelligence, and Capabilities are **lenses over one Exchange**, not separate applications. Menu is a utility surface. See [`docs/architecture/PLATFORM_SHELL.md`](docs/architecture/PLATFORM_SHELL.md) and [`docs/architecture/PERSISTENT_MAP.md`](docs/architecture/PERSISTENT_MAP.md).
 
 ## Run locally
 
@@ -48,4 +51,4 @@ GitHub Actions runs both commands on pull requests and pushes to `main`.
 
 ## Intentional boundaries
 
-This chassis does **not** claim production completion for authentication, RFx response/team workflows, AMACS evidence, resource transactions, intelligence datasets, referrals/payments, notifications, or real map tiles. Those capabilities plug into the contracts already established here.
+This chassis does **not** claim production completion for authentication, RFx response/team workflows, AMACS evidence, resource transactions, intelligence datasets, referrals/payments, notifications, or production map tiles/geospatial services. Those capabilities plug into the contracts already established here.

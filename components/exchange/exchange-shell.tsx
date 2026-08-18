@@ -5,7 +5,8 @@ import type { DrawerState, ExchangeLens } from "@/lib/exchange/contracts";
 import { exchangeSeed } from "@/lib/exchange/seed";
 import { filterExchangeRecords } from "@/lib/exchange/filter";
 import { lensDefinitions } from "@/lib/exchange/lenses";
-import { MapCanvas } from "./map-canvas";
+import { createDefaultMapView } from "@/lib/exchange/map-model";
+import { PersistentMap } from "./persistent-map";
 import { SearchControls } from "./search-controls";
 import { ResultsDrawer } from "./results-drawer";
 import { BottomNav } from "./bottom-nav";
@@ -16,10 +17,10 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const [lens, setLens] = useState<ExchangeLens>(initialLens);
   const [search, setSearch] = useState("");
   const [drawer, setDrawer] = useState<DrawerState>("mid");
+  const [mapView, setMapView] = useState(createDefaultMapView);
   const [selectedRecordId, setSelectedRecordId] = useState<string | undefined>(initialRecordId);
   const [detailRecordId, setDetailRecordId] = useState<string | undefined>(initialRecordId);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [resetKey, setResetKey] = useState(0);
 
   const definition = lensDefinitions[lens];
   const records = useMemo(() => filterExchangeRecords(exchangeSeed, lens, search), [lens, search]);
@@ -57,6 +58,11 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     setUrl(next);
   }
 
+  function selectRecord(id: string) {
+    setSelectedRecordId(id);
+    if (drawer === "peek") setDrawer("mid");
+  }
+
   function openDetail(id: string) {
     setSelectedRecordId(id);
     setDetailRecordId(id);
@@ -70,9 +76,32 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
 
   return (
     <main className="exchange-shell">
-      <MapCanvas records={records} selectedRecordId={selectedRecordId} onSelect={(id) => { setSelectedRecordId(id); if (drawer === "peek") setDrawer("mid"); }} resetKey={resetKey} />
-      <SearchControls value={search} placeholder={definition.searchPlaceholder} onChange={setSearch} onResetView={() => setResetKey((value) => value + 1)} />
-      <ResultsDrawer state={drawer} onStateChange={setDrawer} lensLabel={definition.label} records={records} selectedRecordId={selectedRecordId} actions={actions} emptyMessage={definition.emptyMessage} onSelect={setSelectedRecordId} onOpen={openDetail} />
+      <PersistentMap
+        lens={lens}
+        records={records}
+        selectedRecordId={selectedRecordId}
+        drawerState={drawer}
+        view={mapView}
+        onViewChange={setMapView}
+        onSelect={selectRecord}
+      />
+      <SearchControls
+        value={search}
+        placeholder={definition.searchPlaceholder}
+        onChange={setSearch}
+        onResetView={() => setMapView(createDefaultMapView())}
+      />
+      <ResultsDrawer
+        state={drawer}
+        onStateChange={setDrawer}
+        lensLabel={definition.label}
+        records={records}
+        selectedRecordId={selectedRecordId}
+        actions={actions}
+        emptyMessage={definition.emptyMessage}
+        onSelect={selectRecord}
+        onOpen={openDetail}
+      />
       <BottomNav activeLens={lens} onLensChange={changeLens} onMenu={() => setMenuOpen(true)} />
       {detailRecord ? <DetailSurface record={detailRecord} actions={definition.actions(detailRecord)} onClose={closeDetail} /> : null}
       {menuOpen ? <MenuSurface onClose={() => setMenuOpen(false)} /> : null}
