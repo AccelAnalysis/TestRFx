@@ -1,0 +1,24 @@
+.navigator { margin: 18px 0 8px; padding: 16px; border: 1px solid var(--border); border-radius: 18px; background: rgba(247,243,234,.58); }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.header h2 { margin: 2px 0 0; font-size: 18px; }
+.header p { margin: 0; color: #6b7078; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
+.breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 0 0 12px; }
+.breadcrumbs button { border: 0; padding: 3px 5px; border-radius: 7px; background: transparent; color: #44505d; font-size: 11px; cursor: pointer; }
+.breadcrumbs button:hover, .breadcrumbs button:focus-visible { background: rgba(46,94,170,.09); outline: none; }
+.separator { color: #a1a4aa; font-size: 11px; }
+.grid { display: grid; gap: 8px; }
+.node { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 12px; min-height: 54px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 13px; background: white; text-align: left; cursor: pointer; }
+.node:hover, .node:focus-visible { border-color: rgba(46,94,170,.35); outline: none; box-shadow: 0 0 0 3px rgba(46,94,170,.08); }
+.node strong { display: block; font-size: 13px; }
+.node small { display: block; margin-top: 3px; color: #6d727a; line-height: 1.35; }
+.kind { padding: 4px 7px; border-radius: 999px; background: #f2f1ed; color: #666b73; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.current { padding: 13px; border: 1px solid var(--border); border-radius: 14px; background: white; }
+.current h3 { margin: 0 0 6px; font-size: 16px; }
+.current p { margin: 0; color: #60656e; font-size: 12px; line-height: 1.5; }
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+.primary, .secondary { min-height: 40px; padding: 0 13px; border-radius: 11px; font-weight: 760; cursor: pointer; }
+.primary { border: 1px solid var(--exchange-black); background: var(--exchange-black); color: var(--warm-ivory); }
+.secondary { border: 1px solid var(--border); background: white; }
+.unavailable { margin-top: 12px; padding: 10px 11px; border: 1px solid rgba(162,47,47,.18); border-radius: 11px; background: rgba(162,47,47,.05); color: #7b3030; font-size: 11px; line-height: 1.45; }
+.outcome { margin-top: 10px; color: #5e646d; font-size: 11px; }
+@media (max-width: 540px) { .navigator { padding: 13px; } .node { grid-template-columns: minmax(0,1fr); } .kind { justify-self: start; } }
