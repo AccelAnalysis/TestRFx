@@ -126,12 +126,12 @@ function WorkflowCard({ workflow, nestedReturnHref }: { workflow: OnboardingWork
 
 export function OnboardingDetailSurface({
   definition,
-  activePath,
-  returnHref,
+  activePath = [],
+  returnHref = "/onboarding",
 }: {
   definition: OnboardingDetailDefinition;
-  activePath: readonly string[];
-  returnHref: string;
+  activePath?: readonly string[];
+  returnHref?: string;
 }) {
   const active = getOnboardingDetailNode(definition.subject, activePath);
   if (!active) return null;
