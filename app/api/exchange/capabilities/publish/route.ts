@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ExchangeAuthenticationError, resolveExchangeActor } from "@/lib/server/exchange-actor";
+import { assertExchangeActorMembership } from "@/lib/server/exchange-authorization";
 import { ExchangeServiceUnavailableError, withExchangeTransaction } from "@/lib/server/database";
 
 export const runtime = "nodejs";
@@ -10,6 +11,7 @@ export async function POST(request: NextRequest) {
   try {
     const actor = resolveExchangeActor(request.headers);
     const result = await withExchangeTransaction(async (client) => {
+      await assertExchangeActorMembership(client, actor);
       const record = await client.query<{ id: string; organization_id: string }>("SELECT id, organization_id FROM exchange_records WHERE public_id=$1 AND record_type='capability'", [body.recordId]);
       const row = record.rows[0];
       if (!row) throw new Error("Capability record not found.");
