@@ -11,7 +11,7 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 - Provider-backed Registration boundary that requires a real provider registration ID before Account Verification handoff
 - Provider-backed Account Verification request/resend/change-email/verify boundary with no local reference verification links
 - Identity & Onboarding modules for account verification, organization selection/creation, geography, organization profile, capability enrichment, membership, and Exchange-ready completion
-- Stripe-hosted Founding Membership subscription checkout with server-side Price validation, organization/session checks, 250-organization cap protection, Checkout confirmation, signed webhook verification, and membership-entitlement event handoff
+- Stripe-hosted Founding Membership subscription checkout with server-side Price validation, organization/session checks, atomic 250-organization capacity reservation, Checkout confirmation, signed webhook verification, and membership-entitlement event handoff
 - Persistent authenticated Exchange composition
 - Provider-neutral full-screen reference map canvas
 - Translucent universal search and floating controls
@@ -78,9 +78,13 @@ STRIPE_SECRET_KEY                             fallback
 RFXCHANGE_STRIPE_FOUNDING_PRICE_ID            optional explicit environment Price
 RFXCHANGE_STRIPE_FOUNDING_LOOKUP_KEY           optional; defaults to rfxchange_founding_monthly
 RFXCHANGE_STRIPE_WEBHOOK_SECRET
-RFXCHANGE_MEMBERSHIP_EVENT_ENDPOINT
+RFXCHANGE_MEMBERSHIP_CAPACITY_ENDPOINT        atomic reserve/release/finalize service
+RFXCHANGE_MEMBERSHIP_CAPACITY_TOKEN           optional
+RFXCHANGE_MEMBERSHIP_EVENT_ENDPOINT           entitlement event service
 RFXCHANGE_MEMBERSHIP_EVENT_TOKEN              optional
 ```
+
+The capacity service must reserve against the source-defined 250-organization limit atomically and process signed Stripe lifecycle events idempotently so concurrent checkouts cannot oversubscribe Founding Membership. The entitlement service must also treat Stripe event IDs idempotently because Stripe retries webhook delivery.
 
 ## Validation
 
