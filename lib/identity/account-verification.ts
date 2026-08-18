@@ -1,5 +1,5 @@
-export const ACCOUNT_VERIFICATION_PURPOSE = "rfxchange-account-email-verification" as const;
 export const ACCOUNT_VERIFICATION_TTL_SECONDS = 30 * 60;
+export const ACCOUNT_VERIFICATION_RESEND_COOLDOWN_SECONDS = 60;
 
 export type AccountVerificationState =
   | "idle"
@@ -9,6 +9,8 @@ export type AccountVerificationState =
   | "verified"
   | "expired"
   | "invalid"
+  | "rate_limited"
+  | "delivery_error"
   | "configuration_error";
 
 export type VerificationChallengeState =
@@ -32,25 +34,18 @@ export interface AccountVerificationContext {
   invitationId?: string;
   referralId?: string;
   campaignId?: string;
+  organization?: string;
+  membership?: string;
+  geography?: string;
+  record?: string;
   returnTo?: string;
-}
-
-export interface VerificationTokenPayload {
-  version: 1;
-  purpose: typeof ACCOUNT_VERIFICATION_PURPOSE;
-  email: string;
-  issuedAt: number;
-  expiresAt: number;
-  nonce: string;
-  context: AccountVerificationContext;
 }
 
 export interface VerificationRequestResponse {
   state: "pending";
   maskedEmail: string;
   expiresInSeconds: number;
-  referenceDelivery: boolean;
-  verificationPath?: string;
+  delivery: "sent";
 }
 
 export interface VerificationSuccessResponse {
@@ -113,16 +108,25 @@ export function sanitizeVerificationContext(value: unknown): AccountVerification
     invitationId: boundedValue(raw.invitationId),
     referralId: boundedValue(raw.referralId),
     campaignId: boundedValue(raw.campaignId),
+    organization: boundedValue(raw.organization),
+    membership: boundedValue(raw.membership),
+    geography: boundedValue(raw.geography),
+    record: boundedValue(raw.record),
     returnTo: returnTo && isInternalReturnPath(returnTo) ? returnTo : undefined,
   };
 }
 
 export function buildOnboardingContinuation(context: AccountVerificationContext): string {
-  const params = new URLSearchParams({ stage: "organization" });
+  const params = new URLSearchParams();
   if (context.source) params.set("source", context.source);
   if (context.invitationId) params.set("invitation", context.invitationId);
   if (context.referralId) params.set("referral", context.referralId);
   if (context.campaignId) params.set("campaign", context.campaignId);
+  if (context.organization) params.set("organization", context.organization);
+  if (context.membership) params.set("membership", context.membership);
+  if (context.geography) params.set("geography", context.geography);
+  if (context.record) params.set("record", context.record);
   if (context.returnTo) params.set("returnTo", context.returnTo);
-  return `/onboarding?${params.toString()}`;
+  const query = params.toString();
+  return query ? `/onboarding/organization?${query}` : "/onboarding/organization";
 }
