@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type {
+  Coordinates,
   DrawerState,
+  ExchangeFilters,
   ExchangeLens,
   ExchangeSearchState,
+  GeolocationStatus,
+  MapDisplayMode,
   RecentSearch,
   SavedSearch,
 } from "@/lib/exchange/contracts";
 import { exchangeSeed } from "@/lib/exchange/seed";
+import { applyExchangeFilters, createExchangeFilters } from "@/lib/exchange/filter";
 import { lensDefinitions, lensOrder } from "@/lib/exchange/lenses";
 import {
   activeFilterCount,
@@ -17,9 +22,11 @@ import {
   searchExchangeRecords,
   searchStateFromParams,
   searchStateToParams,
+  typeByLens,
 } from "@/lib/exchange/search";
 import { MapCanvas } from "./map-canvas";
 import { SearchControls } from "./search-controls";
+import { FloatingControls } from "./floating-controls";
 import { ResultsDrawer } from "./results-drawer";
 import { BottomNav } from "./bottom-nav";
 import { DetailSurface } from "./detail-surface";
@@ -32,9 +39,14 @@ function initialSearchStates() {
   return Object.fromEntries(lensOrder.map((lens) => [lens, defaultSearchState()])) as Record<ExchangeLens, ExchangeSearchState>;
 }
 
+function initialFloatingFilters(): Record<ExchangeLens, ExchangeFilters> {
+  return Object.fromEntries(lensOrder.map((lens) => [lens, createExchangeFilters()])) as Record<ExchangeLens, ExchangeFilters>;
+}
+
 export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initialLens?: ExchangeLens; initialRecordId?: string }) {
   const [lens, setLens] = useState<ExchangeLens>(initialLens);
   const [searchByLens, setSearchByLens] = useState<Record<ExchangeLens, ExchangeSearchState>>(initialSearchStates);
+  const [filtersByLens, setFiltersByLens] = useState<Record<ExchangeLens, ExchangeFilters>>(initialFloatingFilters);
   const [drawer, setDrawer] = useState<DrawerState>("mid");
   const [selectedRecordId, setSelectedRecordId] = useState<string | undefined>(initialRecordId);
   const [detailRecordId, setDetailRecordId] = useState<string | undefined>(initialRecordId);
@@ -42,11 +54,18 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const [resetKey, setResetKey] = useState(0);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>("2d");
+  const [geolocationStatus, setGeolocationStatus] = useState<GeolocationStatus>("idle");
+  const [viewerLocation, setViewerLocation] = useState<Coordinates | undefined>();
+  const [viewportDirty, setViewportDirty] = useState(false);
 
   const definition = lensDefinitions[lens];
   const searchState = searchByLens[lens];
+  const floatingFilters = filtersByLens[lens];
   const searchResponse = useMemo(() => searchExchangeRecords(exchangeSeed, lens, searchState), [lens, searchState]);
-  const records = useMemo(() => searchResponse.results.map((result) => result.record), [searchResponse]);
+  const searchRecords = useMemo(() => searchResponse.results.map((result) => result.record), [searchResponse]);
+  const records = useMemo(() => applyExchangeFilters(searchRecords, floatingFilters), [searchRecords, floatingFilters]);
+  const lensRecords = useMemo(() => exchangeSeed.filter((record) => record.type === typeByLens[lens]), [lens]);
   const suggestions = useMemo(() => getSearchSuggestions(exchangeSeed, lens, searchState.query), [lens, searchState.query]);
   const selectedRecord = exchangeSeed.find((record) => record.id === selectedRecordId);
   const detailRecord = exchangeSeed.find((record) => record.id === detailRecordId);
@@ -81,6 +100,12 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     window.addEventListener("popstate", syncFromUrl);
     return () => window.removeEventListener("popstate", syncFromUrl);
   }, []);
+
+  useEffect(() => {
+    if (selectedRecordId && !records.some((record) => record.id === selectedRecordId)) {
+      setSelectedRecordId(undefined);
+    }
+  }, [records, selectedRecordId]);
 
   function persistRecent(next: RecentSearch[]) {
     setRecentSearches(next);
@@ -152,13 +177,48 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     setUrl(lens, undefined, "replace", searchState);
   }
 
+  function updateFloatingFilters(next: ExchangeFilters) {
+    setFiltersByLens((current) => ({ ...current, [lens]: next }));
+  }
+
+  function resetMapView() {
+    setResetKey((value) => value + 1);
+    setViewportDirty(false);
+  }
+
+  function locateViewer() {
+    if (!("geolocation" in navigator)) {
+      setGeolocationStatus("unavailable");
+      return;
+    }
+    setGeolocationStatus("requesting");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setViewerLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+        setGeolocationStatus("located");
+        resetMapView();
+      },
+      (error) => setGeolocationStatus(error.code === 1 ? "denied" : "unavailable"),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+    );
+  }
+
   const lensRecent = recentSearches.filter((item) => item.lens === lens);
   const lensSaved = savedSearches.filter((item) => item.lens === lens);
-  const resultContext = searchResponse.offMap > 0 ? `${searchResponse.total} results · ${searchResponse.mapped} mapped · ${searchResponse.offMap} off-map` : undefined;
+  const mapped = records.filter((record) => record.location).length;
+  const offMap = records.length - mapped;
+  const resultContext = offMap > 0 ? `${records.length} results · ${mapped} mapped · ${offMap} off-map` : undefined;
 
   return (
     <main className="exchange-shell">
-      <MapCanvas records={records} selectedRecordId={selectedRecordId} onSelect={(id) => { setSelectedRecordId(id); if (drawer === "peek") setDrawer("mid"); }} resetKey={resetKey} />
+      <MapCanvas
+        records={records}
+        selectedRecordId={selectedRecordId}
+        onSelect={(id) => { setSelectedRecordId(id); if (drawer === "peek") setDrawer("mid"); }}
+        resetKey={resetKey}
+        displayMode={mapDisplayMode}
+        viewerLocation={viewerLocation}
+      />
       <SearchControls
         state={searchState}
         placeholder={definition.searchPlaceholder}
@@ -170,7 +230,20 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
         onCommit={commitSearch}
         onRunState={runSearchState}
         onSave={saveCurrentSearch}
-        onResetView={() => setResetKey((value) => value + 1)}
+      />
+      <FloatingControls
+        lens={lens}
+        records={lensRecords}
+        search={searchState.query}
+        filters={floatingFilters}
+        onFiltersChange={updateFloatingFilters}
+        mapDisplayMode={mapDisplayMode}
+        onMapDisplayModeChange={setMapDisplayMode}
+        geolocationStatus={geolocationStatus}
+        onLocate={locateViewer}
+        onResetView={resetMapView}
+        searchAreaAvailable={viewportDirty}
+        onSearchArea={() => setViewportDirty(false)}
       />
       <ResultsDrawer state={drawer} onStateChange={setDrawer} lensLabel={definition.label} records={records} selectedRecordId={selectedRecordId} actions={actions} emptyMessage={definition.emptyMessage} resultContext={resultContext} onSelect={setSelectedRecordId} onOpen={openDetail} />
       <BottomNav activeLens={lens} onLensChange={changeLens} onMenu={() => setMenuOpen(true)} />

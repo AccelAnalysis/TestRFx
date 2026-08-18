@@ -51,7 +51,7 @@ export function ResultsDrawer({ state, onStateChange, lensLabel, records, select
       ><span /></button>
       <div className="drawer-header">
         <div><p className="eyebrow">{lensLabel}</p><h2>{records.length} result{records.length === 1 ? "" : "s"}</h2>{resultContext ? <p className="drawer-result-context">{resultContext}</p> : null}</div>
-        <div className="drawer-header-actions"><button type="button">Sort</button><button type="button">Filter</button></div>
+        <div className="drawer-header-actions"><button type="button">Sort</button></div>
       </div>
       <ActionRail actions={actions} />
       <div className="result-list" ref={listRef} aria-live="polite">
