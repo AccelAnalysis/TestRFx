@@ -1,11 +1,18 @@
 import Link from "next/link";
+import { ConversionLink } from "@/components/marketing/acquisition-context";
 import {
   PUBLIC_DESTINATIONS,
   PUBLIC_HEADER_DESTINATIONS,
 } from "@/lib/public/destinations";
 import styles from "./public-shell.module.css";
 
-export function PublicHeader() {
+export function PublicHeader({
+  joinHref = PUBLIC_DESTINATIONS.join.href,
+  signInHref = PUBLIC_DESTINATIONS.signIn.href,
+}: {
+  joinHref?: string;
+  signInHref?: string;
+} = {}) {
   return (
     <header className={styles.chrome}>
       <div className={styles.header}>
@@ -23,12 +30,12 @@ export function PublicHeader() {
           })}
         </nav>
         <div className={styles.headerActions}>
-          <Link className={styles.textAction} href={PUBLIC_DESTINATIONS.signIn.href}>
+          <ConversionLink className={styles.textAction} href={signInHref}>
             Sign In
-          </Link>
-          <Link className={styles.primaryAction} href={PUBLIC_DESTINATIONS.join.href}>
+          </ConversionLink>
+          <ConversionLink className={styles.primaryAction} href={joinHref}>
             Join Free
-          </Link>
+          </ConversionLink>
         </div>
       </div>
     </header>
