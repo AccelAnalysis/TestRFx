@@ -1,147 +1,194 @@
-export const CAPABILITY_ENRICHMENT_SESSION_KEY = "rfxchange.capability-enrichment.reference.v1";
+export type CapabilityEnrichmentSectionId =
+  | "core-profile-details"
+  | "industry-services"
+  | "capabilities-entry"
+  | "amacs-mapping"
+  | "evidence-certifications"
+  | "tags-keywords-specialties";
 
-export const CAPABILITY_ENRICHMENT_STAGES = [
-  { id: "context", label: "Context", description: "Reuse what RFxchange already knows about the organization." },
-  { id: "capabilities", label: "Capabilities", description: "Capture what the organization can actually do." },
-  { id: "amacs", label: "AMACS", description: "Review structured AMACS mapping candidates." },
-  { id: "evidence", label: "Evidence", description: "Associate licenses, certifications, projects, and other support." },
-  { id: "discoverability", label: "Discoverability", description: "Add specialties and search terminology without changing taxonomy truth." },
-  { id: "review", label: "Review", description: "Find gaps and confirm the profile is useful enough to continue." },
-  { id: "publish", label: "Visibility", description: "Choose draft or Exchange-visible intent before the next onboarding checkpoint." }
+export type CapabilityEnrichmentTaskId =
+  | "organization-overview"
+  | "contacts"
+  | "description"
+  | "key-info"
+  | "industries-served"
+  | "service-offerings"
+  | "detailed-capabilities"
+  | "solutions"
+  | "ai-assistance"
+  | "suggestions"
+  | "certifications"
+  | "licenses"
+  | "case-studies"
+  | "supporting-documents"
+  | "tags"
+  | "keywords"
+  | "specialties";
+
+export type CapabilityWorkflowOwner = "organization-profile" | "capability-enrichment";
+
+export interface CapabilityWorkflowTask {
+  id: CapabilityEnrichmentTaskId;
+  label: string;
+  description: string;
+  owner: CapabilityWorkflowOwner;
+}
+
+export interface CapabilityWorkflowSection {
+  id: CapabilityEnrichmentSectionId;
+  label: string;
+  description: string;
+  children: readonly CapabilityWorkflowTask[];
+}
+
+export const CAPABILITY_ENRICHMENT_TREE: readonly CapabilityWorkflowSection[] = [
+  {
+    id: "core-profile-details",
+    label: "Core Profile Details",
+    description: "Organization overview, contacts, description, and key info.",
+    children: [
+      { id: "organization-overview", label: "Organization overview", description: "Review the organization identity used by Capability Enrichment.", owner: "organization-profile" },
+      { id: "contacts", label: "Contacts", description: "Review the organization contacts that belong to the canonical profile.", owner: "organization-profile" },
+      { id: "description", label: "Description", description: "Review the organization description used as capability context.", owner: "organization-profile" },
+      { id: "key-info", label: "Key info", description: "Review the remaining canonical organization profile information.", owner: "organization-profile" },
+    ],
+  },
+  {
+    id: "industry-services",
+    label: "Industry & Services",
+    description: "Select industries served and service offerings.",
+    children: [
+      { id: "industries-served", label: "Industries served", description: "Maintain industries served in the canonical organization profile.", owner: "organization-profile" },
+      { id: "service-offerings", label: "Service offerings", description: "Maintain service offerings used to inform capability entry.", owner: "organization-profile" },
+    ],
+  },
+  {
+    id: "capabilities-entry",
+    label: "Capabilities Entry",
+    description: "Add detailed capabilities and solutions.",
+    children: [
+      { id: "detailed-capabilities", label: "Detailed capabilities", description: "Create and maintain organization capability claims.", owner: "capability-enrichment" },
+      { id: "solutions", label: "Solutions", description: "Describe the solution or approach associated with a capability claim.", owner: "capability-enrichment" },
+    ],
+  },
+  {
+    id: "amacs-mapping",
+    label: "AMACS Mapping / AI-to-AMACS Assistance",
+    description: "Map capabilities to AMACS structure with AI assistance and suggestions.",
+    children: [
+      { id: "ai-assistance", label: "AI assistance", description: "Request non-authoritative interpretation candidates from the configured interpretation service.", owner: "capability-enrichment" },
+      { id: "suggestions", label: "Suggestions", description: "Search the deployed AMACS release and confirm a concept mapping.", owner: "capability-enrichment" },
+    ],
+  },
+  {
+    id: "evidence-certifications",
+    label: "Evidence / Certifications",
+    description: "Add certifications, licenses, case studies, and supporting documents.",
+    children: [
+      { id: "certifications", label: "Certifications", description: "Associate certification evidence with a capability claim.", owner: "capability-enrichment" },
+      { id: "licenses", label: "Licenses", description: "Associate license evidence with a capability claim.", owner: "capability-enrichment" },
+      { id: "case-studies", label: "Case studies", description: "Associate case-study evidence with a capability claim.", owner: "capability-enrichment" },
+      { id: "supporting-documents", label: "Supporting documents", description: "Associate an authoritative document URL with a capability claim.", owner: "capability-enrichment" },
+    ],
+  },
+  {
+    id: "tags-keywords-specialties",
+    label: "Tags / Keywords / Specialties",
+    description: "Add keywords, specialties, and tags to improve discoverability.",
+    children: [
+      { id: "tags", label: "Tags", description: "Maintain organization capability-profile tags.", owner: "capability-enrichment" },
+      { id: "keywords", label: "Keywords", description: "Maintain search terms without changing AMACS taxonomy truth.", owner: "capability-enrichment" },
+      { id: "specialties", label: "Specialties", description: "Maintain specialties used for discovery and matching context.", owner: "capability-enrichment" },
+    ],
+  },
 ] as const;
 
-export type CapabilityEnrichmentStageId = (typeof CAPABILITY_ENRICHMENT_STAGES)[number]["id"];
-export type MappingStatus = "suggested" | "accepted" | "needs-review";
-export type PublicationStatus = "draft" | "ready" | "published";
-export type CapabilityProvenance = "suggested-from-profile" | "entered-by-user";
+export type CapabilityEvidenceKind = "certification" | "license" | "case-study" | "supporting-document";
 
-export interface OrganizationCapabilityContext {
-  organizationName: string;
+export interface CapabilityEvidenceRecord {
+  id: string;
+  capabilityClaimId: string;
+  kind: CapabilityEvidenceKind;
+  label: string;
+  issuer?: string;
+  sourceUrl?: string;
+  notes?: string;
+}
+
+export interface CapabilityClaimRecord {
+  id: string;
+  name: string;
   description: string;
+  solution?: string;
+  amacsReleaseId?: string;
+  amacsReleaseVersion?: string;
+  amacsConceptId?: string;
+  amacsLabel?: string;
+  mappingStatus: "unmapped" | "accepted";
+  evidence: CapabilityEvidenceRecord[];
+}
+
+export interface CapabilityOrganizationContext {
+  organizationId: string;
+  organizationName: string;
+  legalName?: string;
+  description?: string;
+  website?: string;
   industries: string[];
   services: string[];
-  geography: string[];
+  contacts: Array<{ id: string; name: string; title?: string; email: string; phone?: string }>;
 }
 
-export interface CapabilityEvidenceItem {
-  id: string;
-  kind: "certification" | "license" | "past-performance" | "case-study" | "document" | "link";
-  label: string;
-}
-
-export interface CapabilityDraft {
-  id: string;
-  name: string;
-  description: string;
-  provenance: CapabilityProvenance;
-  amacsNodeId?: string;
-  amacsLabel?: string;
-  mappingStatus: MappingStatus;
-  evidence: CapabilityEvidenceItem[];
-  publicationStatus: PublicationStatus;
-}
-
-export interface CapabilitySuggestion {
-  id: string;
-  name: string;
-  description: string;
-  amacsNodeId: string;
-  amacsLabel: string;
+export interface CapabilityEnrichmentProgress {
+  lastPath: string[];
+  completedLeafPaths: string[];
+  updatedAt?: string;
 }
 
 export interface CapabilityEnrichmentSnapshot {
-  stage: CapabilityEnrichmentStageId;
-  capabilities: CapabilityDraft[];
+  organization: CapabilityOrganizationContext;
+  claims: CapabilityClaimRecord[];
+  tags: string[];
   keywords: string[];
-  updatedAt: string;
+  specialties: string[];
+  amacsRelease?: { id: string; version: string; sourceCommitSha: string; importedAt: string };
+  progress: CapabilityEnrichmentProgress;
 }
 
-export const REFERENCE_ORGANIZATION_CONTEXT: OrganizationCapabilityContext = {
-  organizationName: "Reference Organization",
-  description: "A deterministic onboarding context used to prove the Capability Enrichment chassis boundary before production organization profile persistence is connected.",
-  industries: ["Professional services", "Construction"],
-  services: ["Project delivery", "Technical services"],
-  geography: ["Local market", "Regional service area"]
-};
-
-export const REFERENCE_CAPABILITY_SUGGESTIONS: CapabilitySuggestion[] = [
-  {
-    id: "construction-management",
-    name: "Construction Management",
-    description: "Plan, coordinate, and oversee construction delivery across schedule, cost, quality, and stakeholder requirements.",
-    amacsNodeId: "amacs.reference.construction-management",
-    amacsLabel: "AMACS reference projection · Construction Management"
-  },
-  {
-    id: "project-management",
-    name: "Project Management",
-    description: "Lead scoped work from planning through execution, controls, reporting, and closeout.",
-    amacsNodeId: "amacs.reference.project-management",
-    amacsLabel: "AMACS reference projection · Project Management"
-  },
-  {
-    id: "technical-services",
-    name: "Technical Services",
-    description: "Provide specialized technical support, implementation, maintenance, or advisory services.",
-    amacsNodeId: "amacs.reference.technical-services",
-    amacsLabel: "AMACS reference projection · Technical Services"
-  },
-  {
-    id: "supplier-coordination",
-    name: "Supplier Coordination",
-    description: "Coordinate vendors, subcontractors, inputs, and delivery dependencies supporting operational execution.",
-    amacsNodeId: "amacs.reference.supplier-coordination",
-    amacsLabel: "AMACS reference projection · Supplier Coordination"
-  }
-];
-
-export const REFERENCE_DISCOVERABILITY_TERMS = [
-  "project delivery",
-  "technical support",
-  "construction",
-  "supplier coordination",
-  "field operations",
-  "regional delivery"
-];
-
-export function draftFromSuggestion(suggestion: CapabilitySuggestion): CapabilityDraft {
-  return {
-    id: suggestion.id,
-    name: suggestion.name,
-    description: suggestion.description,
-    provenance: "suggested-from-profile",
-    amacsNodeId: suggestion.amacsNodeId,
-    amacsLabel: suggestion.amacsLabel,
-    mappingStatus: "suggested",
-    evidence: [],
-    publicationStatus: "draft"
-  };
+export interface AmacsCandidate {
+  releaseId: string;
+  releaseVersion: string;
+  conceptId: string;
+  label: string;
+  definition: string;
+  parentId?: string;
+  matchedAlias?: string;
+  sourceCommitSha: string;
 }
 
-export function calculateCapabilityProfileStrength(capabilities: CapabilityDraft[], keywords: string[]): number {
-  if (capabilities.length === 0) return 0;
-
-  const capabilityCoverage = Math.min(capabilities.length / 4, 1) * 35;
-  const mappedCoverage = (capabilities.filter((item) => item.mappingStatus === "accepted").length / capabilities.length) * 25;
-  const evidenceCoverage = (capabilities.filter((item) => item.evidence.length > 0).length / capabilities.length) * 25;
-  const discoverabilityCoverage = Math.min(keywords.length / 4, 1) * 15;
-
-  return Math.round(capabilityCoverage + mappedCoverage + evidenceCoverage + discoverabilityCoverage);
+export function getCapabilityWorkflowSection(id?: string) {
+  return CAPABILITY_ENRICHMENT_TREE.find((item) => item.id === id);
 }
 
-export function capabilityGapRecommendations(capabilities: CapabilityDraft[], keywords: string[]): string[] {
-  if (capabilities.length === 0) {
-    return ["Add at least one capability so RFxchange has something to match and display later."];
-  }
-
-  const recommendations: string[] = [];
-  const unmapped = capabilities.filter((item) => item.mappingStatus !== "accepted").length;
-  const unsupported = capabilities.filter((item) => item.evidence.length === 0).length;
-
-  if (unmapped > 0) recommendations.push(`Review ${unmapped} capability ${unmapped === 1 ? "mapping" : "mappings"} before treating AMACS alignment as confirmed.`);
-  if (unsupported > 0) recommendations.push(`Add supporting evidence to ${unsupported} capability ${unsupported === 1 ? "claim" : "claims"}.`);
-  if (keywords.length < 3) recommendations.push("Add a few specialties or alternate search terms to improve discoverability without changing AMACS taxonomy truth.");
-  if (recommendations.length === 0) recommendations.push("No blocking enrichment gaps are present in this reference profile. Continue to visibility and the Exchange-ready checkpoint.");
-
-  return recommendations;
+export function getCapabilityWorkflowTask(sectionId?: string, taskId?: string) {
+  return getCapabilityWorkflowSection(sectionId)?.children.find((item) => item.id === taskId);
 }
+
+export function isCapabilityWorkflowPath(path: string[]) {
+  if (path.length === 0) return true;
+  const section = getCapabilityWorkflowSection(path[0]);
+  if (!section) return false;
+  if (path.length === 1) return true;
+  return path.length === 2 && Boolean(section.children.find((item) => item.id === path[1]));
+}
+
+export function capabilityWorkflowHref(path: string[] = [], organizationId?: string) {
+  const pathname = `/onboarding/capabilities${path.length ? `/${path.join("/")}` : ""}`;
+  if (!organizationId) return pathname;
+  const params = new URLSearchParams({ organizationId });
+  return `${pathname}?${params.toString()}`;
+}
+
+export const CAPABILITY_ENRICHMENT_LEAF_PATHS = CAPABILITY_ENRICHMENT_TREE.flatMap((section) =>
+  section.children.map((task) => [section.id, task.id] as const),
+);
