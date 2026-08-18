@@ -1,0 +1,49 @@
+.card { overflow: visible; }
+.main { text-align: left; }
+.media { min-height: 108px; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; background: linear-gradient(145deg, rgba(214,162,58,.2), rgba(46,94,170,.12)); border-bottom: 1px solid var(--border); }
+.mediaTop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.mediaBadge { display: inline-flex; align-items: center; min-height: 27px; padding: 0 10px; border-radius: 999px; background: rgba(255,255,255,.72); border: 1px solid rgba(37,41,50,.1); color: #5f4817; font-size: 11px; font-weight: 850; letter-spacing: .04em; text-transform: uppercase; }
+.owned { color: #245c3d; background: rgba(59,123,87,.12); }
+.mediaLead { margin: 0; max-width: 80%; color: var(--graphite); font-size: 13px; font-weight: 780; line-height: 1.35; }
+.content { padding: 16px; }
+.heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.heading h3 { margin: 2px 0 0; font-size: 18px; letter-spacing: -.02em; }
+.geography { margin: 0; color: #6a6f78; font-size: 12px; }
+.summary { margin: 10px 0 12px; color: #555b64; font-size: 13px; line-height: 1.45; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; min-height: 27px; padding: 0 9px; border-radius: 999px; background: rgba(37,41,50,.06); color: var(--graphite); font-size: 11px; font-weight: 720; }
+.metrics { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 13px; padding-top: 12px; border-top: 1px solid var(--border); color: #666c74; font-size: 11px; }
+.metrics strong { color: var(--graphite); }
+.favorite { position: absolute; top: 12px; right: 12px; z-index: 3; width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.72); border-radius: 50%; background: rgba(255,255,255,.9); box-shadow: 0 6px 16px rgba(11,11,13,.12); cursor: pointer; }
+.detailIntro { margin: 0; color: #555b64; line-height: 1.6; }
+.metricGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 20px 0; }
+.metricCard { padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: rgba(247,243,234,.55); }
+.metricCard strong { display: block; font-size: 22px; letter-spacing: -.03em; }
+.metricCard span { color: #666c74; font-size: 11px; }
+.section { margin-top: 24px; }
+.section h2 { margin: 0 0 12px; font-size: 18px; }
+.claimList { display: grid; gap: 10px; }
+.claimCard { padding: 15px; border: 1px solid var(--border); border-radius: 16px; background: rgba(255,255,255,.68); }
+.claimHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.claimHeader h3 { margin: 0; font-size: 15px; }
+.claimCard p { margin: 8px 0; color: #5e636b; font-size: 13px; line-height: 1.45; }
+.status { white-space: nowrap; padding: 5px 8px; border-radius: 999px; font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .04em; }
+.statusAccepted { background: rgba(59,123,87,.13); color: #245c3d; }
+.statusSuggested { background: rgba(214,162,58,.18); color: #745312; }
+.statusReview { background: rgba(46,94,170,.12); color: #274f8e; }
+.mapping { color: #5f6670; font-size: 11px; }
+.evidenceList { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.evidenceItem { padding: 6px 8px; border-radius: 9px; background: rgba(46,94,170,.07); color: #3e4f69; font-size: 10px; }
+.empty { padding: 14px; border: 1px dashed var(--border); border-radius: 14px; color: #696f77; font-size: 12px; }
+.workflowIntro { margin: 0 0 18px; color: #5d626a; line-height: 1.55; }
+.workflowGrid { display: grid; gap: 12px; }
+.panel { padding: 16px; border: 1px solid var(--border); border-radius: 17px; background: rgba(255,255,255,.7); }
+.panel h3 { margin: 0 0 6px; font-size: 15px; }
+.panel p { margin: 0; color: #60666e; font-size: 13px; line-height: 1.5; }
+.panelMeta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+.panelMeta span { padding: 5px 8px; border-radius: 999px; background: rgba(37,41,50,.06); font-size: 10px; font-weight: 720; }
+.matchStrong { color: #245c3d; }
+.matchPartial { color: #745312; }
+.matchGap { color: #9c3d3d; }
+.boundary { margin-top: 18px; padding: 14px; border-radius: 14px; background: rgba(214,162,58,.1); color: #624b1c; font-size: 12px; line-height: 1.5; }
+@media (max-width: 560px) { .metricGrid { grid-template-columns: 1fr; } .mediaLead { max-width: 72%; } }
