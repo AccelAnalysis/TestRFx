@@ -20,10 +20,7 @@ import { maskEmail } from "@/lib/identity/account-verification";
 export const dynamic = "force-dynamic";
 
 function noStore<T>(body: T, status = 200) {
-  return NextResponse.json(body, {
-    status,
-    headers: { "Cache-Control": "no-store" },
-  });
+  return NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 }
 
 function requestMetadata(request: NextRequest) {
@@ -38,10 +35,7 @@ function requestMetadata(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const validation = validateRegistrationPayload(body);
-
-  if (!validation.ok) {
-    return noStore({ errors: validation.errors }, 400);
-  }
+  if (!validation.ok) return noStore({ errors: validation.errors }, 400);
 
   const metadata = requestMetadata(request);
 
@@ -59,15 +53,11 @@ export async function POST(request: NextRequest) {
     }
 
     const handoffHref = registrationHandoffHref(resolution.registrationId, resolution.context);
-
     try {
       const delivery = await issueAccountVerification({
         registrationId: resolution.registrationId,
         action: resolution.resumed ? "resend" : "request",
-        metadata: {
-          ...metadata,
-          appOrigin: request.nextUrl.origin,
-        },
+        metadata: { ...metadata, appOrigin: request.nextUrl.origin },
       });
 
       const accepted: RegistrationAccepted = {
@@ -75,6 +65,7 @@ export async function POST(request: NextRequest) {
         registrationId: resolution.registrationId,
         email: resolution.email,
         maskedEmail: delivery.maskedEmail,
+        resolution: resolution.resumed ? "pending_verification" : "new_account",
         nextStep: "account_verification",
         handoffHref,
         context: resolution.context,
@@ -101,16 +92,8 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     if (error instanceof DatabaseConfigurationError || error instanceof RegistrationConfigurationError) {
-      return noStore(
-        {
-          errors: {
-            form: error.message,
-          },
-        },
-        503,
-      );
+      return noStore({ errors: { form: error.message } }, 503);
     }
-
     console.error("Registration service failed", error);
     return noStore({ errors: { form: "Registration could not be completed right now." } }, 500);
   }
