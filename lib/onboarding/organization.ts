@@ -1,21 +1,277 @@
-export const organizationTypes = ["Business","Supplier","Buyer / Issuer","Government","Economic Development Organization","Resource Provider","Chamber / Association","Lender / Capital Provider","University / Education","Nonprofit","Other"] as const;
+export const organizationTypes = [
+  "Business",
+  "Supplier",
+  "Buyer / Issuer",
+  "Government",
+  "Economic Development Organization",
+  "Resource Provider",
+  "Chamber / Association",
+  "Lender / Capital Provider",
+  "University / Education",
+  "Nonprofit",
+  "Other",
+] as const;
 export type OrganizationType = (typeof organizationTypes)[number];
+
+export const organizationUserRoles = [
+  { id: "primary_admin", label: "Primary Administrator", description: "Establish and administer the organization account." },
+  { id: "opportunity_manager", label: "Opportunity Manager", description: "Manage opportunity and RFx activity." },
+  { id: "response_manager", label: "Response Manager", description: "Coordinate RFx responses." },
+  { id: "referral_manager", label: "Referral Manager", description: "Coordinate referrals and relationship workflows." },
+  { id: "billing_manager", label: "Billing Manager", description: "Manage membership and billing activity." },
+  { id: "viewer", label: "Viewer", description: "View organization and Exchange information without administrative authority." },
+] as const;
+export type OrganizationUserRole = (typeof organizationUserRoles)[number]["id"];
+
 export type OrganizationClaimState = "unclaimed" | "claimed" | "verified";
-export type OrganizationResolutionMode = "claim" | "join" | "create";
-export interface OrganizationCandidate { id: string; name: string; aliases: string[]; type: OrganizationType; website?: string; domain?: string; locality?: string; region?: string; claimState: OrganizationClaimState; }
-export interface OrganizationSearchInput { query?: string; domain?: string; }
-export interface OrganizationResolution { mode: OrganizationResolutionMode; organizationId: string; organizationName: string; organizationType: OrganizationType; website?: string; membershipState: "active" | "pending-approval" | "authority-pending"; authorityState: "invited" | "self-attested" | "pending"; nextPath: "/onboarding/geography"; referenceOnly: true; }
-const organizationSeed: OrganizationCandidate[] = [
-{id:"org-city-chesapeake",name:"City of Chesapeake",aliases:["Chesapeake","City of Chesapeake Virginia"],type:"Government",website:"https://www.cityofchesapeake.net",domain:"cityofchesapeake.net",locality:"Chesapeake",region:"Virginia",claimState:"verified"},
-{id:"org-harbor-systems-authority",name:"Harbor Systems Authority",aliases:["Harbor Systems"],type:"Buyer / Issuer",website:"https://harborsystems.example",domain:"harborsystems.example",locality:"Norfolk",region:"Virginia",claimState:"claimed"},
-{id:"org-atlantic-skills-group",name:"Atlantic Skills Group",aliases:["Atlantic Skills"],type:"Resource Provider",website:"https://atlanticskills.example",domain:"atlanticskills.example",locality:"Suffolk",region:"Virginia",claimState:"unclaimed"},
-{id:"org-peninsula-advisory-partners",name:"Peninsula Advisory Partners",aliases:["Peninsula Advisory"],type:"Supplier",website:"https://peninsulaadvisory.example",domain:"peninsulaadvisory.example",locality:"Hampton Roads",region:"Virginia",claimState:"claimed"},
-{id:"org-tidewater-technical-services",name:"Tidewater Technical Services",aliases:["Tidewater Technical","TTS"],type:"Business",website:"https://tidewatertechnical.example",domain:"tidewatertechnical.example",locality:"Portsmouth",region:"Virginia",claimState:"verified"},
-{id:"org-regional-working-dog-institute",name:"Regional Working Dog Institute",aliases:["Working Dog Institute","RWDI"],type:"University / Education",website:"https://workingdoginstitute.example",domain:"workingdoginstitute.example",region:"Virginia",claimState:"unclaimed"},
+export type OrganizationResolutionMode = "claim" | "join" | "create" | "invitation";
+export type OrganizationMembershipState = "active" | "pending-approval" | "authority-pending";
+export type OrganizationAuthorityState = "invited" | "domain-verified" | "self-attested" | "pending-review";
+
+export type OrganizationStep =
+  | "welcome"
+  | "affiliation"
+  | "existing.search"
+  | "existing.review"
+  | "existing.claim"
+  | "existing.join"
+  | "invitation.review"
+  | "create.identity"
+  | "create.duplicates"
+  | "create.authority"
+  | "create.confirm"
+  | "status.pending"
+  | "status.connected"
+  | "access.review";
+
+export type OrganizationEntryContext = {
+  source?: string;
+  campaign?: string;
+  referral?: string;
+  invitation?: string;
+  returnTo?: string;
+  organizationId?: string;
+  requestId?: string;
+};
+
+export interface OrganizationCandidate {
+  id: string;
+  name: string;
+  aliases: string[];
+  type: OrganizationType;
+  website?: string;
+  domain?: string;
+  locality?: string;
+  region?: string;
+  claimState: OrganizationClaimState;
+  matchScore?: number;
+}
+
+export interface OrganizationInvitation {
+  id: string;
+  organization: OrganizationCandidate;
+  invitedEmail: string;
+  role: string;
+  expiresAt: string;
+}
+
+export interface OrganizationAccessReview {
+  requestId: string;
+  organization: OrganizationCandidate;
+  requesterEmail: string;
+  requesterName: string;
+  requestedRole: string;
+  createdAt: string;
+}
+
+export interface OrganizationResolution {
+  status: "connected" | "pending";
+  mode: OrganizationResolutionMode;
+  organizationId: string;
+  organizationName: string;
+  organizationType: OrganizationType;
+  website?: string;
+  membershipState: OrganizationMembershipState;
+  authorityState: OrganizationAuthorityState;
+  role?: string;
+  requestId?: string;
+  claimId?: string;
+  nextPath: string;
+}
+
+export type OrganizationSearchResponse = {
+  organizations: OrganizationCandidate[];
+};
+
+export type OrganizationStateResponse = {
+  resolution: OrganizationResolution | null;
+};
+
+export type OrganizationMutationAction =
+  | "create"
+  | "claim"
+  | "request_access"
+  | "accept_invitation"
+  | "review_access";
+
+export type OrganizationMutationRequest = {
+  action: OrganizationMutationAction;
+  organizationId?: string;
+  name?: string;
+  type?: OrganizationType;
+  website?: string;
+  requestedRole?: OrganizationUserRole;
+  authorityMethod?: "domain_email" | "manual_review";
+  evidenceNote?: string;
+  invitationToken?: string;
+  requestId?: string;
+  decision?: "approve" | "deny";
+  context?: OrganizationEntryContext;
+};
+
+export type OrganizationWorkflowNode = {
+  id: string;
+  label: string;
+  step?: OrganizationStep;
+  children?: OrganizationWorkflowNode[];
+};
+
+export const ORGANIZATION_WORKFLOW_TREE: readonly OrganizationWorkflowNode[] = [
+  { id: "welcome", label: "Welcome & role context", step: "welcome" },
+  {
+    id: "affiliation",
+    label: "Organization affiliation",
+    step: "affiliation",
+    children: [
+      {
+        id: "existing",
+        label: "Find / join existing",
+        step: "existing.search",
+        children: [
+          { id: "existing-search", label: "Search organizations", step: "existing.search" },
+          { id: "existing-review", label: "Review organization", step: "existing.review" },
+          { id: "existing-claim", label: "Claim & authority", step: "existing.claim" },
+          { id: "existing-join", label: "Request access", step: "existing.join" },
+          { id: "invitation", label: "Invitation validation", step: "invitation.review" },
+        ],
+      },
+      {
+        id: "create",
+        label: "Create new organization",
+        step: "create.identity",
+        children: [
+          { id: "create-identity", label: "Organization identity", step: "create.identity" },
+          { id: "create-duplicates", label: "Duplicate resolution", step: "create.duplicates" },
+          { id: "create-authority", label: "Authority confirmation", step: "create.authority" },
+          { id: "create-confirm", label: "Create & establish membership", step: "create.confirm" },
+        ],
+      },
+    ],
+  },
+  {
+    id: "status",
+    label: "Status & completion",
+    children: [
+      { id: "pending", label: "Pending approval / review", step: "status.pending" },
+      { id: "connected", label: "Organization connected", step: "status.connected" },
+    ],
+  },
 ];
-export function normalizeOrganizationTerm(value = "") { return value.toLowerCase().replace(/\b(the|llc|l\.l\.c|inc|incorporated|corp|corporation|company|co)\b/g," ").replace(/[^a-z0-9]+/g," ").trim().replace(/\s+/g," "); }
-export function normalizeDomain(value = "") { return value.trim().toLowerCase().replace(/^https?:\/\//,"").replace(/^www\./,"").split("/")[0]; }
-function scoreCandidate(candidate: OrganizationCandidate,input: OrganizationSearchInput) { const query=normalizeOrganizationTerm(input.query); const domain=normalizeDomain(input.domain); const name=normalizeOrganizationTerm(candidate.name); const aliases=candidate.aliases.map(normalizeOrganizationTerm); let score=0; if(domain&&candidate.domain===domain)score+=12; if(query&&name===query)score+=10; if(query&&aliases.includes(query))score+=9; if(query&&name.includes(query))score+=6; if(query&&aliases.some((alias)=>alias.includes(query)))score+=5; if(query){const terms=query.split(" ").filter(Boolean); const haystack=[name,...aliases].join(" "); score+=terms.filter((term)=>haystack.includes(term)).length;} return score; }
-export function searchOrganizations(input: OrganizationSearchInput) { const hasInput=Boolean(normalizeOrganizationTerm(input.query)||normalizeDomain(input.domain)); if(!hasInput)return organizationSeed.slice(0,4); return organizationSeed.map((candidate)=>({candidate,score:scoreCandidate(candidate,input)})).filter(({score})=>score>0).sort((a,b)=>b.score-a.score).map(({candidate})=>candidate); }
-export function resolutionModeFor(candidate: OrganizationCandidate): OrganizationResolutionMode { return candidate.claimState==="unclaimed"?"claim":"join"; }
-export function createReferenceResolution(input:{mode:OrganizationResolutionMode;candidate?:OrganizationCandidate;name?:string;type?:OrganizationType;website?:string;}):OrganizationResolution { if(input.candidate){const mode=resolutionModeFor(input.candidate);return{mode,organizationId:input.candidate.id,organizationName:input.candidate.name,organizationType:input.candidate.type,website:input.candidate.website,membershipState:mode==="claim"?"authority-pending":"pending-approval",authorityState:"pending",nextPath:"/onboarding/geography",referenceOnly:true};} const name=input.name?.trim(); if(!name||!input.type)throw new Error("Organization name and type are required."); return{mode:"create",organizationId:`reference-${normalizeOrganizationTerm(name).replace(/\s+/g,"-")||"organization"}`,organizationName:name,organizationType:input.type,website:input.website?.trim()||undefined,membershipState:"active",authorityState:"self-attested",nextPath:"/onboarding/geography",referenceOnly:true}; }
+
+const validSteps = new Set<OrganizationStep>([
+  "welcome",
+  "affiliation",
+  "existing.search",
+  "existing.review",
+  "existing.claim",
+  "existing.join",
+  "invitation.review",
+  "create.identity",
+  "create.duplicates",
+  "create.authority",
+  "create.confirm",
+  "status.pending",
+  "status.connected",
+  "access.review",
+]);
+const validTypes = new Set<OrganizationType>(organizationTypes);
+const validRoles = new Set<OrganizationUserRole>(organizationUserRoles.map((role) => role.id));
+
+type SearchParamsLike = Record<string, string | string[] | undefined>;
+
+function single(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function clean(value: unknown, maxLength = 240) {
+  return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function safeReturnTo(value: unknown) {
+  const candidate = clean(value, 500);
+  return candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : undefined;
+}
+
+export function normalizeOrganizationTerm(value = "") {
+  return value
+    .toLowerCase()
+    .replace(/\b(the|llc|l\.l\.c|inc|incorporated|corp|corporation|company|co)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+export function normalizeDomain(value = "") {
+  return value.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0];
+}
+
+export function sanitizeOrganizationType(value: unknown): OrganizationType | null {
+  const type = clean(value, 80) as OrganizationType;
+  return validTypes.has(type) ? type : null;
+}
+
+export function sanitizeOrganizationUserRole(value: unknown): OrganizationUserRole {
+  const role = clean(value, 80) as OrganizationUserRole;
+  return validRoles.has(role) ? role : "viewer";
+}
+
+export function organizationContextFromSearchParams(params: SearchParamsLike): OrganizationEntryContext {
+  return {
+    source: clean(single(params.source)) || undefined,
+    campaign: clean(single(params.campaign)) || undefined,
+    referral: clean(single(params.referral)) || undefined,
+    invitation: clean(single(params.invitation) ?? single(params.invite), 500) || undefined,
+    returnTo: safeReturnTo(single(params.returnTo)),
+    organizationId: clean(single(params.organization)) || undefined,
+    requestId: clean(single(params.request)) || undefined,
+  };
+}
+
+export function organizationStepFromSearchParams(params: SearchParamsLike, context: OrganizationEntryContext) {
+  const requested = clean(single(params.step), 80) as OrganizationStep;
+  if (validSteps.has(requested)) return requested;
+  if (context.requestId) return "access.review";
+  if (context.invitation) return "invitation.review";
+  return "welcome";
+}
+
+export function buildOrganizationHref(
+  step: OrganizationStep,
+  context: OrganizationEntryContext,
+  overrides: Partial<OrganizationEntryContext> = {},
+) {
+  const merged = { ...context, ...overrides };
+  const params = new URLSearchParams({ step });
+  if (merged.source) params.set("source", merged.source);
+  if (merged.campaign) params.set("campaign", merged.campaign);
+  if (merged.referral) params.set("referral", merged.referral);
+  if (merged.invitation) params.set("invitation", merged.invitation);
+  if (merged.returnTo) params.set("returnTo", merged.returnTo);
+  if (merged.organizationId) params.set("organization", merged.organizationId);
+  if (merged.requestId) params.set("request", merged.requestId);
+  return `/onboarding/organization?${params.toString()}`;
+}
+
+export function resolutionModeFor(candidate: OrganizationCandidate): OrganizationResolutionMode {
+  return candidate.claimState === "unclaimed" ? "claim" : "join";
+}
