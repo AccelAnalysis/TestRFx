@@ -121,6 +121,48 @@ export default function RegisterPage() {
 );
 
 await write(
+  "app/onboarding/membership/page.tsx",
+  `import type { Metadata } from "next";
+import Link from "next/link";
+import { formatUsdCents, foundingMembership } from "@/lib/membership/catalog";
+import styles from "./membership.module.css";
+
+export const metadata: Metadata = {
+  title: "Membership Selection | RFxchange",
+};
+
+export default function MembershipSelectionPage() {
+  const plan = foundingMembership;
+  const price = formatUsdCents(plan.price.cents);
+
+  return (
+    <main className="identity-shell onboarding-shell">
+      <section className="identity-card onboarding-card">
+        <p className="eyebrow">Membership selection</p>
+        <h1>Confirm the organization membership path</h1>
+        <p className="muted">The static preview shows the Founding Membership path. Production checkout resolves authenticated organization context before creating a subscription.</p>
+        <div className={styles.summary}>
+          <div className={styles.summaryHeader}>
+            <div><p className="eyebrow">Selected plan</p><h2>{plan.name}</h2></div>
+            <div className={styles.price}>{price} <small>/ month</small></div>
+          </div>
+          <div className={styles.details}>
+            <div className={styles.detail}><strong>Owner</strong><span>Organization-level membership</span></div>
+            <div className={styles.detail}><strong>Capacity</strong><span>First {plan.capacity.limit} organizations</span></div>
+            <div className={styles.detail}><strong>Activation</strong><span>After verified payment confirmation</span></div>
+          </div>
+        </div>
+        <div className={styles.integrationNote}><strong>Stripe checkout integration point.</strong> The Pages preview does not create a subscription or unlock Exchange permissions.</div>
+        <button className={styles.disabledButton} type="button" disabled aria-disabled="true">Continue to secure checkout — integration pending</button>
+        <Link className={styles.backLink} href="/founding">Back to Founding Membership</Link>
+      </section>
+    </main>
+  );
+}
+`,
+);
+
+await write(
   "app/campaign/[slug]/page.tsx",
   `import { notFound } from "next/navigation";
 import { CampaignLandingPage } from "@/components/public/campaign-landing-page";
