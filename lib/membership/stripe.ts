@@ -20,7 +20,7 @@ function getStripe(): Stripe {
     );
   }
   if (!stripeClient) {
-    stripeClient = new Stripe(secretKey, { apiVersion: "2026-06-24.dahlia" });
+    stripeClient = new Stripe(secretKey, { apiVersion: "2026-07-29.dahlia" });
   }
   return stripeClient;
 }
