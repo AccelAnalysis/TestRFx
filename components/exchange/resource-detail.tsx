@@ -4,7 +4,7 @@ import type { ExchangeRecord } from "@/lib/exchange/contracts";
 import { isResourceRecord } from "@/lib/exchange/resources";
 import styles from "./resources.module.css";
 
-export function ResourceDetail({ record }: { record: ExchangeRecord }) {
+export function ResourceDetail({ record, onRefer }: { record: ExchangeRecord; onRefer?: () => void }) {
   if (!isResourceRecord(record)) return null;
 
   const mapLabel = record.location
@@ -25,8 +25,8 @@ export function ResourceDetail({ record }: { record: ExchangeRecord }) {
       </div>
       {record.resource.terms ? <div className={styles.detailCallout}><p><strong>Resource terms:</strong> {record.resource.terms}</p></div> : null}
       <div className={styles.detailCallout}>
-        <p><strong>Cross-lens referral:</strong> this Resource is eligible to pass its record identity into the shared Referral workflow. Referral composition, recipient policy/fee handling, and tracking remain owned by the chassis-level Referral service.</p>
-        <button type="button" disabled title="Shared referral engine integration point">Refer this resource</button>
+        <p><strong>Cross-lens referral:</strong> refer this Resource through the shared referral workflow, review the receiving organization’s referral policy / fee, then track the referral in Menu → Referrals Management.</p>
+        {onRefer ? <button className={styles.detailAction} type="button" onClick={onRefer}>Refer this resource</button> : null}
       </div>
     </>
   );
