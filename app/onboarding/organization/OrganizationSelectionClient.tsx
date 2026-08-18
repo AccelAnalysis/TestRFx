@@ -11,6 +11,7 @@ import {
   organizationUserRoles,
   resolutionModeFor,
   type OrganizationAccessReview,
+  type OrganizationAuthorityMethod,
   type OrganizationCandidate,
   type OrganizationClaimReview,
   type OrganizationEntryContext,
@@ -88,6 +89,8 @@ export default function OrganizationSelectionClient({ initialContext, initialSte
   const [createWebsite, setCreateWebsite] = useState("");
   const [authorityConfirmed, setAuthorityConfirmed] = useState(false);
   const [evidenceNote, setEvidenceNote] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [evidenceReference, setEvidenceReference] = useState("");
   const [requestedRole, setRequestedRole] = useState<OrganizationUserRole>("viewer");
   const [reviewOutcome, setReviewOutcome] = useState("");
 
@@ -318,7 +321,7 @@ export default function OrganizationSelectionClient({ initialContext, initialSte
     }
   }
 
-  async function submitClaim(authorityMethod: "domain_email" | "manual_review") {
+  async function submitClaim(authorityMethod: OrganizationAuthorityMethod) {
     if (!selected) return;
     try {
       const payload = await postWorkflow<{ resolution: OrganizationResolution }>({
@@ -326,6 +329,8 @@ export default function OrganizationSelectionClient({ initialContext, initialSte
         organizationId: selected.id,
         authorityMethod,
         evidenceNote,
+        evidenceUrl,
+        evidenceReference,
       });
       setResolution(payload.resolution);
       navigate(payload.resolution.status === "connected" ? "status.connected" : "status.pending", resolutionOverrides(payload.resolution));
@@ -551,9 +556,33 @@ export default function OrganizationSelectionClient({ initialContext, initialSte
           {selected ? (
             <>
               <div className={styles.contextStrip}><span>Organization</span><strong>{selected.name}</strong>{selected.domain ? <small>Primary domain: {selected.domain}</small> : null}</div>
+              <p className={styles.lead}>Use one of the authority methods defined for this workflow. Domain authority can resolve immediately; registry, documentation, and manual evidence enter the real platform-review queue.</p>
               <div className={styles.methodGrid}>
-                <div className={styles.methodCard}><strong>Verified organization-domain email</strong><span>If your verified account email matches the organization's stored domain, RFxchange can approve the claim immediately.</span><button type="button" onClick={() => void submitClaim("domain_email")} disabled={loading}>Verify domain authority</button></div>
-                <div className={styles.methodCard}><strong>Administrative review</strong><span>Submit a concise authority note when domain verification is unavailable. Competing claims remain separate records for platform review.</span><textarea rows={4} value={evidenceNote} onChange={(event) => setEvidenceNote(event.target.value)} placeholder="Your relationship to the organization and basis for authority" /><button type="button" onClick={() => void submitClaim("manual_review")} disabled={loading || evidenceNote.trim().length < 10}>Submit for review</button></div>
+                <div className={styles.methodCard}>
+                  <strong>Verified organization-domain email</strong>
+                  <span>If your verified account email matches the organization's stored domain, RFxchange can approve the claim immediately.</span>
+                  <button type="button" onClick={() => void submitClaim("domain_email")} disabled={loading}>Verify domain authority</button>
+                </div>
+                <div className={styles.methodCard}>
+                  <strong>Authoritative public / registry evidence</strong>
+                  <span>Provide a public registry identifier or HTTPS record for platform review.</span>
+                  <input value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} placeholder="Registry / filing reference" />
+                  <input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://registry.example/record" />
+                  <button type="button" onClick={() => void submitClaim("registry_record")} disabled={loading || (!evidenceReference.trim() && !evidenceUrl.trim())}>Submit registry evidence</button>
+                </div>
+                <div className={styles.methodCard}>
+                  <strong>Supporting documentation</strong>
+                  <span>Reference a supporting authority document already stored at an approved HTTPS location.</span>
+                  <input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…/authority-document" />
+                  <input value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} placeholder="Document label / reference" />
+                  <button type="button" onClick={() => void submitClaim("supporting_document")} disabled={loading || !evidenceUrl.trim()}>Submit supporting document</button>
+                </div>
+                <div className={styles.methodCard}>
+                  <strong>Manual administrative review</strong>
+                  <span>Submit a concise authority statement when the other evidence paths are unavailable. Competing claims remain separate records for platform review.</span>
+                  <textarea rows={4} value={evidenceNote} onChange={(event) => setEvidenceNote(event.target.value)} placeholder="Your relationship to the organization and basis for authority" />
+                  <button type="button" onClick={() => void submitClaim("manual_review")} disabled={loading || evidenceNote.trim().length < 10}>Submit for review</button>
+                </div>
               </div>
             </>
           ) : <p className={styles.inlineStatus}>{loading ? "Loading organization…" : "Return to organization search and select the organization to claim."}</p>}
@@ -737,7 +766,19 @@ export default function OrganizationSelectionClient({ initialContext, initialSte
               <div className={styles.claimList}>
                 {claimReview.claims.map((claim) => (
                   <div className={`${styles.claimCard} ${claim.claimId === claimReview.selectedClaimId ? styles.claimSelected : ""}`} key={claim.claimId}>
-                    <div><strong>{claim.claimantName}</strong><span>{claim.claimantEmail}</span><small>{claim.authorityMethod.replaceAll("_", " ")} • {claim.status} • {new Date(claim.createdAt).toLocaleString()}</small>{claim.evidenceNote ? <p>{claim.evidenceNote}</p> : null}</div>
+                    <div>
+                      <strong>{claim.claimantName}</strong>
+                      <span>{claim.claimantEmail}</span>
+                      <small>{claim.authorityMethod.replaceAll("_", " ")} • {claim.status} • {new Date(claim.createdAt).toLocaleString()}</small>
+                      {claim.evidenceNote ? <p>{claim.evidenceNote}</p> : null}
+                      {(claim.evidence ?? []).map((evidence) => (
+                        <div className={styles.evidenceItem} key={evidence.id}>
+                          <b>{evidence.label ?? evidence.type.replaceAll("_", " ")}</b>
+                          {evidence.reference ? <span>{evidence.reference}</span> : null}
+                          {evidence.url ? <a href={evidence.url} target="_blank" rel="noreferrer">Open evidence ↗</a> : null}
+                        </div>
+                      ))}
+                    </div>
                     {claim.claimId !== claimReview.selectedClaimId ? <button type="button" onClick={() => navigate("claim.review", { claimId: claim.claimId })}>Review this claim</button> : <b>Selected</b>}
                   </div>
                 ))}
