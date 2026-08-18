@@ -52,7 +52,7 @@ CREATE TABLE exchange_records (
   status text NOT NULL DEFAULT 'active',
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   search_document tsvector GENERATED ALWAYS AS (
-    to_tsvector('english', coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(geography_label, ''))
+    to_tsvector('english', coalesce(public_id, '') || ' ' || coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(geography_label, ''))
   ) STORED,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
@@ -128,7 +128,7 @@ CREATE INDEX activity_events_record_idx ON activity_events(exchange_record_id, o
 
 -- Saved searches belong to an authenticated participant and optionally retain
 -- the active organization that created the search. Alert delivery is performed
--- by the shared notification service; this table stores the user's instruction.
+-- by the shared notification service; Universal Search owns change detection.
 CREATE TABLE saved_searches (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -137,10 +137,13 @@ CREATE TABLE saved_searches (
   lens text NOT NULL CHECK (lens IN ('rfx', 'resources', 'intelligence', 'capabilities')),
   state jsonb NOT NULL,
   alert_enabled boolean NOT NULL DEFAULT false,
+  result_fingerprint text,
+  last_checked_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX saved_searches_user_lens_idx ON saved_searches(user_id, lens, updated_at DESC);
+CREATE INDEX saved_searches_alert_idx ON saved_searches(alert_enabled, last_checked_at) WHERE alert_enabled = true;
 
 -- Search activity is a first-party event source for recent searches and
 -- privacy-safe aggregate intelligence. Raw history is scoped to its user.

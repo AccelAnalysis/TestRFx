@@ -131,6 +131,7 @@ export async function searchExchangeRepository({
     const likeParam = param(`%${query}%`);
     where.push(`(
       er.search_document @@ websearch_to_tsquery('english', ${queryParam})
+      OR er.public_id ILIKE ${likeParam}
       OR er.title ILIKE ${likeParam}
       OR er.summary ILIKE ${likeParam}
       OR o.name ILIKE ${likeParam}
@@ -138,10 +139,14 @@ export async function searchExchangeRepository({
       OR er.metadata::text ILIKE ${likeParam}
       OR cap.amacs_node_id ILIKE ${likeParam}
       OR rr.solicitation_type ILIKE ${likeParam}
+      OR rr.requirements::text ILIKE ${likeParam}
+      OR res.availability::text ILIKE ${likeParam}
       OR ir.signal_type ILIKE ${likeParam}
+      OR ir.source_context::text ILIKE ${likeParam}
     )`);
     scoreExpression = `(
       ts_rank_cd(er.search_document, websearch_to_tsquery('english', ${queryParam}))
+      + CASE WHEN er.public_id ILIKE ${likeParam} THEN 0.70 ELSE 0 END
       + CASE WHEN er.title ILIKE ${likeParam} THEN 0.45 ELSE 0 END
       + CASE WHEN o.name ILIKE ${likeParam} THEN 0.30 ELSE 0 END
       + CASE WHEN coalesce(er.geography_label, l.label, '') ILIKE ${likeParam} THEN 0.10 ELSE 0 END
@@ -252,6 +257,7 @@ export async function searchExchangeRepository({
   const records = pageRows.map(toRecord);
   const results = pageRows.map((row, index) => {
     const matchedFields = query ? [
+      row.id.toLowerCase().includes(query.toLowerCase()) ? "identifier" : undefined,
       row.title.toLowerCase().includes(query.toLowerCase()) ? "title" : undefined,
       row.organization.toLowerCase().includes(query.toLowerCase()) ? "organization" : undefined,
       row.summary.toLowerCase().includes(query.toLowerCase()) ? "summary" : undefined,

@@ -131,6 +131,10 @@ normalized ExchangeSearchResponse
 
 `DATABASE_URL` is required for production search. Optional `DATABASE_SSL=require` and `DATABASE_POOL_MAX` tune the pool.
 
+### Query understanding
+
+The production repository resolves search terms across normalized record identifiers, titles, organizations, summaries, public geography, metadata, AMACS node IDs, RFx solicitation types and requirements, Resource availability, and Intelligence signal/source context. Private bids, issuer notes, response evidence, and other protected workflow data are not part of the search projection.
+
 ### Geography behavior
 
 - **Current Exchange geography**: uses the geography already governing the mounted Exchange.
@@ -154,6 +158,8 @@ saved_searches
   name
   normalized state
   alert_enabled
+  result_fingerprint
+  last_checked_at
   timestamps
 
 search_activity
@@ -165,7 +171,7 @@ search_activity
   timestamp
 ```
 
-The API supports:
+The participant API supports:
 
 - `GET /api/exchange/searches?lens=...`
 - `POST /api/exchange/searches`
@@ -173,7 +179,18 @@ The API supports:
 - `DELETE /api/exchange/searches/{id}`
 - `POST /api/exchange/searches/recent`
 
-Alert configuration is durable. Delivery itself belongs to the shared notification service and is not simulated in Universal Search.
+### New / changed result detection
+
+Alert configuration is not a presentation-only toggle. `lib/exchange/search-alerts.ts` evaluates each enabled saved search through the same production search repository, fingerprints the complete result-ID set, compares it with the prior run, updates `last_checked_at`, and emits a `SavedSearchChanged` activity event when the set changes.
+
+A scheduler or operations service invokes:
+
+```text
+POST /api/exchange/searches/alerts/run
+x-rfx-search-alert-secret: <RFXCHANGE_SEARCH_ALERT_SECRET>
+```
+
+This endpoint performs real change detection. Delivery of the resulting event as in-app/email/push notification remains owned by the shared RFxchange notification service and is not simulated by Universal Search.
 
 ## Authentication boundary
 
@@ -199,9 +216,9 @@ db/migrations/20260818_universal_search.sql
 
 It adds:
 
-- public geography labels for searchable records;
+- public geography labels and identifiers to the full-text search document;
 - RFx performance-area geometry;
-- saved searches and alert state;
+- saved searches, alert fingerprints, and last-check state;
 - search activity / recent history;
 - disclosed sponsored placements;
 - supporting full-text, geospatial, and lookup indexes.
@@ -213,6 +230,6 @@ Universal Search does not fabricate integrations that are not present in this re
 - the production identity provider that establishes participant sessions;
 - external AMACS taxonomy/synonym retrieval beyond AMACS IDs and metadata already stored in RFxchange;
 - an external geocoder/place service for resolving arbitrary typed addresses into canonical geometry;
-- notification delivery for saved-search alerts.
+- shared notification delivery for `SavedSearchChanged` events.
 
 Those systems connect behind the search and shared-service boundaries; their absence does not justify mocked production responses.

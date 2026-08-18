@@ -4,11 +4,11 @@
 ALTER TABLE exchange_records ADD COLUMN IF NOT EXISTS geography_label text NOT NULL DEFAULT '';
 
 -- PostgreSQL cannot alter a generated expression in place. Rebuild the search
--- document so geography participates in deterministic full-text retrieval.
+-- document so public identifiers and geography participate in deterministic full-text retrieval.
 DROP INDEX IF EXISTS exchange_records_search_gin;
 ALTER TABLE exchange_records DROP COLUMN IF EXISTS search_document;
 ALTER TABLE exchange_records ADD COLUMN search_document tsvector GENERATED ALWAYS AS (
-  to_tsvector('english', coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(geography_label, ''))
+  to_tsvector('english', coalesce(public_id, '') || ' ' || coalesce(title, '') || ' ' || coalesce(summary, '') || ' ' || coalesce(geography_label, ''))
 ) STORED;
 CREATE INDEX IF NOT EXISTS exchange_records_search_gin ON exchange_records USING gin(search_document);
 CREATE INDEX IF NOT EXISTS exchange_records_org_idx ON exchange_records(organization_id, record_type);
@@ -27,10 +27,15 @@ CREATE TABLE IF NOT EXISTS saved_searches (
   lens text NOT NULL CHECK (lens IN ('rfx', 'resources', 'intelligence', 'capabilities')),
   state jsonb NOT NULL,
   alert_enabled boolean NOT NULL DEFAULT false,
+  result_fingerprint text,
+  last_checked_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE saved_searches ADD COLUMN IF NOT EXISTS result_fingerprint text;
+ALTER TABLE saved_searches ADD COLUMN IF NOT EXISTS last_checked_at timestamptz;
 CREATE INDEX IF NOT EXISTS saved_searches_user_lens_idx ON saved_searches(user_id, lens, updated_at DESC);
+CREATE INDEX IF NOT EXISTS saved_searches_alert_idx ON saved_searches(alert_enabled, last_checked_at) WHERE alert_enabled = true;
 
 CREATE TABLE IF NOT EXISTS search_activity (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
