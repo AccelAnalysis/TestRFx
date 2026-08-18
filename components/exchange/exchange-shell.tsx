@@ -38,6 +38,7 @@ type IntelligenceFlow = { mode: IntelligenceWorkflow; recordId?: string };
 type IntelligenceNavEntry = { nodeId: string; recordId?: string };
 type CapabilityFlow = { mode: CapabilityWorkflowMode; recordId: string };
 const emptyIntelligenceSummary: Omit<IntelligenceListResponse, "records"> = { total: 0, mapped: 0, offMap: 0, offset: 0, limit: 24 };
+function summaryFromIntelligence(response: IntelligenceListResponse): Omit<IntelligenceListResponse, "records"> { const { records: _records, ...summary } = response; void _records; return summary; }
 
 export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initialLens?: ExchangeLens; initialRecordId?: string }) {
   const [lens, setLens] = useState<ExchangeLens>(initialLens);
@@ -82,12 +83,13 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
     if (lens !== "intelligence") return;
     let cancelled = false;
     const timeout = window.setTimeout(() => {
-      setIntelligenceStatus((current) => intelligenceRecords.length ? "refreshing" : current === "error" || current === "offline" ? "loading" : "loading");
+      setIntelligenceStatus("loading");
       listIntelligenceRecords({ query: searchByLens.intelligence.query, offset: 0, limit: 24 })
         .then((response) => {
           if (cancelled) return;
           setIntelligenceRecords(response.records);
-          setIntelligenceSummary(({ records: _records, ...summary }) => summary)(response as never);
+          setIntelligenceSummary(summaryFromIntelligence(response));
+          setIntelligenceStatus("ready");
         })
         .catch((caught) => {
           if (cancelled) return;
@@ -95,8 +97,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
           setIntelligenceSummary(emptyIntelligenceSummary);
           setActionNotice(caught instanceof IntelligenceServiceError ? caught.message : "Intelligence service unavailable.");
           setIntelligenceStatus(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "error");
-        })
-        .finally(() => { if (!cancelled) setIntelligenceStatus((current) => current === "error" || current === "offline" ? current : "ready"); });
+        });
     }, 260);
     return () => { cancelled = true; window.clearTimeout(timeout); };
   }, [lens, searchByLens.intelligence.query, intelligenceRefreshKey]);
@@ -126,31 +127,15 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   function archiveResource(recordId: string) { setRecordsState((current) => current.map((record) => record.id === recordId && record.resource ? { ...record, resource: { ...record.resource, status: "archived" as const } } : record)); setSelectedRecordId(undefined); setDetailRecordId(undefined); setResourceWorkflow(undefined); setResourceNotice("Resource archived and removed from active discovery."); setUrl("resources"); }
 
   async function toggleIntelligenceTracking(record: ExchangeRecord, actionId: string) {
-    const active = !Boolean(record.saved);
-    const mode = actionId === "follow-track" ? "follow" : "track";
-    try {
-      const detail = await updateIntelligenceTracking(record.id, { active, mode });
-      replaceIntelligenceRecord(detail.record);
-      const resultNode = resultNodeForAction(actionId, record.ownedByViewer ? "own" : "other");
-      if (active && resultNode) setIntelligenceNavigation(resultNode, record.id);
-      setActionNotice(`${active ? mode === "follow" ? "Following" : "Tracking" : "Stopped"}: ${record.title}`);
-      setIntelligenceRefreshKey((value) => value + 1);
-    } catch (caught) {
-      setActionNotice(caught instanceof IntelligenceServiceError ? caught.message : "The tracking service could not complete this action.");
-    }
+    const active = !Boolean(record.saved); const mode = actionId === "follow-track" ? "follow" : "track";
+    try { const detail = await updateIntelligenceTracking(record.id, { active, mode }); replaceIntelligenceRecord(detail.record); const resultNode = resultNodeForAction(actionId, record.ownedByViewer ? "own" : "other"); if (active && resultNode) setIntelligenceNavigation(resultNode, record.id); setActionNotice(`${active ? mode === "follow" ? "Following" : "Tracking" : "Stopped"}: ${record.title}`); setIntelligenceRefreshKey((value) => value + 1); }
+    catch (caught) { setActionNotice(caught instanceof IntelligenceServiceError ? caught.message : "The tracking service could not complete this action."); }
   }
 
   async function handleAction(action: LensAction, record?: ExchangeRecord) {
     if (action.requiresRecord && !record) return;
     if (lens === "resources") { if (action.id === "offer-resource") { setResourceWorkflow({ mode: "offer" }); return; } if (action.id === "edit-resource" && record) { setResourceWorkflow({ mode: "edit", recordId: record.id }); return; } if (action.id === "request-resource" && record) { setResourceWorkflow({ mode: "request", recordId: record.id }); return; } if (action.id === "archive-resource" && record) { setResourceWorkflow({ mode: "archive", recordId: record.id }); return; } }
-    if (lens === "intelligence") {
-      if (action.id === "add-insight") { setIntelligenceWorkflow({ mode: "add" }); return; }
-      if (action.id === "edit-insight" && record) { setIntelligenceNavigation("intelligence.own.edit", record.id); return; }
-      if (action.id === "view" && record) { setIntelligenceNavigation("intelligence.other.view", record.id); return; }
-      if (action.id === "add-note" && record) { setIntelligenceWorkflow({ mode: "note", recordId: record.id }); return; }
-      if (action.id === "compare" && record) { setIntelligenceWorkflow({ mode: "compare", recordId: record.id }); return; }
-      if ((action.id === "track" || action.id === "follow-track") && record) { await toggleIntelligenceTracking(record, action.id); return; }
-    }
+    if (lens === "intelligence") { if (action.id === "add-insight") { setIntelligenceWorkflow({ mode: "add" }); return; } if (action.id === "edit-insight" && record) { setIntelligenceNavigation("intelligence.own.edit", record.id); return; } if (action.id === "view" && record) { setIntelligenceNavigation("intelligence.other.view", record.id); return; } if (action.id === "add-note" && record) { setIntelligenceWorkflow({ mode: "note", recordId: record.id }); return; } if (action.id === "compare" && record) { setIntelligenceWorkflow({ mode: "compare", recordId: record.id }); return; } if ((action.id === "track" || action.id === "follow-track") && record) { await toggleIntelligenceTracking(record, action.id); return; } }
     if (lens === "capabilities" && record && isCapabilityWorkflowMode(action.id)) { setCapabilityWorkflow({ mode: action.id, recordId: record.id }); return; }
     if (lens === "capabilities" && record && action.id === "follow") { toggleSaved(record.id); setActionNotice(`${savedRecordIds.has(record.id) ? "Removed from saved" : "Saved / following"}: ${record.organization}`); return; }
     if (action.trigger === "detail" && record) { openDetail(record.id); return; }
@@ -161,50 +146,19 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   async function loadMoreIntelligence() {
     if (lens !== "intelligence" || intelligenceLoadingMore || intelligenceSummary.nextOffset == null) return;
     setIntelligenceLoadingMore(true);
-    try {
-      const response = await listIntelligenceRecords({ query: searchByLens.intelligence.query, offset: intelligenceSummary.nextOffset, limit: intelligenceSummary.limit });
-      setIntelligenceRecords((current) => [...current, ...response.records.filter((record) => !current.some((item) => item.id === record.id))]);
-      setIntelligenceSummary(({ records: _records, ...summary }) => summary)(response as never);
-    } catch (caught) {
-      setActionNotice(caught instanceof IntelligenceServiceError ? caught.message : "More Intelligence results could not be loaded.");
-    } finally {
-      setIntelligenceLoadingMore(false);
-    }
+    try { const response = await listIntelligenceRecords({ query: searchByLens.intelligence.query, offset: intelligenceSummary.nextOffset, limit: intelligenceSummary.limit }); setIntelligenceRecords((current) => [...current, ...response.records.filter((record) => !current.some((item) => item.id === record.id))]); setIntelligenceSummary(summaryFromIntelligence(response)); }
+    catch (caught) { setActionNotice(caught instanceof IntelligenceServiceError ? caught.message : "More Intelligence results could not be loaded."); }
+    finally { setIntelligenceLoadingMore(false); }
   }
 
-  async function toggleCardRelationship(id: string) {
-    if (lens !== "intelligence") { toggleSaved(id); return; }
-    const record = intelligenceRecords.find((item) => item.id === id);
-    if (!record) return;
-    await toggleIntelligenceTracking(record, record.ownedByViewer ? "track" : "follow-track");
-  }
-
-  function completeIntelligenceWorkflow(nodeId: string, updatedRecord?: ExchangeRecord) {
-    if (updatedRecord) replaceIntelligenceRecord(updatedRecord);
-    const recordId = updatedRecord?.id ?? intelligenceWorkflow?.recordId;
-    setIntelligenceWorkflow(undefined);
-    setIntelligenceNavigation(nodeId, recordId);
-    setIntelligenceRefreshKey((value) => value + 1);
-  }
-
-  function openMatchedRecord(targetLens: Extract<ExchangeLens, "rfx" | "capabilities">, recordId: string) {
-    setIntelligenceNavStack([]);
-    const targetRecord = allRecords.find((record) => record.id === recordId);
-    const prior = searchByLens[targetLens];
-    const nextSearch = targetRecord ? { ...prior, query: targetRecord.title } : prior;
-    setLens(targetLens);
-    setSearchByLens((current) => ({ ...current, [targetLens]: nextSearch }));
-    setSelectedRecordId(targetRecord?.id);
-    setDetailRecordId(targetRecord?.id);
-    setUrl(targetLens, targetRecord?.id, "push", nextSearch);
-  }
-
+  async function toggleCardRelationship(id: string) { if (lens !== "intelligence") { toggleSaved(id); return; } const record = intelligenceRecords.find((item) => item.id === id); if (!record) return; await toggleIntelligenceTracking(record, record.ownedByViewer ? "track" : "follow-track"); }
+  function completeIntelligenceWorkflow(nodeId: string, updatedRecord?: ExchangeRecord) { if (updatedRecord) replaceIntelligenceRecord(updatedRecord); const recordId = updatedRecord?.id ?? intelligenceWorkflow?.recordId; setIntelligenceWorkflow(undefined); setIntelligenceNavigation(nodeId, recordId); setIntelligenceRefreshKey((value) => value + 1); }
+  function openMatchedRecord(targetLens: Extract<ExchangeLens, "rfx" | "capabilities">, recordId: string) { setIntelligenceNavStack([]); const targetRecord = allRecords.find((record) => record.id === recordId); const prior = searchByLens[targetLens]; const nextSearch = targetRecord ? { ...prior, query: targetRecord.title } : prior; setLens(targetLens); setSearchByLens((current) => ({ ...current, [targetLens]: nextSearch })); setSelectedRecordId(targetRecord?.id); setDetailRecordId(targetRecord?.id); setUrl(targetLens, targetRecord?.id, "push", nextSearch); }
   function resetMapView() { setMapView(createDefaultMapView()); setViewportDirty(false); }
   function locateViewer() { if (!("geolocation" in navigator)) { setGeolocationStatus("unavailable"); return; } setGeolocationStatus("requesting"); navigator.geolocation.getCurrentPosition((position) => { setViewerLocation({ lat: position.coords.latitude, lng: position.coords.longitude }); setGeolocationStatus("located"); }, (error) => setGeolocationStatus(error.code === 1 ? "denied" : "unavailable"), { timeout: 8000, maximumAge: 60000 }); }
 
   const visibleRecords = records.filter((record) => record.resource?.status !== "archived"); const lensRecent = recentSearches.filter((item) => item.lens === lens); const lensSaved = savedSearches.filter((item) => item.lens === lens); const mapped = lens === "intelligence" ? intelligenceSummary.mapped : visibleRecords.filter((record) => record.location).length; const offMap = lens === "intelligence" ? intelligenceSummary.offMap : visibleRecords.length - mapped;
-  const drawerActiveActionIds = activeActionIds(actionRecord, actions); const detailActions = detailRecord ? definition.actions(detailRecord) : []; const detailActiveActionIds = activeActionIds(detailRecord, detailActions);
-  const drawerTotal = lens === "intelligence" ? intelligenceSummary.total : filteredRecords.length;
+  const drawerActiveActionIds = activeActionIds(actionRecord, actions); const detailActions = detailRecord ? definition.actions(detailRecord) : []; const detailActiveActionIds = activeActionIds(detailRecord, detailActions); const drawerTotal = lens === "intelligence" ? intelligenceSummary.total : filteredRecords.length;
 
   return <main className="exchange-shell">
     <PersistentMap lens={lens} records={visibleRecords} selectedRecordId={selectedRecordId} drawerState={drawer} view={mapView} viewerLocation={viewerLocation} onViewChange={(next) => { setMapView(next); setViewportDirty(true); }} onSelect={selectRecord} />
