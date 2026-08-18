@@ -67,16 +67,55 @@
   line-height: 1.5;
 }
 
-.disabledButton {
+.checkoutButton {
   width: 100%;
-  min-height: 48px;
-  border: 0;
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--exchange-black);
   border-radius: 14px;
   background: var(--exchange-black);
   color: var(--warm-ivory);
+  font: inherit;
   font-weight: 800;
-  opacity: 0.46;
+  cursor: pointer;
+}
+
+.checkoutButton:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
+}
+
+.checkoutError,
+.checkoutStatus {
+  margin: 10px 0 0;
+  color: #8c2823;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.checkoutStatus { color: #5d626a; }
+
+.checkoutConfirmation {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(247, 243, 234, 0.72);
+}
+
+.checkoutConfirmation p {
+  margin: 0;
+  color: #60656e;
+  line-height: 1.5;
+}
+
+.checkoutConfirmation a {
+  color: var(--signal-blue);
+  font-weight: 760;
 }
 
 .backLink {
