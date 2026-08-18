@@ -2,14 +2,15 @@
 
 ## Review outcome
 
-The first Organization Profile build established a useful bounded form, but the follow-up review against the source diagrams found four architectural problems:
+The first Organization Profile build established a useful bounded form, but the follow-up review against the source diagrams found five architectural problems:
 
 1. The profile was flat rather than a true child/grandchild navigation tree.
 2. `POST /api/onboarding/organization-profile` manufactured an organization ID and returned a `reference` adapter response without durable persistence or organization authorization.
 3. The profile duplicated Geography-owned address/service-area fields and rendered a map placeholder even though Geography is the preceding canonical workflow.
 4. The profile required a capability seed even though the source places capability entry, AMACS assistance, evidence, and certifications in Capability Enrichment.
+5. The source-defined Organization Type from organization setup was not represented as a durable profile fact.
 
-This revision removes those shortcuts.
+This revision removes those shortcuts and restores Organization Type using the existing source-supported organization-type vocabulary.
 
 ## Chassis placement
 
@@ -52,7 +53,7 @@ Organization Profile
 
 `Save Changes` remains an action in Organization Details rather than being turned into a fake navigation node.
 
-Every node has an addressable route under `/onboarding/organization-profile/...`, breadcrumbs, parent/child state, and browser history. Nodes owned by another canonical onboarding domain hand off to that real workflow instead of cloning it:
+Every node has an addressable route under `/onboarding/organization-profile/...`, breadcrumbs, parent/child state, and browser history. Nodes owned by another canonical onboarding domain hand off to that workflow instead of cloning it:
 
 - Certifications -> Capability Enrichment
 - Capabilities (AMACS) -> Capability Enrichment
@@ -64,16 +65,19 @@ Every node has an addressable route under `/onboarding/organization-profile/...`
 ### Organization Profile owns
 
 - organization display/legal identity
+- source-defined Organization Type
 - website and primary domain
 - industry and codes
 - organization description
 - primary organizational contact
-- roles and first-value goals
+- participation roles and first-value goals
 - brand name/logo URL
 - profile projection visibility
 - organization team membership management
 - organization invitation records
 - read projection of organization verification assertions
+
+Organization Type is a single setup/profile classification. Participation roles remain multi-select because an organization can participate in the Exchange in more than one way.
 
 ### Geography owns
 
@@ -139,7 +143,9 @@ Profile completion is a readiness state, not a credibility assertion.
 
 `profile_complete` requires the profile-owned required facts:
 
-- organization identity/description
+- organization display identity
+- Organization Type
+- organization description
 - primary organizational contact
 - at least one organization participation role
 - visibility choices
@@ -157,9 +163,9 @@ Verified Information is read from `organization_verifications`; if there are no 
 
 ## Persistence
 
-`db/organization-profile.sql` now provides:
+`db/organization-profile.sql` now provides the profile-specific persistence for:
 
-- `organization_profiles`
+- `organization_profiles`, including `organization_type`
 - `organization_contacts`
 - `organization_verifications`
 - `organization_invitations`
@@ -187,4 +193,4 @@ The selected production Identity adapter must issue the HMAC-signed `rfx_session
 
 ## Static Pages preview
 
-GitHub Pages remains a static visual projection. API routes are removed from the Pages build, so the profile hierarchy can be inspected there but runtime saves require the server-capable deployment. The static preview does not create browser-only profile success or pretend that a database write occurred.
+GitHub Pages remains a static visual projection. API routes are removed from the Pages build, so the profile hierarchy can be inspected there but runtime saves require the server-capable deployment. Both the profile root and all child/grandchild routes remain statically exportable; query context is resolved client-side after navigation. The static preview does not create browser-only profile success or pretend that a database write occurred.
