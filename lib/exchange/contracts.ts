@@ -5,10 +5,30 @@ export type DrawerSort = "relevance" | "title" | "organization" | "geography";
 export type DrawerLocationFilter = "all" | "mapped" | "off-map";
 export type DrawerOwnershipFilter = "all" | "mine" | "others";
 export type ExchangeRecordType = "rfx" | "resource" | "intelligence" | "capability";
-export type SearchSort = "relevance" | "title" | "geography";
+export type SearchSort = "relevance" | "title" | "geography" | "recent";
 export type SearchLocationMode = "all" | "mapped" | "off-map";
 export type SearchOwnership = "all" | "mine" | "others";
-export type SearchSuggestionKind = "record" | "organization" | "geography" | "metadata";
+export type SearchGeographyMode = "exchange" | "place" | "radius" | "viewport" | "service-area" | "performance-area";
+export type SearchSuggestionKind = "record" | "organization" | "geography" | "metadata" | "capability" | "industry" | "identifier";
+export type SearchWorkflowNodeId =
+  | "root"
+  | "discover"
+  | "suggestions"
+  | "recent"
+  | "recent-detail"
+  | "saved"
+  | "saved-detail"
+  | "refine"
+  | "shared-filters"
+  | "lens-filters"
+  | "geography"
+  | "exchange-geography"
+  | "place"
+  | "radius"
+  | "viewport"
+  | "service-area"
+  | "performance-area"
+  | "sort";
 export type MapDisplayMode = "2d" | "3d";
 export type GeolocationStatus = "idle" | "requesting" | "located" | "denied" | "unavailable";
 export type RecordRelationshipFilter = "all" | "mine" | "others";
@@ -57,14 +77,59 @@ export interface LensAction {
 }
 export interface ExchangeLensDefinition { id: ExchangeLens; label: string; icon: string; searchPlaceholder: string; emptyMessage: string; actions: (record?: ExchangeRecord) => LensAction[]; }
 
-export interface ExchangeSearchFilters { geography: string; location: SearchLocationMode; ownership: SearchOwnership; metadata: string[]; }
+export interface ExchangeSearchFilters {
+  geography: string;
+  geographyMode: SearchGeographyMode;
+  radiusMiles?: number;
+  center?: Coordinates;
+  bounds?: MapBounds;
+  location: SearchLocationMode;
+  ownership: SearchOwnership;
+  metadata: string[];
+  facets: Record<string, string[]>;
+}
 export interface ExchangeSearchState { query: string; filters: ExchangeSearchFilters; sort: SearchSort; }
-export interface ExchangeSearchMatch { score: number; matchedFields: string[]; }
+export interface ExchangeSearchMatch { score: number; matchedFields: string[]; explanation?: string; }
 export interface ExchangeSearchResult { record: ExchangeRecord; match: ExchangeSearchMatch; }
-export interface ExchangeSearchResponse { lens: ExchangeLens; state: ExchangeSearchState; results: ExchangeSearchResult[]; total: number; mapped: number; offMap: number; }
+export interface ExchangeSearchResponse {
+  lens: ExchangeLens;
+  state: ExchangeSearchState;
+  results: ExchangeSearchResult[];
+  suggestions: SearchSuggestion[];
+  total: number;
+  mapped: number;
+  offMap: number;
+  nextCursor?: string;
+  hasMore: boolean;
+}
 export interface SearchSuggestion { id: string; kind: SearchSuggestionKind; label: string; description: string; query: string; }
-export interface SavedSearch { id: string; name: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
+export interface SavedSearch {
+  id: string;
+  name: string;
+  lens: ExchangeLens;
+  state: ExchangeSearchState;
+  alertEnabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 export interface RecentSearch { id: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
+export interface SearchLibrary { saved: SavedSearch[]; recent: RecentSearch[]; }
+export interface SearchNavigationState {
+  path: SearchWorkflowNodeId[];
+  selectedSavedId?: string;
+  selectedRecentId?: string;
+}
+export interface SearchNavigationNode {
+  id: SearchWorkflowNodeId;
+  label: string;
+  description: string;
+  children?: SearchNavigationNode[];
+}
+export interface SearchFacetDefinition {
+  key: string;
+  label: string;
+  description: string;
+}
 export interface ExchangeFilters { geography?: string; relationship: RecordRelationshipFilter; mappedOnly: boolean; featuredOnly: boolean; metadata: string[]; }
 export interface ExchangeMapState { displayMode: MapDisplayMode; geolocationStatus: GeolocationStatus; viewerLocation?: Coordinates; viewportDirty: boolean; resetKey: number; }
 
