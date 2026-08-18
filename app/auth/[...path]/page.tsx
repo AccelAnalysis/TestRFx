@@ -4,7 +4,7 @@ import { AuthEntryNavigator } from "@/components/public/AuthEntryNavigator";
 import {
   findAuthEntryNode,
   flattenAuthEntryPaths,
-} from "@/lib/acquisition/auth-entry-navigation";
+} from "@/lib/acquisition/auth-entry-navigation-complete";
 
 export function generateStaticParams() {
   return flattenAuthEntryPaths().map((path) => ({ path }));
