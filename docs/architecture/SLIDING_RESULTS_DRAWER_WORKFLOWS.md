@@ -115,7 +115,7 @@ Share / Send to another organization
 Save / Follow
 ```
 
-The referral-policy child reads the recipient organization's published policy. No fee is synthesized when no policy has been published.
+The referral-policy child reads the receiving organization's published policy after that recipient is selected in the referral composer. No fee is synthesized when the recipient has not published one. The Menu handoff opens the existing Referrals section directly rather than requiring the user to rediscover it.
 
 ## Intelligence hierarchy
 
@@ -215,7 +215,9 @@ The production AMACS inference/mapping, evidence-object command path, gap analys
 
 ### Exchange results
 
-`GET /api/exchange/results` now uses PostgreSQL/PostGIS when `DATABASE_URL` is configured. It supplies normalized records, mapped/off-map counts, cursor continuation, organization ownership, and durable user relationship state. Production without a configured database fails closed instead of silently reverting to seed records.
+`GET /api/exchange/results` uses PostgreSQL/PostGIS when `DATABASE_URL` is configured. It supplies normalized records, mapped/off-map counts, cursor continuation, organization ownership, and durable user relationship state. Production without a configured database fails closed instead of silently reverting to seed records.
+
+The result projection also supports real sponsored placements. A card receives `placement: sponsored` only when an active, time-valid `sponsored_placements` row exists for that Exchange record. The migration seeds no sponsors and the service does not infer sponsorship from relevance, Featured status, or match quality.
 
 The development/reference catalog remains available only in non-production/reference execution modes so the shell can be inspected without infrastructure credentials.
 
@@ -264,7 +266,7 @@ Intelligence:
 - edit insight;
 - add note.
 
-Resource creation deliberately does not invent map coordinates. Real geocoding/location resolution remains a separate geography service concern.
+Resource creation deliberately does not invent map coordinates. The resource's supplied geography is retained as its service-area context when no narrower service area is entered. Real geocoding/location resolution remains a separate geography service concern.
 
 ### Shared workflows
 
@@ -280,11 +282,13 @@ Resource creation deliberately does not invent map coordinates. Real geocoding/l
 - connection requests;
 - workflow/activity events.
 
-Durable relationship state is hydrated back into Exchange result cards when an authenticated user context is available.
+Durable relationship state is hydrated back into Exchange result cards when an authenticated user context is available, so saved/watch/follow state survives a result refresh or lens return.
 
 ### Recipient referral policy
 
-`GET /api/exchange/referrals/policy?recordId=...` resolves the organization attached to the selected Exchange record and returns only a published `referral_policies` record. Missing policy means “not configured,” not a generated fee.
+`GET /api/exchange/referrals/policy?organization=...` resolves the **receiving organization selected in the referral composer** and returns only that organization's published `referral_policies` record. If the organization exists without a published policy, the response explicitly reports that no policy or fee is configured. RFxchange does not synthesize one.
+
+The referral composer requires this recipient-policy step before the durable referral can be created. After creation, the source-defined management handoff opens `Menu > Referrals` directly.
 
 ## Database prerequisites
 
@@ -297,6 +301,7 @@ db/resources-extension.sql
 db/intelligence.sql
 db/shared-workflows.sql
 db/referral-policies.sql
+db/sponsored-placements.sql
 ```
 
 `RFXCHANGE_DATABASE_POOL_MAX` may tune the application pool size.
