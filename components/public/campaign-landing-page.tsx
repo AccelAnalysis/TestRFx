@@ -6,14 +6,22 @@ interface CampaignLandingPageProps {
   registrationHref: string;
 }
 
+function secondaryHref(campaign: CampaignDefinition) {
+  if (campaign.slug === "find-rfx-opportunities") return "/exchange/rfx";
+  if (campaign.slug === "resource-providers") return "/exchange/resources";
+  return "#how-it-works";
+}
+
 export function CampaignLandingPage({ campaign, registrationHref }: CampaignLandingPageProps) {
+  const secondaryDestination = secondaryHref(campaign);
+
   return (
     <main className="campaign-shell">
       <div className="campaign-accent" aria-hidden="true" />
       <nav className="campaign-nav" aria-label="Campaign navigation">
         <Link className="campaign-brand" href="/">RFxchange</Link>
         <div className="campaign-nav-actions">
-          <Link href="/login">Sign in</Link>
+          <Link href="/signin">Sign in</Link>
           <Link className="button button-primary" href={registrationHref}>Join free</Link>
         </div>
       </nav>
@@ -25,7 +33,7 @@ export function CampaignLandingPage({ campaign, registrationHref }: CampaignLand
           <p className="campaign-lede">{campaign.summary}</p>
           <div className="hero-actions">
             <Link className="button button-primary" href={registrationHref}>{campaign.primaryCta}</Link>
-            <Link className="button button-secondary" href="#how-it-works">{campaign.secondaryCta}</Link>
+            <Link className="button button-secondary" href={secondaryDestination}>{campaign.secondaryCta}</Link>
           </div>
         </div>
         <aside className="campaign-context-card" aria-label="Campaign context">
@@ -112,14 +120,14 @@ export function CampaignLandingPage({ campaign, registrationHref }: CampaignLand
         <p>{campaign.summary}</p>
         <div className="hero-actions">
           <Link className="button button-primary" href={registrationHref}>{campaign.primaryCta}</Link>
-          <Link className="button button-secondary" href="/login">Sign in</Link>
+          <Link className="button button-secondary" href="/signin">Sign in</Link>
         </div>
       </section>
 
       <footer className="campaign-footer">
         <Link href="/">RFxchange</Link>
         <span>Campaign landing page · Public / Acquisition Shell</span>
-        <div><Link href="/login">Sign in</Link><Link href={registrationHref}>Join free</Link></div>
+        <div><Link href="/signin">Sign in</Link><Link href={registrationHref}>Join free</Link></div>
       </footer>
     </main>
   );
