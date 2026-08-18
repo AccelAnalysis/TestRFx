@@ -17,10 +17,11 @@ import { PUBLIC_DESTINATIONS } from "@/lib/public/destinations";
 
 interface CampaignLandingPageProps {
   campaign: CampaignDefinition;
+  registrationHref?: string;
 }
 
-export function CampaignLandingPage({ campaign }: CampaignLandingPageProps) {
-  const joinHref = campaignJoinHref(campaign);
+export function CampaignLandingPage({ campaign, registrationHref }: CampaignLandingPageProps) {
+  const joinHref = registrationHref ?? campaignJoinHref(campaign);
   const signInHref = campaignSignInHref(campaign);
   const canonicalPath = campaignCanonicalPath(campaign);
   const sourceDestination = campaign.sourceDestinationId
