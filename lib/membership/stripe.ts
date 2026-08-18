@@ -173,6 +173,7 @@ function randomLetters(length: number) {
 export async function createFoundingCheckout(input: {
   organizationId: string;
   userId: string;
+  reservationId: string;
   successUrl: string;
   cancelUrl: string;
 }) {
@@ -196,8 +197,10 @@ export async function createFoundingCheckout(input: {
   form.set("metadata[organization_id]", input.organizationId);
   form.set("metadata[user_id]", input.userId);
   form.set("metadata[rfxchange_plan_key]", foundingMembership.code);
+  form.set("metadata[capacity_reservation_id]", input.reservationId);
   form.set("subscription_data[metadata][organization_id]", input.organizationId);
   form.set("subscription_data[metadata][rfxchange_plan_key]", foundingMembership.code);
+  form.set("subscription_data[metadata][capacity_reservation_id]", input.reservationId);
   form.set("integration_identifier", `rfxchange_founding_${randomLetters(8)}`);
 
   const session = await stripeRequest<StripeCheckoutSession>(
@@ -225,7 +228,7 @@ export function verifyStripeWebhookSignature(
   webhookSecret: string,
   toleranceSeconds = 300,
 ) {
-  const parts = signatureHeader.split(",");
+  const parts = signatureHeader.split(",").map((part) => part.trim());
   const timestamp = parts.find((part) => part.startsWith("t="))?.slice(2);
   const signatures = parts
     .filter((part) => part.startsWith("v1="))
