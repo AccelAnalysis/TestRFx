@@ -1,6 +1,7 @@
 "use client";
 
 import type { ExchangeRecord, LensAction } from "@/lib/exchange/contracts";
+import { RfxDetailContent } from "@/components/rfx/rfx-detail-content";
 import { ActionRail } from "./action-rail";
 
 export function DetailSurface({ record, actions, activeActionIds, onAction, onClose }: {
@@ -16,9 +17,7 @@ export function DetailSurface({ record, actions, activeActionIds, onAction, onCl
       <div className={`detail-hero record-media-${record.type}`}><p>{record.organization}</p><h1>{record.title}</h1><span>{record.geography}</span></div>
       <div className="detail-body">
         <ActionRail actions={actions} activeActionIds={activeActionIds} onAction={onAction} />
-        <p>{record.summary}</p>
-        <h2>Record context</h2>
-        <div className="detail-tags">{record.metadata.map((item) => <span key={item}>{item}</span>)}</div>
+        {record.type === "rfx" ? <RfxDetailContent recordId={record.id} /> : <><p>{record.summary}</p><h2>Record context</h2><div className="detail-tags">{record.metadata.map((item) => <span key={item}>{item}</span>)}</div></>}
         <h2>Shell contract</h2>
         <p>This shared detail controller preserves the Exchange lens, query, selection, map context, drawer state, and list position when you return. The same four governed actions remain bound to the selected record.</p>
       </div>
