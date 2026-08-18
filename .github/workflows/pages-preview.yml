@@ -38,6 +38,9 @@ jobs:
       - name: Prepare static preview projection
         run: node scripts/prepare-pages-preview.mjs
 
+      - name: Add Record Cards preview fixtures
+        run: node scripts/prepare-record-cards-pages-preview.mjs
+
       - name: Build static Pages preview
         run: npm run build
         env:

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { LoginApiError, MagicLinkChallengeAccepted } from "@/lib/identity/contracts";
-import { getIdentityGateway } from "@/lib/identity/gateway";
+import { getIdentityGateway, IdentityProviderUnavailableError } from "@/lib/identity/gateway";
 import { isValidEmail, normalizeEmail, sanitizeReturnTo } from "@/lib/identity/login";
+import { DatabaseUnavailableError } from "@/lib/server/database";
 
 interface LoginRequestBody {
   email?: unknown;
@@ -54,7 +55,16 @@ export async function POST(request: NextRequest) {
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof IdentityProviderUnavailableError || error instanceof DatabaseUnavailableError) {
+      return NextResponse.json<LoginApiError>(
+        {
+          error: "Secure sign-in is not configured for this deployment.",
+          code: "provider_unavailable",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     return NextResponse.json<LoginApiError>(
       {
         error: "Secure sign-in is temporarily unavailable. Try again shortly.",

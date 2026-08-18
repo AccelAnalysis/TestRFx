@@ -16,7 +16,6 @@ export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
   const [email, setEmail] = useState("");
   const [flowState, setFlowState] = useState<FlowState>("idle");
   const [message, setMessage] = useState("");
-  const [delivery, setDelivery] = useState<MagicLinkChallengeAccepted["delivery"]>("reference");
   const [expiresInSeconds, setExpiresInSeconds] = useState(15 * 60);
 
   const maskedEmail = useMemo(() => maskEmail(email), [email]);
@@ -37,7 +36,6 @@ export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
         throw new Error("error" in payload ? payload.error : "Unable to start secure sign-in.");
       }
 
-      setDelivery(payload.delivery);
       setExpiresInSeconds(payload.expiresInSeconds);
       setFlowState("sent");
     } catch (error) {
@@ -57,26 +55,11 @@ export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
     return (
       <section className={styles.statusPanel} aria-live="polite">
         <div className={styles.statusIcon} aria-hidden="true">✉</div>
-        <h2>{delivery === "provider" ? "Check your email" : "Sign-in request accepted"}</h2>
-        <p>
-          {delivery === "provider"
-            ? <>We sent a one-time sign-in link to <strong>{maskedEmail}</strong>.</>
-            : <>The chassis validated the request for <strong>{maskedEmail}</strong>. Email delivery is intentionally reference-only until a production identity provider is connected.</>}
-        </p>
-        <p className={styles.statusNote}>Magic links expire after about {minutes} minutes and should be single-use.</p>
-        <button className={styles.primaryButton} type="button" onClick={requestMagicLink}>
-          Resend sign-in link
-        </button>
-        <button
-          className={styles.textButton}
-          type="button"
-          onClick={() => {
-            setFlowState("idle");
-            setMessage("");
-          }}
-        >
-          Use a different email
-        </button>
+        <h2>Check your email</h2>
+        <p>We sent a one-time sign-in link to <strong>{maskedEmail}</strong>.</p>
+        <p className={styles.statusNote}>Magic links expire after about {minutes} minutes and are single-use.</p>
+        <button className={styles.primaryButton} type="button" onClick={requestMagicLink}>Resend sign-in link</button>
+        <button className={styles.textButton} type="button" onClick={() => { setFlowState("idle"); setMessage(""); }}>Use a different email</button>
       </section>
     );
   }
@@ -100,21 +83,15 @@ export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
         />
       </label>
 
-      {message ? (
-        <p id="login-error" className={styles.error} role="alert">{message}</p>
-      ) : null}
+      {message ? <p id="login-error" className={styles.error} role="alert">{message}</p> : null}
 
       <button className={styles.primaryButton} type="submit" disabled={flowState === "submitting" || !email.trim()}>
         {flowState === "submitting" ? "Sending secure link…" : "Continue"}
       </button>
 
       <div className={styles.formDivider}><span>Passwordless sign-in</span></div>
-      <p className={styles.securityNote}>
-        RFxchange uses a one-time sign-in challenge at this boundary. MFA, device trust, and session policy plug into the same identity gateway when configured.
-      </p>
-      <p className={styles.registerPrompt}>
-        New to RFxchange? <Link href="/register">Create an account</Link>
-      </p>
+      <p className={styles.securityNote}>RFxchange uses a single-use sign-in challenge. The authenticated session established by that challenge is the same session used by the Exchange and its server-authorized workflows.</p>
+      <p className={styles.registerPrompt}>New to RFxchange? <Link href="/register">Create an account</Link></p>
     </form>
   );
 }

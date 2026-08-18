@@ -14,6 +14,9 @@ export type GeolocationStatus = "idle" | "requesting" | "located" | "denied" | "
 export type RecordRelationshipFilter = "all" | "mine" | "others";
 export type ExchangeCardPlacement = "organic" | "featured" | "sponsored";
 export type ExchangeCardMediaKind = "category" | "logo" | "image" | "visualization";
+export type ExchangeCardContext = "default" | "recommendation" | "alert" | "recently-viewed";
+export type ExchangeCardAvailability = "available" | "restricted" | "unavailable";
+export type ExchangeCardDensity = "standard" | "compact";
 export type ExchangeStatusTone = "neutral" | "info" | "success" | "warning" | "critical";
 export type ExchangeRelationshipState = "saved" | "watched" | "following" | "referred" | "responded" | "teamed" | "requested" | "connected" | "owned";
 export type LensActionTrigger = "detail" | "modal" | "menu" | "direct" | "workflow";
@@ -31,7 +34,31 @@ export interface MapViewState { camera: MapCamera; geography: MapGeographyContex
 export interface DrawerQueryState { sort: DrawerSort; location: DrawerLocationFilter; ownership: DrawerOwnershipFilter; savedOnly: boolean; featuredOnly: boolean; }
 export interface ExchangeCardMedia { kind: ExchangeCardMediaKind; label: string; src?: string; alt?: string; }
 export interface ExchangeCardStatus { label: string; tone?: ExchangeStatusTone; }
-export interface ExchangeCardProjection { eyebrow?: string; media?: ExchangeCardMedia; classifications?: string[]; status?: ExchangeCardStatus; relationships?: ExchangeRelationshipState[]; placement?: ExchangeCardPlacement; distance?: string; }
+export interface ExchangeCardProjection {
+  eyebrow?: string;
+  media?: ExchangeCardMedia;
+  classifications?: string[];
+  status?: ExchangeCardStatus;
+  relationships?: ExchangeRelationshipState[];
+  placement?: ExchangeCardPlacement;
+  distance?: string;
+  context?: ExchangeCardContext;
+  contextLabel?: string;
+  availability?: ExchangeCardAvailability;
+  unavailableReason?: string;
+  density?: ExchangeCardDensity;
+}
+export interface ExchangeRecordAccess {
+  canOpenDetail: boolean;
+  canSave: boolean;
+  canWatch: boolean;
+  canFollow: boolean;
+  canTrack: boolean;
+  canShare: boolean;
+  canRefer: boolean;
+  canRespond: boolean;
+  canManage: boolean;
+}
 export interface ResourceProjection {
   category: string;
   availability: ResourceAvailabilityState;
@@ -45,8 +72,21 @@ export interface ResourceProjection {
 }
 
 export interface ExchangeRecord {
-  id: string; type: ExchangeRecordType; title: string; organization: string; summary: string; geography: string; metadata: string[];
-  location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection; resource?: ResourceProjection;
+  id: string;
+  type: ExchangeRecordType;
+  title: string;
+  organization: string;
+  organizationId?: string;
+  summary: string;
+  geography: string;
+  metadata: string[];
+  location?: Coordinates;
+  ownedByViewer?: boolean;
+  featured?: boolean;
+  saved?: boolean;
+  card?: ExchangeCardProjection;
+  resource?: ResourceProjection;
+  access?: ExchangeRecordAccess;
 }
 
 export interface LensAction {
@@ -71,5 +111,5 @@ export interface ExchangeMapState { displayMode: MapDisplayMode; geolocationStat
 export interface ExchangeViewState {
   lens: ExchangeLens; search: ExchangeSearchState; filtersByLens: Record<ExchangeLens, ExchangeFilters>;
   drawer: DrawerState; drawerQuery?: DrawerQueryState; map: MapViewState;
-  selectedRecordId?: string; detailRecordId?: string; menuOpen: boolean;
+  selectedRecordId?: string; detailRecordId?: string; detailNavigationPath?: string[]; menuOpen: boolean;
 }

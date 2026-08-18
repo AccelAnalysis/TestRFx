@@ -17,13 +17,13 @@ export type ResourceWorkflow =
 
 const emptyDraft: ResourceDraft = {
   title: "",
-  category: "Professional Services",
+  category: "",
   summary: "",
-  geography: "Isle of Wight, VA",
+  geography: "",
   availability: "available",
   availabilityLabel: "Available now",
   capacity: "",
-  serviceArea: "Isle of Wight County",
+  serviceArea: "",
   visibility: "public-location",
   terms: "",
 };
@@ -62,17 +62,21 @@ export function ResourceWorkflowSurface({
   workflow: ResourceWorkflow;
   record?: ExchangeRecord;
   onClose: () => void;
-  onCreate: (draft: ResourceDraft) => void;
-  onUpdate: (recordId: string, draft: ResourceDraft) => void;
-  onRequest: (recordId: string, request: ResourceRequestDraft) => void;
-  onArchive: (recordId: string) => void;
+  onCreate: (draft: ResourceDraft) => Promise<void> | void;
+  onUpdate: (recordId: string, draft: ResourceDraft) => Promise<void> | void;
+  onRequest: (recordId: string, request: ResourceRequestDraft) => Promise<void> | void;
+  onArchive: (recordId: string) => Promise<void> | void;
 }) {
   const [draft, setDraft] = useState<ResourceDraft>(() => draftFromRecord(record));
   const [request, setRequest] = useState<ResourceRequestDraft>({ scope: "", neededBy: "", message: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     setDraft(draftFromRecord(record));
     setRequest({ scope: "", neededBy: "", message: "" });
+    setSubmitting(false);
+    setError("");
   }, [record, workflow.mode]);
 
   const title = workflow.mode === "offer"
@@ -83,16 +87,43 @@ export function ResourceWorkflowSurface({
         ? "Request resource"
         : "Archive resource";
 
-  function submitResource(event: FormEvent<HTMLFormElement>) {
+  async function submitResource(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalized = { ...draft, availabilityLabel: availabilityLabel(draft.availability) };
-    if (workflow.mode === "offer") onCreate(normalized);
-    if (workflow.mode === "edit") onUpdate(workflow.recordId, normalized);
+    setSubmitting(true); setError("");
+    try {
+      if (workflow.mode === "offer") await onCreate(normalized);
+      if (workflow.mode === "edit") await onUpdate(workflow.recordId, normalized);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unable to save this resource.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
-  function submitRequest(event: FormEvent<HTMLFormElement>) {
+  async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (workflow.mode === "request") onRequest(workflow.recordId, request);
+    if (workflow.mode !== "request") return;
+    setSubmitting(true); setError("");
+    try {
+      await onRequest(workflow.recordId, request);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unable to request this resource.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function archive() {
+    if (workflow.mode !== "archive") return;
+    setSubmitting(true); setError("");
+    try {
+      await onArchive(workflow.recordId);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Unable to archive this resource.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -121,10 +152,10 @@ export function ResourceWorkflowSurface({
             <label>Description<textarea required value={draft.summary} onChange={(event) => setDraft({ ...draft, summary: event.target.value })} /></label>
             <div className={styles.row}>
               <label>Capacity<input value={draft.capacity} onChange={(event) => setDraft({ ...draft, capacity: event.target.value })} placeholder="Quantity, seats, hours…" /></label>
-              <label>Geography<input required value={draft.geography} onChange={(event) => setDraft({ ...draft, geography: event.target.value })} /></label>
+              <label>Geography<input required value={draft.geography} onChange={(event) => setDraft({ ...draft, geography: event.target.value })} placeholder="City, county, region, or service geography" /></label>
             </div>
             <div className={styles.row}>
-              <label>Service area<input value={draft.serviceArea} onChange={(event) => setDraft({ ...draft, serviceArea: event.target.value })} /></label>
+              <label>Service area<input value={draft.serviceArea} onChange={(event) => setDraft({ ...draft, serviceArea: event.target.value })} placeholder="Optional service area" /></label>
               <label>Map visibility
                 <select value={draft.visibility} onChange={(event) => setDraft({ ...draft, visibility: event.target.value as ResourceVisibility })}>
                   <option value="public-location">Public organization location</option>
@@ -134,9 +165,10 @@ export function ResourceWorkflowSurface({
               </label>
             </div>
             <label>Terms / notes<textarea value={draft.terms} onChange={(event) => setDraft({ ...draft, terms: event.target.value })} /></label>
+            {error ? <p className={styles.detailCallout} role="alert">{error}</p> : null}
             <div className={styles.workflowActions}>
               <button className={styles.secondary} type="button" onClick={onClose}>Cancel</button>
-              <button className={styles.primary} type="submit">{workflow.mode === "offer" ? "Publish offer" : "Save changes"}</button>
+              <button className={styles.primary} type="submit" disabled={submitting}>{submitting ? "Saving…" : workflow.mode === "offer" ? "Publish offer" : "Save changes"}</button>
             </div>
           </form>
         ) : null}
@@ -146,9 +178,10 @@ export function ResourceWorkflowSurface({
             <label>Requested scope / amount<input required value={request.scope} onChange={(event) => setRequest({ ...request, scope: event.target.value })} placeholder="What do you need?" /></label>
             <label>Needed by<input type="date" value={request.neededBy} onChange={(event) => setRequest({ ...request, neededBy: event.target.value })} /></label>
             <label>Message<textarea required value={request.message} onChange={(event) => setRequest({ ...request, message: event.target.value })} placeholder="Add project context for the provider." /></label>
+            {error ? <p className={styles.detailCallout} role="alert">{error}</p> : null}
             <div className={styles.workflowActions}>
               <button className={styles.secondary} type="button" onClick={onClose}>Cancel</button>
-              <button className={styles.primary} type="submit">Send request</button>
+              <button className={styles.primary} type="submit" disabled={submitting}>{submitting ? "Sending…" : "Send request"}</button>
             </div>
           </form>
         ) : null}
@@ -156,9 +189,10 @@ export function ResourceWorkflowSurface({
         {workflow.mode === "archive" && record ? (
           <div>
             <div className={styles.detailCallout}><p>Archiving removes this resource from active Exchange discovery while retaining the record for future restoration and audit history.</p></div>
+            {error ? <p className={styles.detailCallout} role="alert">{error}</p> : null}
             <div className={styles.workflowActions}>
               <button className={styles.secondary} type="button" onClick={onClose}>Keep active</button>
-              <button className={styles.danger} type="button" onClick={() => onArchive(workflow.recordId)}>Archive resource</button>
+              <button className={styles.danger} type="button" onClick={() => { void archive(); }} disabled={submitting}>{submitting ? "Archiving…" : "Archive resource"}</button>
             </div>
           </div>
         ) : null}
