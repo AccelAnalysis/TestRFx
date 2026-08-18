@@ -41,6 +41,7 @@ export async function getOrganizationProfileSnapshot(actor: OnboardingActor): Pr
     organization_name: string;
     profile_status: "in_progress" | "complete" | "enriched" | null;
     legal_name: string | null;
+    organization_type: string | null;
     description: string | null;
     website: string | null;
     primary_domain: string | null;
@@ -61,6 +62,7 @@ export async function getOrganizationProfileSnapshot(actor: OnboardingActor): Pr
       o.name AS organization_name,
       op.profile_status,
       op.legal_name,
+      op.organization_type,
       op.description,
       op.website,
       op.primary_domain,
@@ -207,10 +209,12 @@ export async function getOrganizationProfileSnapshot(actor: OnboardingActor): Pr
   return {
     organizationId: row.organization_id,
     organizationName: row.organization_name,
+    viewerRole: actor.role,
     profileStatus: row.profile_status ?? "in_progress",
     profile: {
       displayName: row.organization_name,
       legalName: row.legal_name ?? "",
+      organizationType: (row.organization_type ?? "") as OrganizationProfileSubmission["organizationType"],
       description: row.description ?? "",
       website: row.website ?? "",
       primaryDomain: row.primary_domain ?? "",
@@ -253,7 +257,7 @@ export async function saveOrganizationProfile(
   });
   const industries = JSON.stringify(submission.industry ? [submission.industry] : []);
   const industryCodes = JSON.stringify(submission.naics ? [submission.naics] : []);
-  const eventPayload = JSON.stringify({ profileStatus: status });
+  const eventPayload = JSON.stringify({ profileStatus: status, organizationType: submission.organizationType });
 
   await sql.begin(async (tx) => {
     await tx`
@@ -264,12 +268,13 @@ export async function saveOrganizationProfile(
 
     await tx`
       INSERT INTO organization_profiles (
-        organization_id, legal_name, description, website, primary_domain,
+        organization_id, legal_name, organization_type, description, website, primary_domain,
         industries, industry_codes, organization_roles, onboarding_goals,
         brand_name, logo_url, profile_status, visibility, completed_at, updated_at
       ) VALUES (
         ${actor.organizationId}::uuid,
         ${submission.legalName || null},
+        ${submission.organizationType || null},
         ${submission.description},
         ${submission.website || null},
         ${submission.primaryDomain || null},
@@ -286,6 +291,7 @@ export async function saveOrganizationProfile(
       )
       ON CONFLICT (organization_id) DO UPDATE SET
         legal_name = EXCLUDED.legal_name,
+        organization_type = EXCLUDED.organization_type,
         description = EXCLUDED.description,
         website = EXCLUDED.website,
         primary_domain = EXCLUDED.primary_domain,
@@ -343,7 +349,7 @@ export async function saveOrganizationProfile(
     nextStep: "capability_enrichment",
     handoffHref: organizationProfileHandoffHref(actor.organizationId, submission.context),
     completion: {
-      identity: Boolean(submission.displayName && submission.description.length >= 40),
+      identity: Boolean(submission.displayName && submission.organizationType && submission.description.length >= 40),
       contact: Boolean(submission.contactName && submission.contactEmail),
       role: submission.roles.length > 0,
       visibility: true,
