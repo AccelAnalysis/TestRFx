@@ -1,33 +1,14 @@
-import type { MembershipCatalogSnapshot, MembershipPlan } from "@/lib/membership/contracts";
+import type { CreditPolicy } from "@/lib/membership/contracts";
 
-export const foundingMembership: MembershipPlan = {
-  code: "founding",
-  name: "Founding Membership",
-  description: "Organization-level RFxchange membership for the first 250 participating organizations.",
-  price: { currency: "USD", cents: 4900 },
-  billingInterval: "month",
-  organizationLevel: true,
-  capacity: {
-    limit: 250,
-    consumed: null,
-    state: "open",
-  },
-  foundingDesignation: true,
-};
+export const FOUNDING_PLAN_CODE = "founding" as const;
+export const FOUNDING_PRICE_LOOKUP_KEY =
+  process.env.RFXCHANGE_FOUNDING_PRICE_LOOKUP_KEY?.trim() || "rfxchange_founding_monthly";
 
-export const creditPolicy = {
+export const creditPolicy: CreditPolicy = {
   usdValuePerCredit: 1,
   expirationMonths: 12,
   ledgerOwner: "organization",
-} as const;
-
-export function getPublicMembershipCatalog(): MembershipCatalogSnapshot {
-  return {
-    plans: [foundingMembership],
-    creditPolicy,
-    generatedAt: new Date().toISOString(),
-  };
-}
+};
 
 export function formatUsdCents(cents: number): string {
   return new Intl.NumberFormat("en-US", {

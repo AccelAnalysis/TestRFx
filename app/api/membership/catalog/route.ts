@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
-import { getPublicMembershipCatalog } from "@/lib/membership/catalog";
+import { getPublicMembershipCatalog } from "@/lib/membership/service";
+import { membershipErrorResponse } from "@/lib/membership/http";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return NextResponse.json(getPublicMembershipCatalog(), {
-    headers: {
-      "Cache-Control": "no-store",
-    },
-  });
+  try {
+    return NextResponse.json(await getPublicMembershipCatalog(), {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (error) {
+    return membershipErrorResponse(error);
+  }
 }

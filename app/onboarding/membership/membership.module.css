@@ -1,3 +1,27 @@
+.workflowNav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 26px;
+}
+
+.workflowStep {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(247, 243, 234, 0.62);
+  color: inherit;
+  text-decoration: none;
+}
+
+.workflowStep strong,
+.workflowStep span { display: block; }
+.workflowStep strong { margin-bottom: 4px; font-size: 12px; }
+.workflowStep span { color: #6a6f77; font-size: 10px; line-height: 1.35; }
+.workflowStep ul { margin: 9px 0 0; padding-left: 16px; color: #5d626a; font-size: 10px; line-height: 1.45; }
+.workflowStepActive { border-color: rgba(214, 162, 58, 0.65); background: rgba(255, 249, 232, 0.88); box-shadow: 0 0 0 2px rgba(214, 162, 58, 0.1); }
+
 .summary {
   margin: 22px 0;
   padding: 22px;
@@ -13,23 +37,9 @@
   gap: 18px;
 }
 
-.summary h2 {
-  margin: 0;
-  font-size: 22px;
-  letter-spacing: -0.035em;
-}
-
-.price {
-  white-space: nowrap;
-  font-size: 20px;
-  font-weight: 850;
-}
-
-.price small {
-  color: #6a6f77;
-  font-size: 12px;
-  font-weight: 700;
-}
+.summary h2 { margin: 0; font-size: 22px; letter-spacing: -0.035em; }
+.price { white-space: nowrap; font-size: 20px; font-weight: 850; }
+.price small { color: #6a6f77; font-size: 12px; font-weight: 700; }
 
 .details {
   display: grid;
@@ -38,23 +48,9 @@
   margin-top: 18px;
 }
 
-.detail {
-  padding: 12px;
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.detail strong {
-  display: block;
-  margin-bottom: 4px;
-  font-size: 12px;
-}
-
-.detail span {
-  color: #656a72;
-  font-size: 12px;
-  line-height: 1.4;
-}
+.detail { padding: 12px; border-radius: 13px; background: rgba(255, 255, 255, 0.72); }
+.detail strong { display: block; margin-bottom: 4px; font-size: 12px; }
+.detail span { color: #656a72; font-size: 12px; line-height: 1.4; }
 
 .integrationNote {
   margin: 16px 0;
@@ -67,7 +63,8 @@
   line-height: 1.5;
 }
 
-.disabledButton {
+.checkoutAction { display: grid; gap: 10px; }
+.checkoutButton {
   width: 100%;
   min-height: 48px;
   border: 0;
@@ -75,9 +72,16 @@
   background: var(--exchange-black);
   color: var(--warm-ivory);
   font-weight: 800;
-  opacity: 0.46;
-  cursor: not-allowed;
+  cursor: pointer;
 }
+.checkoutButton:disabled { opacity: 0.5; cursor: not-allowed; }
+.checkoutError { margin: 0; color: #9b2c2c; font-size: 12px; line-height: 1.45; }
+
+.completionList { display: grid; gap: 9px; margin: 20px 0; }
+.completionList > div { padding: 13px 14px; border: 1px solid var(--border); border-radius: 13px; background: rgba(255,255,255,.62); }
+.completionList strong, .completionList span { display: block; }
+.completionList strong { margin-bottom: 4px; font-size: 13px; }
+.completionList span { color: #656a72; font-size: 12px; line-height: 1.45; }
 
 .backLink {
   display: block;
@@ -86,6 +90,11 @@
   color: #60656e;
   font-size: 13px;
   font-weight: 700;
+}
+
+@media (max-width: 720px) {
+  .workflowNav { grid-template-columns: 1fr; }
+  .workflowStep:not(.workflowStepActive) span { display: none; }
 }
 
 @media (max-width: 620px) {
