@@ -5,6 +5,8 @@ import type { ExchangeRecord } from "@/lib/exchange/contracts";
 import { drawerWorkflowPath, type DrawerWorkflowExecution, type DrawerWorkflowNode } from "@/lib/exchange/drawer-workflows";
 import styles from "./drawer-workflow-navigator.module.css";
 
+const menuSectionHandoffKey = "rfxchange:menu-section-handoff";
+
 export function DrawerWorkflowNavigator({ root, record, onClose, onExecute }: {
   root: DrawerWorkflowNode;
   record?: ExchangeRecord;
@@ -16,6 +18,13 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute }: {
   const path = useMemo(() => drawerWorkflowPath(root, pathIds), [root, pathIds]);
   const current = path[path.length - 1];
 
+  function execute(execution: DrawerWorkflowExecution, node: DrawerWorkflowNode) {
+    if (execution.kind === "menu") {
+      try { sessionStorage.setItem(menuSectionHandoffKey, execution.destination); } catch {}
+    }
+    onExecute(execution, node);
+  }
+
   function choose(node: DrawerWorkflowNode) {
     if (node.disabledReason || node.id.endsWith("-policy")) {
       setPathIds((currentPath) => [...currentPath, node.id]);
@@ -25,7 +34,7 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute }: {
       setPathIds((currentPath) => [...currentPath, node.id]);
       return;
     }
-    if (node.execution) onExecute(node.execution, node);
+    if (node.execution) execute(node.execution, node);
   }
 
   return (
@@ -50,7 +59,7 @@ export function DrawerWorkflowNavigator({ root, record, onClose, onExecute }: {
         {current.description ? <p className={styles.description}>{current.description}</p> : null}
         {current.disabledReason ? <div className={styles.outcome} role="status"><strong>Production integration required</strong><span>{current.disabledReason}</span></div> : null}
         {!current.disabledReason && current.execution && current.execution.kind !== "outcome" ? (
-          <button className={styles.primary} type="button" onClick={() => onExecute(current.execution!, current)}>Continue: {current.label}</button>
+          <button className={styles.primary} type="button" onClick={() => execute(current.execution!, current)}>Continue: {current.label}</button>
         ) : null}
 
         {current.children?.length ? (
