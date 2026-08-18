@@ -206,9 +206,16 @@ async function writeStore(store: IdentityStore): Promise<void> {
 async function mutateStore<T>(mutation: (store: IdentityStore) => T | Promise<T>): Promise<T> {
   const result = mutationQueue.then(async () => {
     const store = await readStore();
-    const value = await mutation(store);
-    await writeStore(store);
-    return value;
+    try {
+      const value = await mutation(store);
+      await writeStore(store);
+      return value;
+    } catch (error) {
+      // Expected security-state transitions (for example marking a challenge
+      // expired or revoked) must survive the error returned to the caller.
+      await writeStore(store);
+      throw error;
+    }
   });
   mutationQueue = result.then(() => undefined, () => undefined);
   return result;
@@ -341,9 +348,12 @@ function createChallenge(
     requestIp,
     requestUserAgent,
   });
-  addEvent(store, reason === "resend" ? "VerificationResent" : reason === "email_change" ? "VerificationEmailChanged" : "VerificationRequested", account.id, {
-    challengeId: id,
-  });
+  addEvent(
+    store,
+    reason === "resend" ? "VerificationResent" : reason === "email_change" ? "VerificationEmailChanged" : "VerificationRequested",
+    account.id,
+    { challengeId: id },
+  );
 
   return {
     challengeId: id,
@@ -504,7 +514,10 @@ export async function revokeChallengeAfterDeliveryFailure(challengeId: string, r
     challenge.deliveryState = "failed";
     challenge.revokedAt = new Date().toISOString();
     challenge.revokedReason = reason.slice(0, 160);
-    addEvent(store, "VerificationDeliveryFailed", challenge.accountId, { challengeId, reason: challenge.revokedReason });
+    addEvent(store, "VerificationDeliveryFailed", challenge.accountId, {
+      challengeId,
+      reason: challenge.revokedReason,
+    });
   });
 }
 
@@ -518,11 +531,7 @@ export async function consumeVerificationChallenge(rawToken: string): Promise<Co
     const account = store.accounts.find((item) => item.id === challenge.accountId);
     if (!account) throw new IdentityStoreError("invalid_challenge", "This verification link is invalid.");
 
-    if (challenge.state === "consumed" && account.emailVerifiedAt) {
-      const sessionToken = issueSession(store, account.id, now);
-      return { account: accountSnapshot(account), sessionToken };
-    }
-
+    // A consumed token is never a reusable authentication/session credential.
     if (challenge.state !== "issued") {
       throw new IdentityStoreError("invalid_challenge", "This verification link is no longer active.", {
         registrationId: account.registrationId,
@@ -541,6 +550,10 @@ export async function consumeVerificationChallenge(rawToken: string): Promise<Co
       challenge.state = "revoked";
       challenge.revokedAt = now.toISOString();
       challenge.revokedReason = "account_email_changed";
+      addEvent(store, "VerificationFailed", account.id, {
+        challengeId: challenge.id,
+        reason: "account_email_changed",
+      });
       throw new IdentityStoreError("invalid_challenge", "This verification link is no longer active.", {
         registrationId: account.registrationId,
       });
