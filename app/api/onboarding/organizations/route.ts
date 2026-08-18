@@ -5,24 +5,29 @@ import {
 } from "@/lib/identity/onboarding-session";
 import {
   normalizeDomain,
+  sanitizeOrganizationAuthorityMethod,
   sanitizeOrganizationType,
   sanitizeOrganizationUserRole,
   type OrganizationMutationRequest,
 } from "@/lib/onboarding/organization";
 import {
+  claimOrganization,
+  requestOrganizationAccess,
+} from "@/lib/onboarding/organization-affiliation-repository";
+import {
   getOrganizationAccessReview,
-  getOrganizationClaimReview,
   reviewOrganizationAccessRequest,
-  reviewOrganizationClaim,
 } from "@/lib/onboarding/organization-admin-repository";
 import {
+  getOrganizationClaimReview,
+  reviewOrganizationClaim,
+} from "@/lib/onboarding/organization-claim-review-repository";
+import {
   acceptInvitation,
-  claimOrganization,
   createOrganization,
   getOrganization,
   getOrganizationState,
   OrganizationWorkflowError,
-  requestOrganizationAccess,
   resolveInvitation,
   searchOrganizations,
 } from "@/lib/onboarding/organization-repository";
@@ -48,6 +53,10 @@ function requireSession(request: NextRequest) {
     );
   }
   return session;
+}
+
+function bounded(value: unknown, length: number) {
+  return typeof value === "string" ? value.trim().slice(0, length) : undefined;
 }
 
 function handleError(error: unknown) {
@@ -137,11 +146,12 @@ export async function POST(request: NextRequest) {
       if (!body.organizationId?.trim()) {
         return noStore({ error: "Organization is required.", code: "invalid_request" }, 400);
       }
-      const authorityMethod = body.authorityMethod === "domain_email" ? "domain_email" : "manual_review";
       const resolution = await claimOrganization(session, {
         organizationId: body.organizationId.trim(),
-        authorityMethod,
-        evidenceNote: typeof body.evidenceNote === "string" ? body.evidenceNote.trim().slice(0, 1200) : undefined,
+        authorityMethod: sanitizeOrganizationAuthorityMethod(body.authorityMethod),
+        evidenceNote: bounded(body.evidenceNote, 1200),
+        evidenceUrl: bounded(body.evidenceUrl, 1200),
+        evidenceReference: bounded(body.evidenceReference, 300),
         context: body.context,
       });
       return noStore({ resolution }, resolution.status === "connected" ? 200 : 202);
