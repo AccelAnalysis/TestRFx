@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import type { ExchangeRecord } from "@/lib/exchange/contracts";
-import { getChildrenAtPath, getNodeAtPath, getRecordNavigationTree, type RecordNavigationNode } from "@/lib/exchange/record-navigation";
+import { getChildrenAtPath, getNodeAtPath, getRecordNavigationTree, isValidRecordNavigationPath, type RecordNavigationNode } from "@/lib/exchange/record-navigation";
 import { isRecordNavigationCommandOperational, recordNavigationUnavailableReason } from "@/lib/exchange/record-navigation-runtime";
 import styles from "./record-workflow-navigator.module.css";
 
@@ -17,10 +18,15 @@ export function RecordWorkflowNavigator({
   onExecute: (node: RecordNavigationNode) => void;
 }) {
   const tree = getRecordNavigationTree(record);
-  const current = path.length ? getNodeAtPath(tree, path) : undefined;
-  const children = getChildrenAtPath(tree, path);
+  const validPath = isValidRecordNavigationPath(record, path);
+  const current = validPath && path.length ? getNodeAtPath(tree, path) : undefined;
+  const children = validPath ? getChildrenAtPath(tree, path) : tree.children;
   const unavailable = current ? recordNavigationUnavailableReason(current) : undefined;
   const operational = current ? isRecordNavigationCommandOperational(current) : false;
+
+  useEffect(() => {
+    if (path.length && !validPath) onPathChange([]);
+  }, [path, validPath, onPathChange]);
 
   return (
     <section className={styles.navigator} aria-label="Record workflow navigation">
@@ -34,11 +40,11 @@ export function RecordWorkflowNavigator({
 
       <nav className={styles.breadcrumbs} aria-label="Workflow path">
         <button type="button" onClick={() => onPathChange([])}>Record</button>
-        {path.map((id, index) => {
+        {validPath ? path.map((id, index) => {
           const node = getNodeAtPath(tree, path.slice(0, index + 1));
           if (!node) return null;
           return <span key={id}><span className={styles.separator} aria-hidden>›</span><button type="button" onClick={() => onPathChange(path.slice(0, index + 1))}>{node.label}</button></span>;
-        })}
+        }) : null}
       </nav>
 
       {current ? (
