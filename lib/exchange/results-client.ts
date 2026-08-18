@@ -7,7 +7,7 @@ export interface ExchangeResultsApiResponse {
   records: ExchangeRecord[];
   summary: { total: number; mapped: number; offMap: number };
   nextCursor: string | null;
-  serviceMode: "postgres" | "reference";
+  serviceMode: "postgres" | "reference" | "reference-development";
 }
 
 export function exchangeResultsUrl(lens: ExchangeLens, state: ExchangeSearchState, cursor?: string) {
