@@ -6,7 +6,7 @@ import type { LoginApiError, MagicLinkChallengeAccepted } from "@/lib/identity/c
 import { maskEmail } from "@/lib/identity/login";
 import styles from "./login.module.css";
 
-type FlowState = "idle" | "submitting" | "sent" | "error";
+type FlowState = "idle" | "submitting" | "sent" | "error" | "not_found" | "restricted";
 
 interface LoginFlowProps {
   initialReturnTo: string;
@@ -21,6 +21,11 @@ export function LoginFlow({ initialReturnTo, registrationHref = "/register" }: L
 
   const maskedEmail = useMemo(() => maskEmail(email), [email]);
 
+  function resetEmail() {
+    setFlowState("idle");
+    setMessage("");
+  }
+
   async function requestMagicLink() {
     setFlowState("submitting");
     setMessage("");
@@ -34,7 +39,18 @@ export function LoginFlow({ initialReturnTo, registrationHref = "/register" }: L
 
       const payload = (await response.json()) as MagicLinkChallengeAccepted | LoginApiError;
       if (!response.ok || !("status" in payload)) {
-        throw new Error("error" in payload ? payload.error : "Unable to start secure sign-in.");
+        const errorPayload = "code" in payload ? payload : undefined;
+        setMessage("error" in payload ? payload.error : "Unable to start secure sign-in.");
+        if (errorPayload?.code === "account_not_found") {
+          setFlowState("not_found");
+          return;
+        }
+        if (errorPayload?.code === "account_restricted") {
+          setFlowState("restricted");
+          return;
+        }
+        setFlowState("error");
+        return;
       }
 
       setExpiresInSeconds(payload.expiresInSeconds);
@@ -50,6 +66,37 @@ export function LoginFlow({ initialReturnTo, registrationHref = "/register" }: L
     await requestMagicLink();
   }
 
+  if (flowState === "not_found") {
+    return (
+      <section className={styles.statusPanel} aria-live="polite">
+        <div className={styles.statusIcon} aria-hidden="true">?</div>
+        <h2>Email not found</h2>
+        <p>{message || "No RFxchange account was found for that email."}</p>
+        <Link className={styles.primaryButton} href={registrationHref}>
+          Create an account
+        </Link>
+        <button className={styles.textButton} type="button" onClick={resetEmail}>
+          Try a different email
+        </button>
+        <p className={styles.registerPrompt}><Link href="/">Return to RFxchange</Link></p>
+      </section>
+    );
+  }
+
+  if (flowState === "restricted") {
+    return (
+      <section className={styles.statusPanel} aria-live="polite">
+        <div className={styles.statusIcon} aria-hidden="true">!</div>
+        <h2>Account unavailable</h2>
+        <p>{message || "This RFxchange account cannot sign in right now."}</p>
+        <button className={styles.primaryButton} type="button" onClick={resetEmail}>
+          Use a different email
+        </button>
+        <p className={styles.registerPrompt}><Link href="/">Return to RFxchange</Link></p>
+      </section>
+    );
+  }
+
   if (flowState === "sent") {
     const minutes = Math.max(1, Math.round(expiresInSeconds / 60));
 
@@ -62,14 +109,7 @@ export function LoginFlow({ initialReturnTo, registrationHref = "/register" }: L
         <button className={styles.primaryButton} type="button" onClick={requestMagicLink}>
           Resend sign-in link
         </button>
-        <button
-          className={styles.textButton}
-          type="button"
-          onClick={() => {
-            setFlowState("idle");
-            setMessage("");
-          }}
-        >
+        <button className={styles.textButton} type="button" onClick={resetEmail}>
           Use a different email
         </button>
       </section>
