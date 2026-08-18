@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  getOnboardingDetailBreadcrumbs,
   getOnboardingDetailDefinition,
+  getOnboardingDetailNode,
+  isOnboardingDetailSubject,
   listOnboardingDetailDefinitions,
 } from "@/lib/onboarding/detail-surface";
 
@@ -8,20 +11,39 @@ export function GET(request: NextRequest) {
   const subject = request.nextUrl.searchParams.get("subject");
   if (!subject) {
     return NextResponse.json({
-      contract: "identity-onboarding-detail-surface/v1",
-      persistence: "domain-owned",
-      subjects: listOnboardingDetailDefinitions().map(({ subject: id, title, mode, required, status }) => ({ id, title, mode, required, status })),
-    });
+      contract: "identity-onboarding-detail-surface/v2",
+      responsibility: "hierarchy-continuity-routing",
+      persistence: "owning-domain-services",
+      subjects: listOnboardingDetailDefinitions().map(({ subject: id, label, step, classification, workflow, children }) => ({
+        id,
+        label,
+        step,
+        classification,
+        workflow,
+        childCount: children.length,
+      })),
+    }, { headers: { "Cache-Control": "no-store" } });
   }
 
-  const definition = getOnboardingDetailDefinition(subject);
-  if (!definition) {
+  if (!isOnboardingDetailSubject(subject)) {
     return NextResponse.json({ error: "Unknown onboarding detail subject." }, { status: 404 });
   }
 
+  const rawPath = request.nextUrl.searchParams.get("path")?.trim() ?? "";
+  const path = rawPath ? rawPath.split("/").filter(Boolean) : [];
+  const definition = getOnboardingDetailDefinition(subject);
+  const node = getOnboardingDetailNode(subject, path);
+  if (!definition || !node) {
+    return NextResponse.json({ error: "Unknown onboarding detail path." }, { status: 404 });
+  }
+
   return NextResponse.json({
-    contract: "identity-onboarding-detail-surface/v1",
-    persistence: "domain-owned",
+    contract: "identity-onboarding-detail-surface/v2",
+    responsibility: "hierarchy-continuity-routing",
+    persistence: "owning-domain-services",
     definition,
-  });
+    activePath: path,
+    breadcrumbs: getOnboardingDetailBreadcrumbs(subject, path),
+    node,
+  }, { headers: { "Cache-Control": "no-store" } });
 }
