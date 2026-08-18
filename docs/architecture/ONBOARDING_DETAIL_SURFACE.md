@@ -29,19 +29,7 @@ Detail Surface owns:
 - service-maturity disclosure instead of pretending an integration is production-backed;
 - `GET /api/onboarding/detail` as the hierarchy/read-model contract.
 
-Detail Surface does **not** own:
-
-- identity/session persistence or verification delivery;
-- canonical organization/entity resolution writes or authority decisions;
-- geocoding, geography rollout policy, or PostGIS writes;
-- Organization Profile persistence;
-- AMACS inference/taxonomy persistence;
-- evidence/object storage or substantive verification;
-- Stripe card collection, capacity reservation, payment reconciliation, or entitlements;
-- final readiness policy or durable Exchange activation;
-- authenticated Exchange map/detail state.
-
-Those remain domain/service responsibilities. The Detail Surface no longer keeps a browser-only shadow record for them.
+Detail Surface does **not** own identity/session persistence, canonical organization writes, authority decisions, geocoding/PostGIS persistence, Organization Profile persistence, AMACS/taxonomy persistence, evidence/object storage, Stripe execution, or durable Exchange activation. Those remain domain/service responsibilities. The Detail Surface no longer keeps a browser-only shadow record for them.
 
 ## Canonical hierarchy
 
@@ -72,14 +60,18 @@ Account & Identity
 ├── Account Creation
 │   ├── Name
 │   └── Email / Password or Auth Method
-└── Verify Email / Access
-    ├── Send Verification
-    ├── Verification Link
-    ├── Resend Verification
-    └── Change Email Address
+├── Verify Email / Access
+│   ├── Send Verification
+│   ├── Verification Link
+│   ├── Resend Verification
+│   └── Change Email Address
+└── Alternate Entry Context
+    ├── Referral Link
+    ├── Partner Invite
+    └── QR Code / Event Registration
 ```
 
-The verification leaves point to the merged Account Verification API contract instead of fake Detail-Surface values.
+The Registration-source alternate entry paths are preserved as conditional Identity context rather than promoted to new product stages or authorization truth. Verification leaves point to the merged Account Verification API contract instead of fake Detail-Surface values.
 
 ### Organization
 
@@ -87,8 +79,9 @@ The verification leaves point to the merged Account Verification API contract in
 Organization
 ├── Basic User Onboarding
 │   ├── Welcome / Role Selection
-│   ├── Join Existing Organization
-│   └── Create New Organization
+│   └── Organization Affiliation Choice
+│       ├── Join Existing Organization
+│       └── Create New Organization
 ├── Organization Setup
 │   ├── Claim Existing Organization
 │   └── Create New Organization
@@ -107,7 +100,7 @@ Organization
     └── Set Role and Confirm Access
 ```
 
-The merged Organization workflow has a concrete organization-search/entity-resolution API. Claim/join/create mutations still use reference workflow state today, so Detail Surface labels that production persistence boundary rather than inventing a server save.
+The explicit Organization Affiliation Choice parent is retained because it is present in the Onboarding source. The merged Organization workflow has a concrete search/entity-resolution API. Claim/join/create mutations still use reference workflow state today, so Detail Surface labels that production persistence boundary rather than inventing a server save.
 
 ### Geography & Location
 
@@ -138,7 +131,8 @@ Organization Profile
 ├── Core Profile Details
 │   ├── Organization Overview
 │   ├── Contacts
-│   └── Description and Key Info
+│   ├── Description
+│   └── Key Info
 ├── Industry & Services
 │   ├── Industries Served
 │   └── Service Offerings
@@ -148,7 +142,7 @@ Organization Profile
     └── Goals
 ```
 
-Profile work delegates to the merged Organization Profile workflow/API rather than creating a second onboarding-only profile record.
+Description and Key Info remain separate because the source lists them as separate Core Profile Details. Profile work delegates to the merged Organization Profile workflow/API rather than creating a second onboarding-only profile record.
 
 ### Capability Enrichment
 
@@ -157,6 +151,10 @@ The source-defined enrichment sequence is represented directly:
 ```text
 Capability Enrichment
 ├── Core Profile Details
+│   ├── Organization Overview
+│   ├── Contacts
+│   ├── Description
+│   └── Key Info
 ├── Industry & Services
 │   ├── Industries Served
 │   └── Service Offerings
@@ -164,8 +162,10 @@ Capability Enrichment
 │   ├── Detailed Capabilities
 │   └── Solutions
 ├── AMACS Mapping / AI-to-AMACS Assistance
-│   ├── Suggest AMACS Mapping
-│   └── Review / Confirm Mapping
+│   ├── Suggested Mapping
+│   ├── User-confirmed Mapping
+│   ├── Alternative Mappings
+│   └── Mapping Confidence / Explanation
 ├── Evidence / Certifications
 │   ├── Certifications
 │   ├── Licenses
@@ -177,7 +177,7 @@ Capability Enrichment
     └── Tags
 ```
 
-The merged Capability Enrichment page exists, but it does not expose a canonical onboarding capability/AMACS/evidence server API. Detail Surface therefore delegates to `/onboarding/capabilities` and labels the service as workflow-only. It does **not** add a fake AMACS endpoint or fake object storage.
+The AMACS child labels follow the previously agreed Detail Surface structure rather than inventing additional taxonomy steps. The merged Capability Enrichment page exists, but it does not expose a canonical onboarding capability/AMACS/evidence server API. Detail Surface therefore delegates to `/onboarding/capabilities` and labels the service as workflow-only. It does **not** add a fake AMACS endpoint or fake object storage.
 
 ### Membership
 
@@ -229,9 +229,10 @@ Child, grandchild, and deeper workflow:
 Examples:
 
 ```text
-/onboarding/detail/organization/referral-invitation/validate-invitation
+/onboarding/detail/account/alternate-entry-context/partner-invite
+/onboarding/detail/organization/basic-user-onboarding/organization-affiliation-choice/join-existing-organization
 /onboarding/detail/geography/location-map-placement/confirm-marker
-/onboarding/detail/capabilities/amacs-mapping/review-confirm-mapping
+/onboarding/detail/capabilities/amacs-mapping/user-confirmed-mapping
 /onboarding/detail/readiness/review-completion-checkpoint/missing-items
 ```
 
@@ -257,19 +258,9 @@ This distinction is intentional: “endpoint exists” and “production source 
 
 ## Mock removal
 
-The Detail Surface no longer contains:
+The Detail Surface no longer contains fabricated user/organization/geography/capability/AMACS/evidence values, generic competing forms, browser `sessionStorage` persistence, fake client validation, or a Detail-Surface Save command.
 
-- fabricated user names/emails;
-- fabricated organization names/geographies;
-- fake capability/AMACS/evidence values;
-- generic editable form fields that compete with owning domain forms;
-- browser `sessionStorage` persistence;
-- Detail-Surface client validation pretending to be canonical domain validation;
-- a fake Save/Continue command.
-
-Static hierarchy definitions remain in code because they are navigation configuration, not mutable domain data.
-
-Where the owning implementation is still reference-only, the surface says so. It never manufactures successful verification, organization persistence, geocoding, AMACS mapping, evidence upload, Stripe payment, or Exchange activation.
+Static hierarchy definitions remain in code because they are navigation configuration, not mutable domain data. Where the owning implementation is still reference-only, the surface says so. It never manufactures successful verification, organization persistence, geocoding, AMACS mapping, evidence upload, Stripe payment, or Exchange activation.
 
 ## Parent onboarding shell
 
@@ -279,7 +270,7 @@ Commercial Membership remains a conditional path rather than a numbered required
 
 ## GitHub Pages preview
 
-The nested catch-all route exports every configured source-derived path through `generateStaticParams`. The shared Detail Surface also provides default root props so the existing Pages preview projection can statically render root subjects without creating a parallel preview-only hierarchy implementation.
+The nested catch-all route exports every configured source-derived path through `generateStaticParams`. A small preview-only adapter removes runtime query dependence from that route during Pages export, while production keeps the full `returnTo` contract.
 
 ## Handoff to the authenticated Exchange
 
