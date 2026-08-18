@@ -2,9 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveExchangeActor } from "@/lib/server/exchange/actor";
 import { exchangeServiceErrorResponse } from "@/lib/server/exchange/http";
 import { parseReferral } from "@/lib/server/exchange/resource-input";
+import { listReferralsForActor } from "@/lib/server/exchange/referral-tracking-service";
 import { createResourceReferral } from "@/lib/server/exchange/resource-service";
 
 export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  try {
+    const actor = await resolveExchangeActor(request);
+    const referrals = await listReferralsForActor(actor);
+    return NextResponse.json({ referrals }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return exchangeServiceErrorResponse(error);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
