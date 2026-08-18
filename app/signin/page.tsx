@@ -1,14 +1,15 @@
 import { redirect } from "next/navigation";
+import {
+  AuthEntrySearchParams,
+  buildIdentityHref,
+  parseAuthEntryContext,
+} from "@/lib/acquisition/auth-entry";
 
-type Query = Record<string, string | string[] | undefined>;
-
-export default async function SignInPage({ searchParams }: { searchParams: Promise<Query> }) {
-  const incoming = await searchParams;
-  const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(incoming)) {
-    if (Array.isArray(value)) value.forEach((item) => query.append(key, item));
-    else if (value !== undefined) query.set(key, value);
-  }
-  const suffix = query.toString();
-  redirect(`/login${suffix ? `?${suffix}` : ""}`);
+export default async function SignInEntryPage({
+  searchParams,
+}: {
+  searchParams: Promise<AuthEntrySearchParams>;
+}) {
+  const context = parseAuthEntryContext(await searchParams);
+  redirect(buildIdentityHref("signin", context));
 }
