@@ -64,10 +64,10 @@ export function sanitizeReturnTo(value: string | undefined) {
 export function parseAuthEntryContext(searchParams: AuthEntrySearchParams): AuthEntryContext {
   return {
     returnTo: sanitizeReturnTo(first(searchParams.returnTo)),
-    source: compact(first(searchParams.source) ?? first(searchParams.utm_source)),
-    medium: compact(first(searchParams.medium) ?? first(searchParams.utm_medium)),
+    source: compact(first(searchParams.utm_source) ?? first(searchParams.source)),
+    medium: compact(first(searchParams.utm_medium) ?? first(searchParams.medium)),
     campaign: compact(first(searchParams.campaign) ?? first(searchParams.utm_campaign)),
-    content: compact(first(searchParams.content) ?? first(searchParams.utm_content)),
+    content: compact(first(searchParams.utm_content) ?? first(searchParams.content)),
     partner: compact(first(searchParams.partner)),
     referral: compact(first(searchParams.referral) ?? first(searchParams.ref)),
     invitation: compact(first(searchParams.invitation), 500),
