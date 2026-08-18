@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { RfxWorkflowEntry, RfxWorkflowPerspective, RfxWorkspace } from "@/lib/rfx/contracts";
 import { loadPostgresRfxWorkspace, savePostgresRfxWorkspace } from "@/lib/rfx/postgres-repository";
+import { isTrustedRfxWorkspaceRequest, sharedRfxWorkspaceConfiguration } from "@/lib/rfx/workspace-service-auth";
 import { perspectiveForEntry } from "@/lib/rfx/workflow-tree";
 
 export const runtime = "nodejs";
@@ -14,7 +15,20 @@ function serviceError(error: unknown) {
   return NextResponse.json({ error: message }, { status: configuration ? 503 : 500 });
 }
 
+function requireTrustedService(request: NextRequest) {
+  const configuration = sharedRfxWorkspaceConfiguration();
+  if (!configuration.databaseConfigured || !configuration.serviceCredentialConfigured) {
+    return NextResponse.json({ error: "Shared RFx workspace persistence is not configured. The client should use its local-device workspace until the authenticated server service is configured." }, { status: 503 });
+  }
+  if (!isTrustedRfxWorkspaceRequest(request)) {
+    return NextResponse.json({ error: "Authenticated server authority is required for shared RFx workspace persistence." }, { status: 401 });
+  }
+  return undefined;
+}
+
 export async function GET(request: NextRequest) {
+  const trustError = requireTrustedService(request);
+  if (trustError) return trustError;
   const recordId = request.nextUrl.searchParams.get("recordId")?.trim();
   const entry = request.nextUrl.searchParams.get("entry") as RfxWorkflowEntry | null;
   const perspective = request.nextUrl.searchParams.get("perspective") as RfxWorkflowPerspective | null;
@@ -31,6 +45,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  const trustError = requireTrustedService(request);
+  if (trustError) return trustError;
   try {
     const payload = await request.json() as { workspace?: RfxWorkspace };
     const workspace = payload.workspace;
