@@ -8,6 +8,5 @@ export default async function OrganizationProfilePage({
 }) {
   const params = await searchParams;
   const context = organizationProfileContextFromSearchParams(params);
-
-  return <OrganizationProfileForm initialContext={context} />;
+  return <OrganizationProfileForm initialContext={context} activePath={[]} />;
 }
