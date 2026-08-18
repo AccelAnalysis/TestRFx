@@ -24,7 +24,9 @@ export function createRfxWorkspace(recordId: string, entry: RfxWorkflowEntry): R
 export function withWorkspaceEntry(workspace: RfxWorkspace, entry: RfxWorkflowEntry): RfxWorkspace {
   const perspective = perspectiveForEntry(entry);
   if (workspace.perspective !== perspective) return createRfxWorkspace(workspace.recordId, entry);
-  return { ...workspace, entry, activePath: [rootForEntry(entry)], updatedAt: new Date().toISOString() };
+  const root = rootForEntry(entry);
+  const preservePath = workspace.entry === entry && workspace.activePath[0] === root;
+  return { ...workspace, entry, activePath: preservePath ? workspace.activePath : [root], updatedAt: new Date().toISOString() };
 }
 
 export function setWorkspaceValues(workspace: RfxWorkspace, values: Record<string, RfxWorkspaceValue>): RfxWorkspace {
