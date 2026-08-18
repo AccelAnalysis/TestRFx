@@ -6,6 +6,13 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/identity/session-gateway";
 import {
+  MembershipCapacityExistingError,
+  MembershipCapacityFullError,
+  MembershipCapacityUnavailableError,
+  releaseFoundingMembershipCapacity,
+  reserveFoundingMembershipCapacity,
+} from "@/lib/membership/capacity-gateway";
+import {
   createFoundingCheckout,
   ExistingFoundingMembershipError,
   FoundingMembershipFullError,
@@ -33,6 +40,7 @@ function applicationOrigin(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value ?? "";
+  let reservationId = "";
 
   try {
     const identity = await resolveIdentitySession(sessionToken);
@@ -54,16 +62,27 @@ export async function POST(request: NextRequest) {
       return noStore({ error: "An active organization is required for membership checkout." }, 409);
     }
 
+    const reservation = await reserveFoundingMembershipCapacity({
+      organizationId: identity.activeOrganizationId,
+      userId: identity.userId,
+    });
+    reservationId = reservation.reservationId;
+
     const origin = applicationOrigin(request);
     const checkout = await createFoundingCheckout({
       organizationId: identity.activeOrganizationId,
       userId: identity.userId,
+      reservationId,
       successUrl: `${origin}/onboarding/membership/complete?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${origin}/onboarding/membership?membership=founding&checkout=cancelled`,
     });
 
     return noStore({ sessionId: checkout.id, url: checkout.url }, 201);
   } catch (error) {
+    if (reservationId) {
+      await releaseFoundingMembershipCapacity(reservationId).catch(() => undefined);
+    }
+
     if (error instanceof IdentitySessionUnauthorizedError) {
       return noStore(
         { error: "Sign in before starting membership checkout.", nextPath: "/login?returnTo=/onboarding/membership?membership=founding" },
@@ -73,10 +92,13 @@ export async function POST(request: NextRequest) {
     if (error instanceof IdentitySessionUnavailableError) {
       return noStore({ error: "Identity session service is not configured." }, 503);
     }
-    if (error instanceof ExistingFoundingMembershipError) {
+    if (error instanceof MembershipCapacityUnavailableError) {
+      return noStore({ error: "Founding Membership capacity service is not configured." }, 503);
+    }
+    if (error instanceof MembershipCapacityExistingError || error instanceof ExistingFoundingMembershipError) {
       return noStore({ error: error.message, nextPath: "/onboarding/completion" }, 409);
     }
-    if (error instanceof FoundingMembershipFullError) {
+    if (error instanceof MembershipCapacityFullError || error instanceof FoundingMembershipFullError) {
       return noStore({ error: error.message }, 409);
     }
     if (error instanceof StripeMembershipConfigurationError) {
