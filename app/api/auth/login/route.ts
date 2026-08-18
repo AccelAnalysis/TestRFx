@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { LoginApiError, MagicLinkChallengeAccepted } from "@/lib/identity/contracts";
-import { getIdentityGateway } from "@/lib/identity/gateway";
+import {
+  getIdentityGateway,
+  IdentityProviderUnavailableError,
+} from "@/lib/identity/gateway";
 import { isValidEmail, normalizeEmail, sanitizeReturnTo } from "@/lib/identity/login";
 
 interface LoginRequestBody {
@@ -54,7 +57,17 @@ export async function POST(request: NextRequest) {
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof IdentityProviderUnavailableError) {
+      return NextResponse.json<LoginApiError>(
+        {
+          error: "Secure sign-in email delivery is not configured for this RFxchange environment.",
+          code: "provider_unavailable",
+        },
+        { status: 503, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+
     return NextResponse.json<LoginApiError>(
       {
         error: "Secure sign-in is temporarily unavailable. Try again shortly.",
