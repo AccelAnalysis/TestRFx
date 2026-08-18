@@ -67,7 +67,7 @@ export default function LoginVerifyPage() {
         <p className={styles.eyebrow}>Identity &amp; onboarding</p>
         <h1 className={styles.title}>Complete sign in</h1>
         <p className={styles.copy}>Magic-link token validation, optional MFA, and HttpOnly session establishment require the production Identity provider and are not simulated by the static preview.</p>
-        <Link className={styles.primaryButton} href="/auth/sign-in/enter-email/email-found/send-sign-in-link/click-magic-link">View the magic-link workflow</Link>
+        <Link className={styles.primaryButton} href="/auth/sign-in/enter-email/continue/email-found-system/email-found/send-sign-in-link/check-email/click-magic-link">View the magic-link workflow</Link>
         <p className={styles.registerPrompt}><Link href="/login">Return to sign in</Link></p>
       </section>
     </main>
