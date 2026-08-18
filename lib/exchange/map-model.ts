@@ -109,6 +109,47 @@ export function mapBoundsForCamera(camera: MapCamera): MapBounds {
   };
 }
 
+export function coordinateWithinBounds(coordinate: Coordinates, bounds: MapBounds) {
+  return coordinate.lat <= bounds.north
+    && coordinate.lat >= bounds.south
+    && coordinate.lng <= bounds.east
+    && coordinate.lng >= bounds.west;
+}
+
+/**
+ * A viewport query is intentionally spatial. Records with no legitimate
+ * coordinate are excluded because the shell must never fabricate a position.
+ * Clearing the viewport query restores those off-map records to the drawer.
+ */
+export function filterRecordsToMapBounds(records: ExchangeRecord[], bounds?: MapBounds) {
+  if (!bounds) return records;
+  return records.filter((record) => Boolean(record.location && coordinateWithinBounds(record.location, bounds)));
+}
+
+export function fitMapCameraToRecords(camera: MapCamera, records: ExchangeRecord[]): MapCamera | undefined {
+  const located = records.flatMap((record) => (record.location ? [record.location] : []));
+  if (!located.length) return undefined;
+
+  const minLat = Math.min(...located.map((coordinate) => coordinate.lat));
+  const maxLat = Math.max(...located.map((coordinate) => coordinate.lat));
+  const minLng = Math.min(...located.map((coordinate) => coordinate.lng));
+  const maxLng = Math.max(...located.map((coordinate) => coordinate.lng));
+  const center = { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 };
+
+  if (located.length === 1) {
+    return { ...camera, center, zoom: clamp(Math.max(camera.zoom, 11.2), MAP_ZOOM_LIMITS.min, MAP_ZOOM_LIMITS.max) };
+  }
+
+  const latSpan = Math.max(maxLat - minLat, 0.012);
+  const lngSpan = Math.max(maxLng - minLng, 0.02);
+  const paddedScale = Math.min(
+    (REFERENCE_LATITUDE_SPAN * 0.72) / latSpan,
+    (REFERENCE_LONGITUDE_SPAN * 0.72) / lngSpan,
+  );
+  const zoom = DEFAULT_ZOOM + 2 * Math.log2(Math.max(paddedScale, 0.01));
+  return { ...camera, center, zoom: clamp(zoom, MAP_ZOOM_LIMITS.min, MAP_ZOOM_LIMITS.max) };
+}
+
 export function zoomMapCamera(camera: MapCamera, delta: number): MapCamera {
   return {
     ...camera,

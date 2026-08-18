@@ -4,16 +4,78 @@
 
 Floating Controls are shared operating-chassis infrastructure layered over the persistent Exchange map. They manipulate the current Exchange view; they do not navigate away from the Exchange and they do not own lens business workflows.
 
-Universal Search remains a sibling chassis primitive. The search surface and Floating Controls occupy one visual command zone, but their contracts remain separate.
+Universal Search remains a sibling chassis primitive. The search surface and Floating Controls occupy one visual command zone, but their contracts remain separate. The same filter workflow is also reachable from the result-drawer **Filter** control required by the source architecture; that second entry point does not create a second filter implementation.
+
+## Source-governed hierarchy
+
+Only children supported by the supplied platform structure and the established Floating Controls design are represented. No Intelligence-only overlay taxonomy or other speculative menu branches are invented.
+
+```text
+Floating Controls
+│
+├── Filter
+│   ├── Geography
+│   │   ├── All geographies
+│   │   └── Available geography values for the active lens
+│   │
+│   ├── Organization relationship
+│   │   ├── All organizations
+│   │   ├── My organization
+│   │   └── Other organizations
+│   │
+│   ├── Map availability
+│   │   ├── Mapped + off-map
+│   │   ├── Mapped only
+│   │   └── Off-map only
+│   │
+│   ├── Placement                          [when supported by actual records]
+│   │   ├── All placements
+│   │   └── Featured only
+│   │
+│   ├── Lens facets                        [when actual facet values exist]
+│   │   └── Active-lens metadata values
+│   │
+│   ├── Clear all filters
+│   ├── Cancel
+│   └── Apply → Show N results
+│
+├── Location / Recenter
+│   ├── Request browser location permission
+│   ├── Acquire current coordinates
+│   ├── Recenter camera on current location
+│   └── Report denied/unavailable state without blocking browsing
+│
+├── Map controls
+│   ├── Map display
+│   │   ├── 2D
+│   │   ├── 3D
+│   │   └── Reset north                     [when bearing is non-zero]
+│   │
+│   ├── Fit current results
+│   ├── Center selected geography           [when a geography filter is active]
+│   ├── Search this area                    [after viewport changes]
+│   ├── Clear searched area                 [when a viewport query is active]
+│   └── Reset map view
+│
+├── Active filter chips
+│   └── Remove individual filter directly
+│
+└── Result drawer → Filter
+    └── Opens the same Filter hierarchy above
+```
+
+The component keeps a stack of `FloatingControlRoute` values. Parent → child navigation therefore has explicit nested state rather than hiding all controls inside one flat panel. Escape closes the current control surface and child pages expose a Back action.
 
 ## Mobile composition
 
-The default map-first command zone is intentionally small:
+The default map-first command zone stays deliberately small:
 
 ```text
 [ Universal Search                         ] [Filter] [Locate]
-                                                   [2D/3D]
-                                                   [Reset]
+                                                      [Map]
+                                                      [Reset]
+
+        [ active filter chips, only when needed ]
 
                     Persistent map
 
@@ -21,109 +83,141 @@ The default map-first command zone is intentionally small:
                     (contextual only)
 ```
 
-The result drawer remains the authoritative result surface. Sort stays in the drawer. Filter is owned by the floating control layer so the mobile shell does not expose competing filter entry points.
+Sort remains a drawer utility. Filter appears both as the source-required drawer header action and as the thumb-reachable floating control, but both open the same workflow and state.
 
-## Control ownership
+## Filter lifecycle
 
-The chassis owns:
-
-- translucent/safe-area-aware placement over the map;
-- filter launcher, active-filter badge, apply/cancel/clear lifecycle;
-- current-location permission and loading state;
-- map display mode (`2d | 3d`);
-- reset/recenter command position;
-- the future contextual `Search this area` command;
-- accessibility labels, focus behavior, and responsive layout;
-- per-lens filter-state persistence.
-
-A lens or production domain service owns:
-
-- the production filter vocabulary and facet values;
-- search ranking and corpus behavior;
-- actual map layers and camera implementation;
-- server-side authorization and record visibility;
-- domain-specific workflow actions.
-
-## Filter contract
-
-`ExchangeFilters` currently uses only normalized data that exists in the operating chassis:
+`ExchangeFilters` contains only normalized control concepts supported by the current chassis:
 
 - geography;
 - organization relationship (`all | mine | others`);
-- records with legitimate coordinates only;
-- featured records where supported;
-- lens metadata facets.
+- map availability (`all | mapped | off-map`);
+- featured placement where supported;
+- active-lens metadata facets.
 
-Metadata values are ORed within the metadata facet group. The other filter groups are ANDed together.
+Metadata values are ORed within the metadata group. The major groups are ANDed together.
 
-Filter state is stored independently for RFx, Resources, Intelligence, and Capabilities. Switching lenses therefore does not force incompatible RFx filters into Capabilities, but returning to a lens restores that lens's prior filter state.
+The hierarchy uses draft state until **Show N results** is selected. Cancel discards the draft. Clear All resets the draft. Applied filters produce removable chips above the map.
 
-This reference filter model is intentionally replaceable by production facet definitions behind the same shell lifecycle.
+Filter state is stored independently for RFx, Resources, Intelligence, and Capabilities and persisted in browser `localStorage`. A normalization/migration function reads previously stored `mappedOnly` state without breaking existing sessions. Switching lenses therefore does not force incompatible RFx filters into Capabilities, and returning to a lens restores that lens's prior applied filters.
 
-## Geography and location
+Production domain services may replace facet vocabularies behind this lifecycle, but a lens must not create a second filter toolbar or separate filter state engine.
 
-Device location, selected geography, search geography, organization location, record coordinates, and map viewport are different concepts and must not be collapsed into one value.
+## Geography and location are distinct
 
-The current browser geolocation control exposes:
+The shell deliberately keeps these concepts separate:
 
 ```text
-idle
-requesting
-located
-denied
-unavailable
+Browser/device location
+Selected geography filter
+Search geography
+Organization location
+Record coordinate
+Service area
+Map camera
+Queried viewport bounds
 ```
 
-The reference map only renders a viewer-location marker when the acquired coordinate falls inside the reference Hampton Roads canvas. It does not clamp an out-of-area device location onto the reference map because that would create false spatial precision.
+The browser Location control uses `navigator.geolocation`. On success it now does more than draw a marker: it recenters the current camera on the acquired coordinate, raises zoom to a useful local level, clears a stale map-area query, and records the `located` state. Permission denial or device failure leaves search, filtering, cards, and the drawer usable.
 
-A production Mapbox/MapLibre adapter should use the same location state to recenter the real camera.
+**Center selected geography** is different. It uses legitimately located records in the selected geography to compute a fitted camera. If that geography has no mapped records, the command reports that condition rather than inventing coordinates.
 
-## Map display and reset
+## Map display and camera workflows
 
-`MapDisplayMode` is shell state. The reference canvas provides a lightweight visual 2D/3D proof, while a production adapter is responsible for real pitch/bearing/camera behavior.
+The shell's `MapViewState` is the source of truth for display mode and camera state.
 
-Reset is also a shell command. It increments the provider-neutral reset signal and clears dirty-viewport state without coupling the control component to Mapbox/MapLibre APIs.
+### 2D / 3D
 
-## Search this area
+2D sets pitch to zero. 3D uses the existing chassis pitch treatment. This is presentation state and does not change the result query.
 
-`Search this area` is intentionally contextual. It should only appear after a real map adapter reports that the user has materially changed the viewport away from the bounds represented by the current query.
+### Reset north
 
-The static reference canvas does not pretend to pan or zoom, so it never fabricates dirty viewport state. A production map adapter should report camera changes into the chassis and enable this control when appropriate.
+A compass/reset-north action is exposed only if bearing is materially non-zero. It sets the camera bearing back to `0` without changing filters or selected results.
+
+### Fit current results
+
+`fitMapCameraToRecords()` calculates a camera from the legitimate coordinates of the current result set. It does not fabricate coordinates for off-map records. With one mapped record, the camera centers on that record; with multiple mapped records it calculates the geographic extent, applies padding, and clamps the result to the chassis zoom limits.
+
+### Reset map view
+
+Reset restores the canonical Exchange map view and removes any active viewport query.
+
+## Search this area is now a real workflow
+
+The prior implementation exposed a `Search this area` button whose handler only cleared a dirty flag. That was an inert placeholder and has been removed.
+
+The concrete workflow is now:
+
+```text
+User pans / zooms map
+        ↓
+MapViewState camera changes
+        ↓
+viewportDirty = true
+        ↓
+Search this area
+        ↓
+mapBoundsForCamera(current camera)
+        ↓
+MapViewState.queriedBounds is set
+        ↓
+filterRecordsToMapBounds(...)
+        ↓
+Drawer + markers use records inside those bounds
+```
+
+A viewport query is explicitly spatial. While it is active, records without legitimate coordinates are not included in that bounded spatial result set because the platform must not invent a location for them. **Clear searched area** removes the bounds and immediately restores eligible off-map records to the authoritative drawer.
+
+Changing the map again marks the viewport dirty and offers Search This Area again. The currently committed bounds remain the query until the user explicitly commits the newer viewport or clears the area query.
+
+## Map provider boundary
+
+This PR replaces inert Floating Controls behavior with concrete chassis state and browser-service behavior, but it does **not** misrepresent the repository's reference spatial renderer as a production basemap service.
+
+The current `PersistentMap` already provides real camera state, pointer/keyboard pan, zoom, clustering, map-bound calculation, point projection, and lens overlay presentation against the normalized records. A production Mapbox/MapLibre renderer can consume the same `MapViewState`, `ExchangeRecord`, and viewport-query contracts without changing the Floating Controls hierarchy.
+
+Provider replacement is a separate Persistent Map integration concern. Floating Controls must not import a map vendor directly.
 
 ## Progressive availability
 
-Controls expose truthful local states instead of remediation loops:
+Controls render only when their prerequisites are true:
 
-- geolocation permission denied remains browseable and explains the browser-permission condition;
-- geolocation unavailable does not block search, filters, cards, or drawer use;
-- off-map records remain valid drawer results;
-- only records with legitimate coordinates appear as map markers;
-- future map-area querying stays unavailable until the provider can supply real viewport bounds.
+- Placement appears only if actual active-lens records support featured placement.
+- Lens facets appear only when actual facet values exist.
+- Off-map Only is disabled if the current lens has no off-map records.
+- Mapped Only is disabled if the current lens has no mapped records.
+- Center Selected Geography appears only when a geography filter exists and is disabled when no mapped record can support recentering.
+- Fit Results is disabled when there are no mapped results.
+- Reset North appears only when bearing is non-zero.
+- Search This Area appears only after a material camera interaction marks the viewport dirty.
+- Clear Searched Area appears only when a committed viewport query exists.
+
+This is progressive availability: no visible control is left as a non-operational mock.
 
 ## Accessibility
 
-Icon-only controls have explicit accessible names. The filter button exposes `aria-expanded` and an active count, the 2D/3D control exposes pressed state, location state is announced through a polite live region, and touch targets remain approximately 44–48 px.
+Icon-only controls use SVG icons with explicit accessible names. Filter and Map buttons expose `aria-expanded`; 2D/3D choices use pressed state; location state is announced through a polite live region; all menu and choice rows are keyboard buttons; Escape closes the panel; child pages expose an explicit Back button; and touch targets remain approximately 44–48 px.
 
-The filter surface uses ordinary form controls and buttons so it is keyboard operable without relying on map gestures.
+The map itself continues to support keyboard pan and zoom, so no map workflow depends solely on pointer gestures.
 
-## Integration boundary
+## Integration contract
 
 ```text
-Universal Search ───────────────┐
-                                │
-Floating Controls ──────────────┼── Exchange Shell State
-  Filter                         │
-  Locate                         │
-  Map mode                       │
-  Reset                          │
-  Search this area               │
-                                │
-Persistent Map Adapter ─────────┘
-        │
-        ├── camera / bounds
-        ├── marker and layer rendering
-        ├── current-position rendering
-        └── viewport-dirty events
+Universal Search ────────────────────────────────┐
+                                                 │
+Floating Controls                               │
+  Filter hierarchy                              │
+  Location / recenter                           ├── Exchange Shell State
+  Map hierarchy                                 │
+  Active chips                                  │
+  Search this area                              │
+                                                 │
+Result Drawer → Filter ───── same workflow ──────┤
+                                                 │
+Persistent Map                                  │
+  camera / bounds                               │
+  markers / clusters / overlays                 │
+  pointer + keyboard viewport events ───────────┘
 ```
 
-RFx, Resources, Intelligence, and Capabilities consume this same control layer. No lens should create a second mobile header, separate filter toolbar, or independent map-control implementation.
+RFx, Resources, Intelligence, and Capabilities consume this same hierarchy. No lens gets a separate floating-control tree, map toolbar, or filter state implementation.
