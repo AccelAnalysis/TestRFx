@@ -1,42 +1,15 @@
-export const marketingNavigation = [
-  { label: "How It Works", href: "/how-it-works" },
-  { label: "Businesses", href: "/businesses" },
-  { label: "Buyers", href: "/buyers" },
-  { label: "Resource Providers", href: "/resource-providers" },
-  { label: "Founding", href: "/founding" },
-  { label: "About", href: "/about" },
-] as const;
+import {
+  PUBLIC_DESTINATIONS,
+  PUBLIC_HEADER_DESTINATIONS,
+} from "@/lib/public/destinations";
 
-export const marketingFooterGroups = [
-  {
-    label: "Explore",
-    links: [
-      { label: "How It Works", href: "/how-it-works" },
-      { label: "Businesses", href: "/businesses" },
-      { label: "Buyers", href: "/buyers" },
-      { label: "Resource Providers", href: "/resource-providers" },
-      { label: "Founding Membership", href: "/founding" },
-    ],
-  },
-  {
-    label: "Organization",
-    links: [
-      { label: "About", href: "/about" },
-      { label: "Join Free", href: "/join", conversion: true },
-      { label: "Sign In", href: "/signin", conversion: true },
-      { label: "Image Credits", href: "/image-credits" },
-    ],
-  },
-  {
-    label: "Bottom Matter",
-    links: [
-      { label: "Terms", href: "/terms" },
-      { label: "Privacy", href: "/privacy" },
-      { label: "Platform Rules", href: "/platform-rules" },
-      { label: "Accessibility", href: "/accessibility" },
-    ],
-  },
-] as const;
+export const marketingNavigation = PUBLIC_HEADER_DESTINATIONS.map((destinationId) => {
+  const destination = PUBLIC_DESTINATIONS[destinationId];
+  return {
+    label: "headerLabel" in destination ? destination.headerLabel : destination.label,
+    href: destination.href,
+  };
+});
 
 export interface MarketingPageDefinition {
   eyebrow: string;
@@ -167,135 +140,5 @@ export const publicPageDefinitions = {
       primaryLabel: "Join Free",
       primaryHref: "/join",
     },
-  },
-  founding: {
-    eyebrow: "Founding Membership",
-    title: "$49 per month for the first 250 Founding Organizations.",
-    lead: "Founding Membership is an organization-level enhancement for early participants. It sits on top of free Exchange participation rather than acting as a paywall for basic discovery or credibility.",
-    sections: [
-      {
-        title: "Founder position",
-        body: "The program is designed for the first 250 organizations that choose to support and shape the Exchange during its founding period.",
-        points: ["Organization-level membership", "$49 monthly founding price", "250-organization founding capacity"],
-      },
-      {
-        title: "Free participation remains meaningful",
-        body: "Organizations can establish a presence and participate in substantive Exchange discovery without buying Founding Membership.",
-      },
-      {
-        title: "No pay-to-rank or pay-to-verify",
-        body: "Commercial status should not determine capability truth, verification, or search credibility. Membership benefits and platform trust remain separate concerns.",
-      },
-    ],
-    cta: {
-      title: "Start with your organization",
-      body: "Create the organization account first. Membership can be attached at the organization level as that commercial workflow becomes operational.",
-      primaryLabel: "Join Free",
-      primaryHref: "/join",
-    },
-  },
-  about: {
-    eyebrow: "About RFxchange",
-    title: "A business-to-business Exchange built around shared context.",
-    lead: "RFxchange is being structured as one platform where organizations, demand, resources, intelligence, and capabilities can be discovered through a common operating chassis.",
-    sections: [
-      {
-        title: "The platform model",
-        body: "Public acquisition brings organizations into Identity and Onboarding. Once ready, participants enter one persistent authenticated Exchange rather than a collection of disconnected product applications.",
-      },
-      {
-        title: "The Exchange model",
-        body: "RFx, Resources, Intelligence, and Capabilities are lenses over the same environment. Menu holds utilities and cross-lens workflows such as Referrals.",
-      },
-      {
-        title: "The operating principle",
-        body: "The map, search, results drawer, cards, detail behavior, organization identity, and governed actions should remain stable as more domain workflows become operational.",
-      },
-    ],
-    cta: {
-      title: "See the Exchange from the inside",
-      body: "Create an account to move from the public acquisition shell into organization onboarding.",
-      primaryLabel: "Join Free",
-      primaryHref: "/join",
-    },
-  },
-  imageCredits: {
-    eyebrow: "Image credits",
-    title: "Visual-source transparency for the public marketing surface.",
-    lead: "This TestRFx marketing implementation uses CSS-generated visual surfaces and interface geometry rather than third-party marketing photography or illustration.",
-    sections: [
-      {
-        title: "Current reference implementation",
-        body: "The public page uses RFxchange design tokens, layout, typography, gradients, borders, and generated network/map motifs. No third-party image asset is asserted as part of this implementation.",
-      },
-      {
-        title: "Production boundary",
-        body: "If licensed photography, illustration, partner marks, or other credited media are introduced later, their source and license information belongs on this route.",
-      },
-    ],
-  },
-  terms: {
-    eyebrow: "Terms",
-    title: "Terms route established for the Public / Acquisition Shell.",
-    lead: "The marketing architecture requires a public Terms destination. This TestRFx route proves the navigation and shell boundary; it does not invent production legal terms that have not been supplied.",
-    sections: [
-      {
-        title: "Reference implementation status",
-        body: "Production terms of service, commercial terms, dispute provisions, and jurisdiction-specific language remain a legal-content integration boundary.",
-      },
-      {
-        title: "What this prototype establishes",
-        body: "The Terms route is reachable from the shared Marketing Footer and remains outside the authenticated Exchange shell.",
-      },
-    ],
-  },
-  privacy: {
-    eyebrow: "Privacy",
-    title: "Privacy route established for the Public / Acquisition Shell.",
-    lead: "The source architecture requires a public Privacy destination. This reference implementation establishes that destination without asserting a production privacy policy that has not been supplied.",
-    sections: [
-      {
-        title: "Acquisition context in this prototype",
-        body: "The marketing surface retains campaign and referral context in browser session storage so it can survive the public journey and be carried into Join or Sign In links. It does not send that context to an analytics service in this prototype.",
-      },
-      {
-        title: "Production boundary",
-        body: "A production privacy notice should describe actual data collection, processors, retention, rights, cookies, analytics, and jurisdiction-specific requirements once those services are connected.",
-      },
-    ],
-  },
-  platformRules: {
-    eyebrow: "Platform rules",
-    title: "Trust rules belong in the public acquisition story.",
-    lead: "RFxchange needs public rules that distinguish commercial participation from capability truth, credibility, and decision authority.",
-    sections: [
-      {
-        title: "Neutral discovery",
-        body: "Founding or paid status should not silently become a substitute for relevance, capability evidence, verification, or ranking credibility.",
-      },
-      {
-        title: "Human authority",
-        body: "RFxchange can assist with discovery, organization, matching context, and workflow. Participants remain responsible for their own business, procurement, qualification, and award decisions.",
-      },
-      {
-        title: "Production rulebook boundary",
-        body: "Enforcement procedures, prohibited conduct, moderation, appeals, and formal platform terms require a governed production rulebook beyond this chassis reference implementation.",
-      },
-    ],
-  },
-  accessibility: {
-    eyebrow: "Accessibility",
-    title: "The public shell should remain usable across input methods and screen sizes.",
-    lead: "Accessibility is part of the RFxchange operating chassis rather than a lens-specific feature.",
-    sections: [
-      {
-        title: "Implemented reference behaviors",
-        body: "The marketing surface uses semantic landmarks, labeled navigation, visible focus behavior, reduced-motion support, responsive layouts, and native link and details controls.",
-      },
-      {
-        title: "Production boundary",
-        body: "Formal accessibility conformance testing, assistive-technology acceptance, documented support targets, and an accessibility feedback process remain production acceptance work.",
-      },
-    ],
   },
 } satisfies Record<string, MarketingPageDefinition>;
