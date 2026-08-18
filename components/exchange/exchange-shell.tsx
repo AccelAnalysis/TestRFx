@@ -27,7 +27,7 @@ import { LensActionWorkflowSurface } from "./lens-action-workflow-surface";
 import { RfxWorkflowSurface, type RfxWorkflowCommand, type RfxWorkflowLaunch } from "./rfx-workflow-surface";
 import { SharedWorkflowSurface, type SharedWorkflowCompletion } from "./shared-workflow-surface";
 import { ResourceNotice } from "./resource-notice";
-import { ResourceWorkflowSurface, type ResourceWorkflow } from "./resource-workflow-surface";
+import { ResourceWorkflowSurface, type ResourcePersistenceResult, type ResourceWorkflow } from "./resource-workflow-surface";
 import styles from "./exchange-shell.module.css";
 
 const recentStorageKey = "rfxchange:recent-searches";
@@ -85,85 +85,32 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   function closeDetail() { setDetailRecordId(undefined); setUrl(lens, undefined, "replace", searchState); }
   function toggleSaved(id: string, active?: boolean) { setSavedRecordIds((current) => { const next = new Set(current); const shouldSave = active ?? !next.has(id); if (shouldSave) next.add(id); else next.delete(id); return next; }); }
   function actionKey(record: ExchangeRecord, actionId: string) { return `${record.id}:${actionId}`; }
-  function actionIsActive(record: ExchangeRecord | undefined, action: LensAction) { if (!record || !action.toggle) return false; if (action.toggle === "save" || (lens === "capabilities" && action.id === "follow")) return savedRecordIds.has(record.id); return actionState[actionKey(record, action.id)] ?? false; }
+  function actionIsActive(record: ExchangeRecord | undefined, action: LensAction) { if (!record || !action.toggle) return false; if (action.toggle === "save" || action.toggle === "follow") return savedRecordIds.has(record.id); return actionState[actionKey(record, action.id)] ?? false; }
   function activeActionIds(record: ExchangeRecord | undefined, resolved: LensAction[]) { return resolved.filter((action) => actionIsActive(record, action)).map((action) => action.id); }
 
-  function createResource(draft: ResourceDraft) { const id = `res-local-${Date.now()}`; const resource = { category: draft.category, availability: draft.availability, availabilityLabel: draft.availabilityLabel, capacity: draft.capacity || undefined, serviceArea: draft.serviceArea || undefined, visibility: draft.visibility, terms: draft.terms || undefined, status: "active" as const }; const record: ExchangeRecord = { id, type: "resource", title: draft.title, organization: "Your Organization", summary: draft.summary, geography: draft.geography, metadata: ["Owned by you", ...resourceMetadata(resource)], location: draft.visibility === "public-location" ? { lat: 36.9, lng: -76.71 } : undefined, ownedByViewer: true, card: { eyebrow: "Resource Offer", classifications: [draft.category], status: { label: draft.availabilityLabel, tone: "success" }, relationships: ["owned"], distance: "Local" }, resource }; setRecordsState((current) => [record, ...current]); setSelectedRecordId(id); setResourceWorkflow(undefined); setResourceNotice("Resource offer added to this mounted view. The Resources repository remains a separate domain integration from the rail hierarchy."); }
-  function updateResource(recordId: string, draft: ResourceDraft) { setRecordsState((current) => current.map((record) => { if (record.id !== recordId || !record.resource) return record; const resource = { ...record.resource, category: draft.category, availability: draft.availability, availabilityLabel: draft.availabilityLabel, capacity: draft.capacity || undefined, serviceArea: draft.serviceArea || undefined, visibility: draft.visibility, terms: draft.terms || undefined }; return { ...record, title: draft.title, summary: draft.summary, geography: draft.geography, metadata: ["Owned by you", ...resourceMetadata(resource)], resource }; })); setResourceWorkflow(undefined); setResourceNotice("Resource view updated; canonical Resources persistence is still owned by the Resources domain service."); }
-  function requestResource(recordId: string, request: ResourceRequestDraft) { const record = allRecords.find((item) => item.id === recordId); setResourceWorkflow(undefined); setResourceNotice(`Request prepared for ${record?.title ?? "resource"}${request.neededBy ? ` · needed ${request.neededBy}` : ""}.`); }
-  function archiveResource(recordId: string) { setRecordsState((current) => current.map((record) => record.id === recordId && record.resource ? { ...record, resource: { ...record.resource, status: "archived" as const } } : record)); setSelectedRecordId(undefined); setDetailRecordId(undefined); setResourceWorkflow(undefined); setResourceNotice("Resource archived in the mounted view."); setUrl("resources"); }
-  function createInsight(record: ExchangeRecord) { setRecordsState((current) => [record, ...current]); setSelectedRecordId(record.id); setActionNotice("Insight added to the mounted Intelligence view; canonical Intelligence persistence remains the domain service boundary."); }
-  function updateInsight(record: ExchangeRecord) { setRecordsState((current) => current.map((item) => item.id === record.id ? record : item)); setActionNotice("Insight updated in the mounted view."); }
-  function addIntelligenceNote(recordId: string, note: string) { setIntelligenceNotes((current) => ({ ...current, [recordId]: [...(current[recordId] ?? []), note] })); setActionNotice("Note added to this Intelligence record in the mounted view."); }
+  function createResource(draft: ResourceDraft, persisted: ResourcePersistenceResult) { const id = persisted.publicId; if (!id) { setResourceNotice("Resource service did not return a canonical record ID."); return; } const resource = { category: draft.category, availability: draft.availability, availabilityLabel: draft.availabilityLabel, capacity: draft.capacity || undefined, serviceArea: draft.serviceArea || undefined, visibility: draft.visibility, terms: draft.terms || undefined, status: "active" as const }; const record: ExchangeRecord = { id, type: "resource", title: draft.title, organization: persisted.organization ?? "Active organization", summary: draft.summary, geography: draft.geography, metadata: ["Owned by you", ...resourceMetadata(resource)], ownedByViewer: true, card: { eyebrow: "Resource Offer", classifications: [draft.category], status: { label: draft.availabilityLabel, tone: "success" }, relationships: ["owned"] }, resource }; setRecordsState((current) => [record, ...current.filter((item) => item.id !== id)]); setSelectedRecordId(id); setResourceWorkflow(undefined); setResourceNotice("Resource offer persisted and added to active Exchange discovery."); }
+  function updateResource(recordId: string, draft: ResourceDraft, _persisted: ResourcePersistenceResult) { setRecordsState((current) => current.map((record) => { if (record.id !== recordId || !record.resource) return record; const resource = { ...record.resource, category: draft.category, availability: draft.availability, availabilityLabel: draft.availabilityLabel, capacity: draft.capacity || undefined, serviceArea: draft.serviceArea || undefined, visibility: draft.visibility, terms: draft.terms || undefined }; return { ...record, title: draft.title, summary: draft.summary, geography: draft.geography, metadata: ["Owned by you", ...resourceMetadata(resource)], resource }; })); setResourceWorkflow(undefined); setResourceNotice("Resource changes persisted to the canonical Resources repository."); }
+  function requestResource(recordId: string, request: ResourceRequestDraft, persisted: ResourcePersistenceResult) { const record = allRecords.find((item) => item.id === recordId); setResourceWorkflow(undefined); setResourceNotice(`Resource request ${persisted.requestId ?? ""} created for ${record?.title ?? "resource"}${request.neededBy ? ` · needed ${request.neededBy}` : ""}.`); }
+  function archiveResource(recordId: string, _persisted: ResourcePersistenceResult) { setRecordsState((current) => current.map((record) => record.id === recordId && record.resource ? { ...record, resource: { ...record.resource, status: "archived" as const } } : record)); setSelectedRecordId(undefined); setDetailRecordId(undefined); setResourceWorkflow(undefined); setResourceNotice("Resource archived in the canonical Resources repository and removed from active discovery."); setUrl("resources"); }
+  function createInsight(record: ExchangeRecord) { setRecordsState((current) => [record, ...current.filter((item) => item.id !== record.id)]); setSelectedRecordId(record.id); setActionNotice("Insight persisted and added to the Intelligence lens."); }
+  function updateInsight(record: ExchangeRecord) { setRecordsState((current) => current.map((item) => item.id === record.id ? record : item)); setActionNotice("Insight changes persisted to the Intelligence repository."); }
+  function addIntelligenceNote(recordId: string, note: string) { setIntelligenceNotes((current) => ({ ...current, [recordId]: [...(current[recordId] ?? []), note] })); setActionNotice("Intelligence note persisted with organization visibility."); }
 
-  function openRailAction(action: LensAction, record?: ExchangeRecord) {
-    const workflow = getLensActionWorkflow(lens, action.ownership, action.id);
-    if (workflow) { setHierarchyFlow({ workflow, record }); return; }
-    void handleLegacyAction(action, record);
-  }
-
-  async function handleLegacyAction(action: LensAction, record?: ExchangeRecord) {
-    if (action.requiresRecord && !record) return;
-    if (action.trigger === "detail" && record) { openDetail(record.id); return; }
-    if (action.id === "share" && record) { setSharedWorkflow({ workflow: "share", lens, record, source: "action-rail" }); return; }
-  }
+  function openRailAction(action: LensAction, record?: ExchangeRecord) { const workflow = getLensActionWorkflow(lens, action.ownership, action.id); if (workflow) { setHierarchyFlow({ workflow, record }); return; } void handleLegacyAction(action, record); }
+  async function handleLegacyAction(action: LensAction, record?: ExchangeRecord) { if (action.requiresRecord && !record) return; if (action.trigger === "detail" && record) { openDetail(record.id); return; } if (action.id === "share" && record) { setSharedWorkflow({ workflow: "share", lens, record, source: "action-rail" }); } }
 
   function dispatchDomainTarget(domain: ExchangeLens, action: string, record?: ExchangeRecord) {
-    if (domain === "rfx") {
-      const command = action as RfxWorkflowCommand;
-      const creation = command === "draft" || command === "save" || command === "publish";
-      setRfxWorkflow({ command, record: creation ? undefined : record }); return;
-    }
-    if (domain === "resources") {
-      if (action === "offer") setResourceWorkflow({ mode: "offer" });
-      else if (action === "edit" && record) setResourceWorkflow({ mode: "edit", recordId: record.id });
-      else if (action === "request" && record) setResourceWorkflow({ mode: "request", recordId: record.id });
-      else if (action === "archive" && record) setResourceWorkflow({ mode: "archive", recordId: record.id });
-      return;
-    }
-    if (domain === "intelligence") {
-      const mode = action as IntelligenceWorkflow;
-      if (mode === "add") setIntelligenceWorkflow({ mode });
-      else if (record) setIntelligenceWorkflow({ mode, recordId: record.id });
-      return;
-    }
+    if (domain === "rfx") { const command = action as RfxWorkflowCommand; const creation = command === "draft" || command === "save" || command === "publish"; setRfxWorkflow({ command, record: creation ? undefined : record }); return; }
+    if (domain === "resources") { if (action === "offer") setResourceWorkflow({ mode: "offer" }); else if (action === "edit" && record) setResourceWorkflow({ mode: "edit", recordId: record.id }); else if (action === "request" && record) setResourceWorkflow({ mode: "request", recordId: record.id }); else if (action === "archive" && record) setResourceWorkflow({ mode: "archive", recordId: record.id }); return; }
+    if (domain === "intelligence") { const mode = action as IntelligenceWorkflow; if (mode === "add") setIntelligenceWorkflow({ mode }); else if (record) setIntelligenceWorkflow({ mode, recordId: record.id }); return; }
     if (domain === "capabilities" && record && isCapabilityWorkflowMode(action)) setCapabilityWorkflow({ mode: action, recordId: record.id });
   }
 
-  function handleWorkflowTarget(target: LensWorkflowTarget, node: LensWorkflowNode) {
-    const record = hierarchyFlow?.record;
-    setHierarchyFlow(undefined);
-    if (target.type === "detail") { if (record) openDetail(record.id); return; }
-    if (target.type === "domain") { dispatchDomainTarget(target.domain, target.action, record); return; }
-    if (target.type === "shared") { if (record) setSharedWorkflow({ workflow: target.workflow, lens, record, source: "action-rail" }); else setActionNotice("Select a record before starting this shared workflow."); return; }
-    if (target.type === "menu") { setMenuSection(target.section); setMenuOpen(true); return; }
-    if (target.type === "return") { setActionNotice("Returned to Exchange context."); return; }
-    if (target.type === "outcome") setActionNotice(node.label);
-  }
+  function handleWorkflowTarget(target: LensWorkflowTarget, node: LensWorkflowNode) { const record = hierarchyFlow?.record; setHierarchyFlow(undefined); if (target.type === "detail") { if (record) openDetail(record.id); return; } if (target.type === "domain") { dispatchDomainTarget(target.domain, target.action, record); return; } if (target.type === "shared") { if (record) setSharedWorkflow({ workflow: target.workflow, lens, record, source: "action-rail" }); else setActionNotice("Select a record before starting this shared workflow."); return; } if (target.type === "menu") { setMenuSection(target.section); setMenuOpen(true); return; } if (target.type === "return") { setActionNotice("Returned to Exchange context."); return; } if (target.type === "outcome") setActionNotice(node.label); }
 
-  function completeSharedWorkflow(execution: SharedWorkflowCompletion) {
-    const record = sharedWorkflow?.record;
-    if (record) {
-      const active = typeof execution.result.active === "boolean" ? execution.result.active : undefined;
-      const workflow = sharedWorkflow?.workflow as SharedWorkflowId | undefined;
-      if (workflow === "save" || workflow === "follow") toggleSaved(record.id, active);
-      if ((workflow === "watch" || workflow === "track") && active !== undefined) setActionState((current) => ({ ...current, [actionKey(record, workflow)]: active }));
-    }
-    setActionNotice(`${execution.eventName} saved by RFxchange service.`);
-  }
+  function completeSharedWorkflow(execution: SharedWorkflowCompletion) { const record = sharedWorkflow?.record; if (record) { const active = typeof execution.result.active === "boolean" ? execution.result.active : undefined; const workflow = sharedWorkflow?.workflow as SharedWorkflowId | undefined; if (workflow === "save" || workflow === "follow") toggleSaved(record.id, active); if ((workflow === "watch" || workflow === "track") && active !== undefined) setActionState((current) => ({ ...current, [actionKey(record, workflow)]: active })); } setActionNotice(`${execution.eventName} saved by RFxchange service.`); }
 
-  function completeRfxWorkflow(message: string, result?: Record<string, unknown>) {
-    const publicId = typeof result?.publicId === "string" ? result.publicId : undefined;
-    const title = typeof result?.title === "string" ? result.title : undefined;
-    const summary = typeof result?.summary === "string" ? result.summary : undefined;
-    if (publicId && title && summary && !recordsState.some((record) => record.id === publicId)) {
-      const created: ExchangeRecord = { id: publicId, type: "rfx", title, organization: typeof result?.organization === "string" ? result.organization : "Active organization", summary, geography: "Off-map", metadata: [String(result?.status ?? "draft"), "Owned by you"], ownedByViewer: true };
-      setRecordsState((current) => [created, ...current]); setSelectedRecordId(publicId);
-    } else if (publicId && (title || summary)) {
-      setRecordsState((current) => current.map((record) => record.id === publicId ? { ...record, title: title ?? record.title, summary: summary ?? record.summary } : record));
-    }
-    setActionNotice(message);
-  }
+  function completeRfxWorkflow(message: string, result?: Record<string, unknown>) { const publicId = typeof result?.publicId === "string" ? result.publicId : undefined; const title = typeof result?.title === "string" ? result.title : undefined; const summary = typeof result?.summary === "string" ? result.summary : undefined; if (publicId && title && summary && !recordsState.some((record) => record.id === publicId)) { const created: ExchangeRecord = { id: publicId, type: "rfx", title, organization: typeof result?.organization === "string" ? result.organization : "Active organization", summary, geography: "Off-map", metadata: [String(result?.status ?? "draft"), "Owned by you"], ownedByViewer: true }; setRecordsState((current) => [created, ...current]); setSelectedRecordId(publicId); } else if (publicId && (title || summary)) { setRecordsState((current) => current.map((record) => record.id === publicId ? { ...record, title: title ?? record.title, summary: summary ?? record.summary } : record)); } setActionNotice(message); }
 
   function resetMapView() { setMapView(createDefaultMapView()); setViewportDirty(false); }
   function locateViewer() { if (!("geolocation" in navigator)) { setGeolocationStatus("unavailable"); return; } setGeolocationStatus("requesting"); navigator.geolocation.getCurrentPosition((position) => { setViewerLocation({ lat: position.coords.latitude, lng: position.coords.longitude }); setGeolocationStatus("located"); }, (error) => setGeolocationStatus(error.code === 1 ? "denied" : "unavailable"), { timeout: 8000, maximumAge: 60000 }); }
