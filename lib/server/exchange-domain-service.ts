@@ -40,6 +40,10 @@ async function event(client: PoolClient, actor: ServerActorContext, eventName: s
   );
 }
 
+function resourceServiceArea(draft: ResourceDraft) {
+  return draft.serviceArea.trim() || draft.geography.trim() || undefined;
+}
+
 export async function createResourceOffer(actor: ServerActorContext, draft: ResourceDraft) {
   if (!draft.title.trim() || !draft.summary.trim() || !draft.category.trim()) throw new ExchangeDomainValidationError("Resource title, summary, and category are required.");
   return withDatabaseTransaction(async (client) => {
@@ -52,7 +56,7 @@ export async function createResourceOffer(actor: ServerActorContext, draft: Reso
     await client.query(
       `INSERT INTO resources (exchange_record_id, resource_mode, availability, category, capacity, visibility, terms)
        VALUES ($1::uuid, 'offer', $2::jsonb, $3, $4::jsonb, $5, $6::jsonb)`,
-      [record.rows[0].id, JSON.stringify({ state: draft.availability, label: draft.availabilityLabel, serviceArea: draft.serviceArea || undefined }), draft.category.trim(), JSON.stringify({ label: draft.capacity || undefined }), draft.visibility, JSON.stringify({ text: draft.terms || undefined })],
+      [record.rows[0].id, JSON.stringify({ state: draft.availability, label: draft.availabilityLabel, serviceArea: resourceServiceArea(draft) }), draft.category.trim(), JSON.stringify({ label: draft.capacity || undefined }), draft.visibility, JSON.stringify({ text: draft.terms || undefined })],
     );
     await event(client, actor, "ResourceOffered", record.rows[0].id, { geography: draft.geography, visibility: draft.visibility });
     return { recordId: record.rows[0].public_id, message: "Resource offer published." };
@@ -67,7 +71,7 @@ export async function updateResourceOffer(actor: ServerActorContext, recordId: s
     await client.query(`UPDATE exchange_records SET title = $2, summary = $3, metadata = $4::jsonb, updated_at = now() WHERE id = $1::uuid`, [resource.exchange_record_id, draft.title.trim(), draft.summary.trim(), JSON.stringify([draft.category, draft.availabilityLabel, draft.geography].filter(Boolean))]);
     await client.query(
       `UPDATE resources SET availability = $2::jsonb, category = $3, capacity = $4::jsonb, visibility = $5, terms = $6::jsonb WHERE id = $1::uuid`,
-      [resource.resource_id, JSON.stringify({ state: draft.availability, label: draft.availabilityLabel, serviceArea: draft.serviceArea || undefined }), draft.category.trim(), JSON.stringify({ label: draft.capacity || undefined }), draft.visibility, JSON.stringify({ text: draft.terms || undefined })],
+      [resource.resource_id, JSON.stringify({ state: draft.availability, label: draft.availabilityLabel, serviceArea: resourceServiceArea(draft) }), draft.category.trim(), JSON.stringify({ label: draft.capacity || undefined }), draft.visibility, JSON.stringify({ text: draft.terms || undefined })],
     );
     await event(client, actor, "ResourceUpdated", resource.exchange_record_id);
     return { recordId, message: "Resource changes saved." };
