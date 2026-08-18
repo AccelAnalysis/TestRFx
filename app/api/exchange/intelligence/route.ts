@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { IntelligenceInsightInput, IntelligenceSourceType } from "@/lib/exchange/intelligence";
-import { createIntelligence, listIntelligence } from "@/lib/server/intelligence-repository";
+import { createIntelligence, getIntelligenceDetail, listIntelligence } from "@/lib/server/intelligence-repository";
 import { requireExchangeActor } from "@/lib/server/exchange-session";
 import { serviceErrorResponse } from "@/lib/server/http-errors";
 
@@ -38,8 +38,24 @@ export async function GET(request: NextRequest) {
   try {
     const actor = await requireExchangeActor(request);
     const params = request.nextUrl.searchParams;
+    const query = params.get("q")?.trim() ?? "";
+
+    // A deep-linked Intelligence public ID is resolved by the canonical repository,
+    // not by seed data or by requiring it to happen to be inside the first result page.
+    if (/^intel-[0-9a-f-]+$/i.test(query)) {
+      const detail = await getIntelligenceDetail(actor, query);
+      return NextResponse.json({
+        records: [detail.record],
+        total: 1,
+        mapped: detail.record.location ? 1 : 0,
+        offMap: detail.record.location ? 0 : 1,
+        offset: 0,
+        limit: 1,
+      });
+    }
+
     const response = await listIntelligence(actor, {
-      query: params.get("q") ?? "",
+      query,
       offset: Number(params.get("offset") ?? 0),
       limit: Number(params.get("limit") ?? 24),
     });
