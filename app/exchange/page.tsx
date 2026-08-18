@@ -1,5 +1,16 @@
 import { ExchangeShell } from "@/components/exchange/exchange-shell";
+import { ExchangeRuntimeUnavailable } from "@/components/exchange/exchange-runtime-unavailable";
+import { DatabaseUnavailableError } from "@/lib/server/database";
+import { loadExchangePageData } from "@/lib/server/exchange-page-data";
 
-export default function ExchangePage() {
-  return <ExchangeShell initialLens="rfx" />;
+export const dynamic = "force-dynamic";
+
+export default async function ExchangePage() {
+  try {
+    const { records } = await loadExchangePageData();
+    return <ExchangeShell initialLens="rfx" initialRecords={records} />;
+  } catch (error) {
+    if (error instanceof DatabaseUnavailableError) return <ExchangeRuntimeUnavailable message={error.message} />;
+    throw error;
+  }
 }
