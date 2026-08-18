@@ -12,6 +12,19 @@ import styles from "./shared-workflow-surface.module.css";
 
 const referenceMode = process.env.NEXT_PUBLIC_RFXCHANGE_REFERENCE_MODE === "1";
 
+type RecipientPolicy = {
+  organizationId: string;
+  organizationName: string;
+  configured: boolean;
+  policy: Record<string, unknown>;
+  fee: Record<string, unknown>;
+  publishedAt?: string;
+};
+
+function primitiveEntries(value: Record<string, unknown>) {
+  return Object.entries(value).filter(([, item]) => typeof item === "string" || typeof item === "number" || typeof item === "boolean");
+}
+
 export function SharedWorkflowSurface({ launch, records, active = false, onClose, onComplete }: {
   launch: SharedWorkflowLaunch;
   records: ExchangeRecord[];
@@ -20,9 +33,12 @@ export function SharedWorkflowSurface({ launch, records, active = false, onClose
   onComplete: (event: SharedWorkflowEvent) => void;
 }) {
   const [recipient, setRecipient] = useState("");
+  const [recipientPolicy, setRecipientPolicy] = useState<RecipientPolicy>();
+  const [policyReviewed, setPolicyReviewed] = useState(false);
   const [note, setNote] = useState("");
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [policyBusy, setPolicyBusy] = useState(false);
   const [error, setError] = useState("");
   const definition = sharedWorkflowDefinitions[launch.workflow];
   const matches = useMemo(() => referenceMode && launch.workflow === "match" ? getReferenceMatches(launch.record, records) : [], [launch, records]);
@@ -48,10 +64,25 @@ export function SharedWorkflowSurface({ launch, records, active = false, onClose
     } finally { setBusy(false); }
   }
 
+  async function reviewRecipientPolicy() {
+    if (!recipient.trim()) { setError("Enter the receiving organization before reviewing its referral policy."); return; }
+    if (referenceMode) { setError("The static preview does not invent recipient policy or fee data."); return; }
+    setPolicyBusy(true); setError(""); setPolicyReviewed(false); setRecipientPolicy(undefined);
+    try {
+      const response = await fetch(`/api/exchange/referrals/policy?organization=${encodeURIComponent(recipient.trim())}`, { headers: { accept: "application/json" } });
+      const body = await response.json().catch(() => ({})) as { error?: string; policy?: RecipientPolicy };
+      if (!response.ok || !body.policy) throw new Error(body.error ?? "Recipient policy could not be loaded.");
+      setRecipientPolicy(body.policy);
+      setPolicyReviewed(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Recipient policy could not be loaded.");
+    } finally { setPolicyBusy(false); }
+  }
+
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (launch.workflow === "refer" && !recipient.trim()) return;
-    void complete({ recipientOrganization: recipient.trim() || undefined, note: note.trim() || undefined });
+    if (launch.workflow === "refer" && (!recipient.trim() || !policyReviewed)) return;
+    void complete({ recipientOrganization: recipient.trim() || undefined, note: note.trim() || undefined, recipientPolicyReviewed: policyReviewed, recipientPolicyPublishedAt: recipientPolicy?.publishedAt });
   }
 
   async function copyLink() {
@@ -95,16 +126,27 @@ export function SharedWorkflowSurface({ launch, records, active = false, onClose
 
         {launch.workflow === "refer" || collaborationWorkflow ? (
           <form className={styles.form} onSubmit={submit}>
-            {launch.workflow === "refer" ? <label className={styles.field}>Receiving organization<input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="Organization name" required /></label> : null}
+            {launch.workflow === "refer" ? <>
+              <label className={styles.field}>Receiving organization<input value={recipient} onChange={(event) => { setRecipient(event.target.value); setRecipientPolicy(undefined); setPolicyReviewed(false); }} placeholder="Organization name" required /></label>
+              <button className={styles.secondary} type="button" disabled={policyBusy || referenceMode || !recipient.trim()} onClick={() => void reviewRecipientPolicy()}>{policyBusy ? "Loading policy…" : "Review recipient referral policy / fee"}</button>
+              {recipientPolicy ? <div className={styles.item} role="status">
+                <strong>{recipientPolicy.organizationName}</strong>
+                {recipientPolicy.configured ? <>
+                  <small>Published recipient policy</small>
+                  {primitiveEntries(recipientPolicy.policy).map(([key, value]) => <small key={`policy-${key}`}>{key}: {String(value)}</small>)}
+                  {primitiveEntries(recipientPolicy.fee).map(([key, value]) => <small key={`fee-${key}`}>fee {key}: {String(value)}</small>)}
+                </> : <small>No published referral policy or fee is configured. RFxchange does not synthesize one.</small>}
+              </div> : null}
+            </> : null}
             <label className={styles.field}>{launch.workflow === "refer" ? "Referral note" : "Message"}<textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add useful context for the recipient." /></label>
-            <div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy || referenceMode}>{busy ? "Working…" : launch.workflow === "refer" ? "Create referral" : launch.workflow === "team" ? "Request teaming" : "Request connection"}</button><button className={styles.secondary} type="button" onClick={onClose}>Cancel</button></div>
+            <div className={styles.actions}><button className={styles.primary} type="submit" disabled={busy || referenceMode || (launch.workflow === "refer" && !policyReviewed)}>{busy ? "Working…" : launch.workflow === "refer" ? "Create referral" : launch.workflow === "team" ? "Request teaming" : "Request connection"}</button><button className={styles.secondary} type="button" onClick={onClose}>Cancel</button></div>
           </form>
         ) : null}
 
         {launch.workflow === "match" ? (
           <div className={styles.stack}>
             {referenceMode ? <div className={styles.matchGrid}>{matches.length ? matches.map((match) => <article className={styles.item} key={match.record.id}><strong>{match.record.title}</strong><small>{match.record.organization} · reference score {match.score}</small><div className={styles.badges}>{match.reasons.map((reason) => <span className={styles.badge} key={reason}>{reason}</span>)}</div></article>) : <div className={styles.empty}>No reference matches are available.</div>}</div> : <div className={styles.notice}>Production matching must be supplied by the AMACS-backed matching service; deterministic reference scoring is not used as production match truth.</div>}
-            <div className={styles.actions}><button className={styles.primary} type="button" disabled={!referenceMode || busy} onClick={() => void complete({ matchRecordIds: matches.map((match) => match.record.id) })}>Record match request</button><button className={styles.secondary} type="button" onClick={onClose}>Cancel</button></div>
+            <div className={styles.actions}><button className={styles.primary} type="button" disabled={busy || referenceMode} onClick={() => void complete({ matchRecordIds: matches.map((match) => match.record.id) })}>Record match request</button><button className={styles.secondary} type="button" onClick={onClose}>Cancel</button></div>
           </div>
         ) : null}
       </section>
