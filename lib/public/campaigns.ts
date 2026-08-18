@@ -15,6 +15,7 @@ export type CampaignFamily =
   | "partner";
 
 export type CampaignStatus = "draft" | "scheduled" | "live" | "paused" | "completed" | "archived";
+export type CampaignSearchParams = Record<string, string | string[] | undefined>;
 
 export interface CampaignStep {
   title: string;
@@ -325,6 +326,13 @@ export function campaignJoinHref(campaign: CampaignDefinition) {
 
 export function campaignSignInHref(campaign: CampaignDefinition) {
   return buildPublicAuthHref("signin", campaignAuthContext(campaign));
+}
+
+export function buildCampaignRegistrationHref(
+  campaign: CampaignDefinition,
+  _params: CampaignSearchParams = {},
+) {
+  return campaignJoinHref(campaign);
 }
 
 export function campaignWorkflowLinks(campaign: CampaignDefinition): CampaignWorkflowLink[] {
