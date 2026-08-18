@@ -4,16 +4,32 @@ export type CapabilityMappingStatus = "suggested" | "accepted" | "needs-review";
 export type CapabilityPublicationStatus = "draft" | "ready" | "published";
 export type CapabilityEvidenceState = "claimed" | "supported" | "review-needed";
 export type CapabilityEvidenceKind = "certification" | "license" | "past-performance" | "case-study" | "document" | "link";
-export type CapabilityMatchCoverage = "strong" | "partial" | "gap";
+export type CapabilityMatchCoverage = "strong" | "partial" | "gap" | "uncertain";
 export interface CapabilityEvidenceItem { id: string; kind: CapabilityEvidenceKind; label: string; issuer?: string; note?: string; }
 export interface CapabilityClaim { id: string; name: string; description: string; amacsNodeId?: string; amacsLabel?: string; mappingStatus: CapabilityMappingStatus; publicationStatus: CapabilityPublicationStatus; evidenceState: CapabilityEvidenceState; evidence: CapabilityEvidenceItem[]; specialties: string[]; }
 export interface CapabilityGap { id: string; label: string; reason: string; suggestedSearch: string; }
 export interface CapabilityRfxMatch { id: string; title: string; issuer: string; coverage: CapabilityMatchCoverage; summary: string; }
+export type CapabilityRequirementState = "aligned" | "partial" | "missing" | "uncertain";
+export interface CapabilityRequirementMatch { requirementId: string; label: string; state: CapabilityRequirementState; matchedCapabilityIds: string[]; reason: string; }
+export interface CapabilityRfxMatchResult extends CapabilityRfxMatch { requirements: CapabilityRequirementMatch[]; aligned: number; partial: number; missing: number; uncertain: number; }
 export interface CapabilityOrganizationProfile {
   exchangeRecordId: string; organizationName: string; summary: string; geography: string; serviceAreas: string[]; keywords: string[];
   capabilities: CapabilityClaim[]; profileStrength: number; gaps: CapabilityGap[]; rfxMatches: CapabilityRfxMatch[];
-  location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean;
+  location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; updatedAt?: string; publishedAt?: string;
 }
+
+export type CapabilityCommand =
+  | { type: "add-claim"; name: string; description: string; specialties?: string[] }
+  | { type: "update-claim"; capabilityId: string; name?: string; description?: string; specialties?: string[]; publicationStatus?: CapabilityPublicationStatus }
+  | { type: "set-amacs-mapping"; capabilityId: string; disposition: "accept" | "edit" | "reject"; amacsNodeId?: string; amacsLabel?: string }
+  | { type: "add-evidence"; capabilityId: string; kind: CapabilityEvidenceKind; label: string; issuer?: string; note?: string }
+  | { type: "remove-evidence"; capabilityId: string; evidenceId: string }
+  | { type: "save-profile" }
+  | { type: "publish-profile" };
+
+export interface AmacsInterpretationCandidate { conceptId: string; label: string; definition?: string; score: number; source: "amacs-release"; }
+export interface AmacsCandidateResponse { available: boolean; manualPath: true; amacsVersion: string; candidates: AmacsInterpretationCandidate[]; reason?: string; }
+
 export function capabilityEvidenceCount(profile: CapabilityOrganizationProfile) { return profile.capabilities.reduce((total, capability) => total + capability.evidence.length, 0); }
 export function capabilityMappedCount(profile: CapabilityOrganizationProfile) { return profile.capabilities.filter((capability) => capability.mappingStatus === "accepted" && capability.amacsNodeId).length; }
 export function capabilityProfileToExchangeRecord(profile: CapabilityOrganizationProfile): ExchangeRecord {

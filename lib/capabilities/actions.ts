@@ -1,16 +1,5 @@
-export type CapabilityWorkflowMode =
-  | "manage-capabilities"
-  | "ai-amacs"
-  | "capability-evidence"
-  | "capability-gaps"
-  | "match-rfx"
-  | "refer";
+import type { CapabilityNavigationNodeId } from "./navigation";
 
-export function isCapabilityWorkflowMode(value: string): value is CapabilityWorkflowMode {
-  return value === "manage-capabilities"
-    || value === "ai-amacs"
-    || value === "capability-evidence"
-    || value === "capability-gaps"
-    || value === "match-rfx"
-    || value === "refer";
-}
+export type CapabilityWorkflowMode = Exclude<CapabilityNavigationNodeId, "open-capabilities" | "own-organization" | "other-organization">;
+const actionModes = new Set<string>(["manage-capabilities", "ai-amacs", "capability-evidence", "capability-gaps", "match-rfx", "refer", "view-capabilities", "save-follow"]);
+export function isCapabilityWorkflowMode(value: string): value is CapabilityWorkflowMode { return actionModes.has(value); }
