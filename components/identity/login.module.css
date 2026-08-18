@@ -1,0 +1,239 @@
+.shell {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: #0b0b0d;
+  background:
+    radial-gradient(circle at 18% 18%, rgba(46, 94, 170, 0.14), transparent 34%),
+    radial-gradient(circle at 84% 76%, rgba(214, 162, 58, 0.18), transparent 34%),
+    #f7f3ea;
+}
+
+.card {
+  width: min(100%, 520px);
+  padding: clamp(26px, 5vw, 38px);
+  border: 1px solid rgba(37, 41, 50, 0.14);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 22px 64px rgba(11, 11, 13, 0.16);
+  backdrop-filter: blur(20px) saturate(120%);
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+.brandMark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #0b0b0d;
+  color: #d6a23a;
+  font-size: 14px;
+}
+
+.eyebrow {
+  margin: 0 0 7px;
+  color: #745312;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(34px, 8vw, 46px);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.copy {
+  margin: 16px 0 26px;
+  color: #626771;
+  line-height: 1.55;
+}
+
+.form {
+  display: grid;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 780;
+}
+
+.field input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 15px;
+  border: 1px solid rgba(37, 41, 50, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0b0b0d;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input:focus {
+  border-color: #2e5eaa;
+  box-shadow: 0 0 0 3px rgba(46, 94, 170, 0.13);
+}
+
+.field input:disabled {
+  opacity: 0.65;
+}
+
+.primaryButton {
+  min-height: 50px;
+  width: 100%;
+  border: 1px solid #0b0b0d;
+  border-radius: 14px;
+  background: #0b0b0d;
+  color: #f7f3ea;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryButton:disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+}
+
+.textButton {
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: #2e5eaa;
+  font: inherit;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.error {
+  margin: -2px 0 0;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(178, 55, 48, 0.09);
+  color: #8c2823;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.formDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #777c84;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.formDivider::before,
+.formDivider::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: rgba(37, 41, 50, 0.12);
+}
+
+.securityNote,
+.statusNote {
+  margin: 0;
+  color: #696e76;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.registerPrompt {
+  margin: 4px 0 0;
+  text-align: center;
+  color: #676c74;
+  font-size: 14px;
+}
+
+.registerPrompt a,
+.metaLinks a {
+  color: #2e5eaa;
+  font-weight: 760;
+}
+
+.statusPanel {
+  display: grid;
+  gap: 14px;
+  text-align: center;
+}
+
+.statusPanel h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.statusPanel p {
+  margin: 0;
+  color: #626771;
+  line-height: 1.55;
+}
+
+.statusIcon {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(214, 162, 58, 0.17);
+  color: #745312;
+  font-size: 24px;
+}
+
+.metaLinks {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 26px;
+  color: #747981;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .shell {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .card {
+    width: 100%;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: rgba(247, 243, 234, 0.88);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .field input {
+    transition: none;
+  }
+}
