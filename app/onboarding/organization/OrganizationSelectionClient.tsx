@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { recordOnboardingProgress } from "@/lib/onboarding/progress-client";
 import {
   createReferenceResolution,
   normalizeDomain,
@@ -22,12 +23,38 @@ interface OrganizationSearchResponse {
 
 const progress = ["Account", "Organization", "Geography", "Profile", "Capabilities", "Ready"];
 
-function saveReferenceResolution(resolution: OrganizationResolution) {
+function saveResolutionHandoff(resolution: OrganizationResolution) {
   if (typeof window === "undefined") return;
   window.sessionStorage.setItem(
     "rfxchange.onboarding.organization",
     JSON.stringify({ ...resolution, savedAt: new Date().toISOString() }),
   );
+}
+
+async function persistResolution(resolution: OrganizationResolution) {
+  const affiliationComplete = resolution.membershipState === "active";
+  await recordOnboardingProgress({
+    checkpoints: [
+      {
+        id: "organization_established",
+        status: "complete",
+        value: resolution.organizationName,
+      },
+      {
+        id: "organization_affiliation",
+        status: affiliationComplete ? "complete" : "needs_attention",
+        value: affiliationComplete
+          ? "Active organization membership"
+          : resolution.membershipState === "pending-approval"
+            ? "Access approval pending"
+            : "Authority confirmation pending",
+      },
+    ],
+    context: {
+      organizationId: resolution.organizationId,
+      organizationName: resolution.organizationName,
+    },
+  });
 }
 
 export default function OrganizationSelectionClient() {
@@ -73,12 +100,21 @@ export default function OrganizationSelectionClient() {
     setView("review-existing");
   }
 
-  function finishExisting() {
+  async function finishExisting() {
     if (!selected) return;
-    const next = createReferenceResolution({ mode: resolutionModeFor(selected), candidate: selected });
-    saveReferenceResolution(next);
-    setResolution(next);
-    setView("complete");
+    setLoading(true);
+    setError("");
+    try {
+      const next = createReferenceResolution({ mode: resolutionModeFor(selected), candidate: selected });
+      await persistResolution(next);
+      saveResolutionHandoff(next);
+      setResolution(next);
+      setView("complete");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Organization progress could not be saved.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function checkCreateDuplicates() {
@@ -96,16 +132,25 @@ export default function OrganizationSelectionClient() {
     setView("review-create");
   }
 
-  function finishCreate() {
-    const next = createReferenceResolution({
-      mode: "create",
-      name: createName,
-      type: createType,
-      website: createWebsite,
-    });
-    saveReferenceResolution(next);
-    setResolution(next);
-    setView("complete");
+  async function finishCreate() {
+    setLoading(true);
+    setError("");
+    try {
+      const next = createReferenceResolution({
+        mode: "create",
+        name: createName,
+        type: createType,
+        website: createWebsite,
+      });
+      await persistResolution(next);
+      saveResolutionHandoff(next);
+      setResolution(next);
+      setView("complete");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Organization progress could not be saved.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function resetToChoice() {
@@ -142,7 +187,7 @@ export default function OrganizationSelectionClient() {
                 <button className={styles.choiceCard} onClick={() => setView("search")}>
                   <span className={styles.choiceIcon}>⌕</span>
                   <strong>Find my organization</strong>
-                  <small>Search for an existing or seeded organization in the Exchange.</small>
+                  <small>Search for an existing organization already represented in the Exchange.</small>
                   <b>Continue →</b>
                 </button>
                 <button className={styles.choiceCard} onClick={() => setView("create")}>
@@ -161,7 +206,7 @@ export default function OrganizationSelectionClient() {
               <button className={styles.back} onClick={resetToChoice}>← Organization options</button>
               <p className="eyebrow">Find an organization</p>
               <h1>Search before creating</h1>
-              <p className={styles.lead}>Use the organization name, alias, or website domain. Seeded records should be claimed instead of duplicated.</p>
+              <p className={styles.lead}>Use the organization name, alias, or website domain. Existing records should be claimed instead of duplicated.</p>
               <div className={styles.searchRow}>
                 <input
                   value={query}
@@ -213,12 +258,13 @@ export default function OrganizationSelectionClient() {
               </div>
               <div className={styles.notice}>
                 {selected.claimState === "unclaimed" ? (
-                  <><strong>This is a seeded, unclaimed organization.</strong><span>Claiming preserves the canonical organization ID and starts authority resolution instead of creating a duplicate tenant.</span></>
+                  <><strong>This organization is currently unclaimed.</strong><span>Claiming preserves the canonical organization ID and starts authority resolution instead of creating a duplicate tenant.</span></>
                 ) : (
                   <><strong>This organization already has an RFxchange identity.</strong><span>Your access request creates a pending membership boundary; it does not grant administrative authority by itself.</span></>
                 )}
               </div>
-              <button className={styles.primary} onClick={finishExisting}>{selectedAction}</button>
+              {error && <p className={styles.error}>{error}</p>}
+              <button className={styles.primary} onClick={() => void finishExisting()} disabled={loading}>{loading ? "Saving…" : selectedAction}</button>
               <button className={styles.secondary} onClick={() => setView("search")}>This is not my organization</button>
             </>
           )}
@@ -254,7 +300,7 @@ export default function OrganizationSelectionClient() {
               <div className={styles.results}>
                 {results.map((candidate) => (
                   <button key={candidate.id} className={styles.resultCard} onClick={() => chooseExisting(candidate)}>
-                    <div><strong>{candidate.name}</strong><p>{candidate.type}</p><small>{candidate.domain ?? "No domain on reference record"}</small></div>
+                    <div><strong>{candidate.name}</strong><p>{candidate.type}</p><small>{candidate.domain ?? "No domain on record"}</small></div>
                     <span>Review →</span>
                   </button>
                 ))}
@@ -276,7 +322,8 @@ export default function OrganizationSelectionClient() {
                 <strong>Authority representation</strong>
                 <span>Continuing records that you are authorized to establish or begin establishing this organization on RFxchange. Organization verification remains a separate trust workflow.</span>
               </div>
-              <button className={styles.primary} onClick={finishCreate}>Create organization</button>
+              {error && <p className={styles.error}>{error}</p>}
+              <button className={styles.primary} onClick={() => void finishCreate()} disabled={loading}>{loading ? "Creating…" : "Create organization"}</button>
               <button className={styles.secondary} onClick={() => setView("create")}>Back</button>
             </>
           )}
@@ -288,9 +335,9 @@ export default function OrganizationSelectionClient() {
               <h1>{resolution.organizationName}</h1>
               <p className={styles.lead}>
                 {resolution.mode === "create"
-                  ? "A reference organization identity and active creator membership are established for this onboarding session."
+                  ? "The organization identity and creator membership are established for this onboarding session."
                   : resolution.mode === "claim"
-                    ? "The seeded organization is selected and its authority state is pending resolution."
+                    ? "The organization is selected and its authority state is pending resolution."
                     : "The existing organization is selected and membership access is pending approval."}
               </p>
               <dl className={styles.summary}>
@@ -298,7 +345,11 @@ export default function OrganizationSelectionClient() {
                 <div><dt>Membership</dt><dd>{resolution.membershipState}</dd></div>
                 <div><dt>Authority</dt><dd>{resolution.authorityState}</dd></div>
               </dl>
-              <div className={styles.referenceNote}><strong>Reference persistence:</strong> this chassis build saves the resolution in session storage only. Production must persist the canonical organization, membership, claim/authority state, invitation attribution, and audit events server-side.</div>
+              {resolution.membershipState !== "active" ? (
+                <div className={styles.referenceNote}>
+                  <strong>Affiliation still needs attention.</strong> Exchange-ready activation will remain blocked until the organization access or authority state becomes active. RFxchange does not simulate administrator approval.
+                </div>
+              ) : null}
               <Link className={styles.primaryLink} href={resolution.nextPath}>Continue to Geography →</Link>
             </>
           )}
