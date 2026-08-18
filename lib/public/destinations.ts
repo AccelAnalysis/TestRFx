@@ -4,40 +4,41 @@ export const PUBLIC_DESTINATIONS = {
     label: "How It Works",
     href: "/how-it-works",
     owner: "marketing",
-    kind: "acquisition-integration",
-    summary: "Public explanation of the RFxchange journey and Exchange model.",
+    kind: "marketing",
+    summary: "Public explanation of how RFxchange works.",
   },
   businesses: {
     slug: "businesses",
     label: "Businesses",
     href: "/businesses",
     owner: "marketing",
-    kind: "acquisition-integration",
-    summary: "Audience destination for businesses participating in the Exchange.",
+    kind: "marketing",
+    summary: "Public destination for businesses participating in the Exchange.",
   },
   buyers: {
     slug: "buyers",
     label: "Buyers",
     href: "/buyers",
     owner: "marketing",
-    kind: "acquisition-integration",
-    summary: "Audience destination for buyers and opportunity issuers.",
+    kind: "marketing",
+    summary: "Public destination for buyers and opportunity issuers.",
   },
   resourceProviders: {
     slug: "resource-providers",
     label: "Resource Providers",
     href: "/resource-providers",
     owner: "marketing",
-    kind: "acquisition-integration",
-    summary: "Audience destination for organizations offering resources through RFxchange.",
+    kind: "marketing",
+    summary: "Public destination for organizations offering resources through RFxchange.",
   },
   founding: {
     slug: "founding",
     label: "Founding Membership",
+    headerLabel: "Founding",
     href: "/founding",
     owner: "pricing-membership",
-    kind: "acquisition-integration",
-    summary: "Public membership destination for the founding offer.",
+    kind: "membership",
+    summary: "Public Founding Membership destination.",
   },
   about: {
     slug: "about",
@@ -45,7 +46,7 @@ export const PUBLIC_DESTINATIONS = {
     href: "/about",
     owner: "about-legal-footer",
     kind: "information",
-    summary: "What RFxchange is, how the three shells fit together, and how the Exchange is organized.",
+    summary: "How RFxchange connects existing business assets through a shared Exchange.",
   },
   join: {
     slug: "join",
@@ -53,8 +54,7 @@ export const PUBLIC_DESTINATIONS = {
     href: "/join",
     owner: "identity",
     kind: "identity-entry",
-    targetHref: "/register",
-    summary: "Canonical public handoff into RFxchange registration.",
+    summary: "Public registration gateway that preserves acquisition context before Identity and Onboarding.",
   },
   signIn: {
     slug: "signin",
@@ -62,8 +62,7 @@ export const PUBLIC_DESTINATIONS = {
     href: "/signin",
     owner: "identity",
     kind: "identity-entry",
-    targetHref: "/login",
-    summary: "Canonical public handoff into RFxchange login.",
+    summary: "Public sign-in gateway that preserves acquisition context before Identity and Onboarding.",
   },
   imageCredits: {
     slug: "image-credits",
@@ -71,31 +70,31 @@ export const PUBLIC_DESTINATIONS = {
     href: "/image-credits",
     owner: "about-legal-footer",
     kind: "information",
-    summary: "Attribution registry for public imagery and other media that require credit.",
+    summary: "Public photography provenance and evidence-use rules for RFxchange.",
   },
   terms: {
     slug: "terms",
     label: "Terms",
     href: "/terms",
     owner: "about-legal-footer",
-    kind: "information",
-    summary: "Reference structure for the RFxchange Terms destination and versioned policy lifecycle.",
+    kind: "policy",
+    summary: "Current RFxchange Terms of Service.",
   },
   privacy: {
     slug: "privacy",
     label: "Privacy",
     href: "/privacy",
     owner: "about-legal-footer",
-    kind: "information",
-    summary: "Reference structure for the RFxchange Privacy destination and data-governance disclosures.",
+    kind: "policy",
+    summary: "Current RFxchange Privacy Policy.",
   },
   platformRules: {
     slug: "platform-rules",
     label: "Platform Rules",
     href: "/platform-rules",
     owner: "about-legal-footer",
-    kind: "information",
-    summary: "Participation and conduct rules for trustworthy use of the Exchange.",
+    kind: "policy",
+    summary: "Current RFxchange Platform Rules.",
   },
   accessibility: {
     slug: "accessibility",
@@ -103,7 +102,7 @@ export const PUBLIC_DESTINATIONS = {
     href: "/accessibility",
     owner: "about-legal-footer",
     kind: "information",
-    summary: "Accessibility commitments and product interaction requirements for RFxchange.",
+    summary: "Accessibility principles and production commitments for RFxchange public and account surfaces.",
   },
 } as const;
 
@@ -122,18 +121,22 @@ export const PUBLIC_HEADER_DESTINATIONS = [
 
 export const PUBLIC_FOOTER_GROUPS = [
   {
+    id: "explore",
     label: "Explore",
     destinationIds: ["howItWorks", "businesses", "buyers", "resourceProviders", "founding"],
   },
   {
+    id: "organization",
     label: "Organization",
     destinationIds: ["about", "join", "signIn", "imageCredits"],
   },
   {
+    id: "bottom-matter",
     label: "Bottom Matter",
     destinationIds: ["terms", "privacy", "platformRules", "accessibility"],
   },
 ] as const satisfies readonly {
+  id: string;
   label: string;
   destinationIds: readonly PublicDestinationId[];
 }[];
