@@ -6,6 +6,7 @@
 CREATE TABLE IF NOT EXISTS organization_profiles (
   organization_id uuid PRIMARY KEY REFERENCES organizations(id) ON DELETE CASCADE,
   legal_name text,
+  organization_type text,
   description text NOT NULL DEFAULT '',
   website text,
   primary_domain text,
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS organization_profiles (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+ALTER TABLE organization_profiles ADD COLUMN IF NOT EXISTS organization_type text;
 ALTER TABLE organization_profiles ADD COLUMN IF NOT EXISTS brand_name text;
 ALTER TABLE organization_profiles ADD COLUMN IF NOT EXISTS logo_url text;
 
