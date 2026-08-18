@@ -3,6 +3,7 @@ import type { ExchangeReadinessSnapshot, ReadinessItem } from "@/lib/onboarding/
 import { readinessItemSatisfied } from "@/lib/onboarding/readiness";
 import { CompletionNavigation } from "./completion-navigation";
 import styles from "./exchange-ready-completion.module.css";
+import extras from "./exchange-ready-extras.module.css";
 
 interface ExchangeReadyCompletionProps {
   readiness: ExchangeReadinessSnapshot;
@@ -29,7 +30,7 @@ function ReadinessRow({ item }: { item: ReadinessItem }) {
       <div className={styles.itemBody}>
         <strong>{item.label}</strong>
         <p>{item.description}</p>
-        <div className={styles.itemActions}>
+        <div className={extras.itemActions}>
           <Link href={item.href}>{satisfied ? "Review workflow" : item.blocking ? "Resolve now" : "Continue enrichment"}</Link>
           {item.detailHref ? <Link href={item.detailHref}>Review details</Link> : null}
         </div>
@@ -159,7 +160,7 @@ export function ExchangeReadyCompletion({ readiness, returnTo }: ExchangeReadyCo
               <div className={styles.tags} aria-label="Capability summary">
                 {organization.capabilitySummary.length ? organization.capabilitySummary.map((capability) => (
                   <span className={styles.tag} key={capability}>{capability}</span>
-                )) : <span className={styles.emptyTag}>No capability summary yet</span>}
+                )) : <span className={extras.emptyTag}>No capability summary yet</span>}
               </div>
             </section>
 
@@ -190,7 +191,7 @@ export function ExchangeReadyCompletion({ readiness, returnTo }: ExchangeReadyCo
             {readiness.exchangeAccessAllowed ? (
               <Link className={styles.primaryButton} href={activationHref}>Review activation</Link>
             ) : (
-              <span className={`${styles.primaryButton} ${styles.primaryDisabled}`} aria-disabled="true">Activation blocked</span>
+              <span className={`${styles.primaryButton} ${extras.primaryDisabled}`} aria-disabled="true">Activation blocked</span>
             )}
           </div>
         </section>
