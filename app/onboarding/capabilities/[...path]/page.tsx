@@ -1,5 +1,6 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import CapabilityEnrichment from "@/components/onboarding/capability-enrichment";
+import CapabilityEnrichmentRoute from "@/components/onboarding/capability-enrichment-route";
 import { CAPABILITY_ENRICHMENT_TREE, isCapabilityWorkflowPath } from "@/lib/onboarding/capability-enrichment";
 
 export const dynamicParams = false;
@@ -11,14 +12,12 @@ export function generateStaticParams() {
   ]);
 }
 
-export default async function CapabilityEnrichmentPathPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ path: string[] }>;
-  searchParams: Promise<{ organizationId?: string }>;
-}) {
-  const [{ path }, query] = await Promise.all([params, searchParams]);
+export default async function CapabilityEnrichmentPathPage({ params }: { params: Promise<{ path: string[] }> }) {
+  const { path } = await params;
   if (!isCapabilityWorkflowPath(path)) notFound();
-  return <CapabilityEnrichment path={path} organizationId={query.organizationId} />;
+  return (
+    <Suspense fallback={null}>
+      <CapabilityEnrichmentRoute path={path} />
+    </Suspense>
+  );
 }
