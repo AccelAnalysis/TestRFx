@@ -34,6 +34,7 @@ import { MenuSurface } from "./menu-surface";
 import { IntelligenceWorkflowSurface } from "./intelligence-workflow-surface";
 import { ResourceNotice } from "./resource-notice";
 import { ResourceWorkflowSurface, type ResourceWorkflow } from "./resource-workflow-surface";
+import { RfxWorkflowSurface, type RfxCommand, type RfxWorkflow } from "./rfx-workflow-surface";
 import styles from "./exchange-shell.module.css";
 
 const recentStorageKey = "rfxchange:recent-searches";
@@ -85,6 +86,7 @@ export function ExchangeShell({
   const [resourceWorkflow, setResourceWorkflow] = useState<ResourceWorkflow | undefined>();
   const [resourceNotice, setResourceNotice] = useState<string>();
   const [intelligenceWorkflow, setIntelligenceWorkflow] = useState<IntelligenceFlow>();
+  const [rfxWorkflow, setRfxWorkflow] = useState<RfxWorkflow>();
   const [geolocationStatus, setGeolocationStatus] = useState<GeolocationStatus>("idle");
   const [viewerLocation, setViewerLocation] = useState<Coordinates | undefined>();
   const [viewportDirty, setViewportDirty] = useState(false);
@@ -108,6 +110,7 @@ export function ExchangeShell({
   const actions = definition.actions(actionRecord);
   const resourceWorkflowRecord = resourceWorkflow && "recordId" in resourceWorkflow ? allRecords.find((record) => record.id === resourceWorkflow.recordId) : undefined;
   const intelligenceWorkflowRecord = intelligenceWorkflow?.recordId ? allRecords.find((record) => record.id === intelligenceWorkflow.recordId) : undefined;
+  const rfxWorkflowRecord = rfxWorkflow && "recordId" in rfxWorkflow ? allRecords.find((record) => record.id === rfxWorkflow.recordId) : undefined;
 
   useEffect(() => { try { const recent = localStorage.getItem(recentStorageKey); const saved = localStorage.getItem(savedStorageKey); if (recent) setRecentSearches(JSON.parse(recent)); if (saved) setSavedSearches(JSON.parse(saved)); } catch {} }, []);
   useEffect(() => {
@@ -145,11 +148,12 @@ export function ExchangeShell({
   function updateSearchState(next: ExchangeSearchState) { setSearchByLens((current) => ({ ...current, [lens]: next })); setUrl(lens, detailRecordId, "replace", next, detailNavigationPath); }
   function commitSearch(next: ExchangeSearchState) { updateSearchState(next); if (!next.query.trim() && activeFilterCount(next) === 0) return; const recent: RecentSearch = { id: `${lens}-${Date.now()}`, lens, state: next, createdAt: new Date().toISOString() }; persistRecent([recent, ...recentSearches.filter((item) => item.lens !== lens || JSON.stringify(item.state) !== JSON.stringify(next))].slice(0, 12)); }
   function saveCurrentSearch() { if (!searchState.query.trim() && activeFilterCount(searchState) === 0) return; const descriptor = searchState.query.trim() || searchState.filters.geography.trim() || "Discovery"; const saved: SavedSearch = { id: `${lens}-${Date.now()}`, name: `${definition.label}: ${descriptor}`, lens, state: searchState, createdAt: new Date().toISOString() }; persistSaved([saved, ...savedSearches.filter((item) => item.lens !== lens || JSON.stringify(item.state) !== JSON.stringify(searchState))].slice(0, 20)); }
-  function changeLens(next: ExchangeLens) { const prior = searchByLens[next]; const carried = prior.query.trim() ? prior : { ...prior, query: searchState.query }; setLens(next); setSearchByLens((current) => ({ ...current, [next]: carried })); setSelectedRecordId(undefined); setDetailRecordId(undefined); setDetailNavigationPath([]); setResourceWorkflow(undefined); setIntelligenceWorkflow(undefined); setActionNotice(""); setUrl(next, undefined, "replace", carried, []); }
+  function changeLens(next: ExchangeLens) { const prior = searchByLens[next]; const carried = prior.query.trim() ? prior : { ...prior, query: searchState.query }; setLens(next); setSearchByLens((current) => ({ ...current, [next]: carried })); setSelectedRecordId(undefined); setDetailRecordId(undefined); setDetailNavigationPath([]); setResourceWorkflow(undefined); setIntelligenceWorkflow(undefined); setRfxWorkflow(undefined); setActionNotice(""); setUrl(next, undefined, "replace", carried, []); }
   function selectRecord(id: string) { setSelectedRecordId(id); if (drawer === "peek") setDrawer("mid"); }
   function openDetail(id: string) { setSelectedRecordId(id); setDetailRecordId(id); setDetailNavigationPath([]); setUrl(lens, id, "push", searchState, []); void recordActivity(id, "RecordCardOpened"); }
+  function openDetailAt(id: string, path: string[]) { setSelectedRecordId(id); setDetailRecordId(id); setDetailNavigationPath(path); setUrl(lens, id, "push", searchState, path); void recordActivity(id, "RecordCardOpened"); }
   function closeDetail() { setDetailRecordId(undefined); setDetailNavigationPath([]); setUrl(lens, undefined, "replace", searchState, []); }
-  function updateDetailPath(path: string[]) { setDetailNavigationPath(path); if (detailRecordId) setUrl(lens, detailRecordId, "replace", searchState, path); }
+  function updateDetailPath(path: string[]) { const mode = path.length > detailNavigationPath.length ? "push" : "replace"; setDetailNavigationPath(path); if (detailRecordId) setUrl(lens, detailRecordId, mode, searchState, path); }
 
   function activeActionIds(record: ExchangeRecord | undefined, resolved: LensAction[]) {
     if (!record) return [];
@@ -202,6 +206,15 @@ export function ExchangeShell({
     return body;
   }
 
+  async function runRfxCommand(action: RfxCommand, recordId: string | undefined, payload: Record<string, unknown>) {
+    if (serviceMode === "preview") throw new Error("The static preview is read-only. Production RFx commands require the authenticated runtime.");
+    const response = await fetch("/api/exchange/rfx-workflows", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, recordId, payload }) });
+    const body = await responseJson(response);
+    await refreshLensRecords("rfx");
+    setActionNotice(action === "respond" ? "RFx response saved." : action === "award" ? "RFx award/advance recorded." : `RFx ${action} completed.`);
+    return body;
+  }
+
   async function refreshLensRecords(targetLens: ExchangeLens) {
     if (serviceMode === "preview") return;
     const response = await fetch(`/api/exchange/results?lens=${encodeURIComponent(targetLens)}`, { cache: "no-store" });
@@ -226,6 +239,11 @@ export function ExchangeShell({
     if (action.requiresRecord && !record) return;
     if (!action.operational || !action.authorized || !action.applicable || !action.prerequisitesSatisfied) { setActionNotice(action.unavailableReason ?? "This workflow is unavailable."); return; }
     if (action.trigger === "detail" && record) { openDetail(record.id); return; }
+    if (lens === "rfx") {
+      if (action.id === "create-rfx") { setRfxWorkflow({ mode: "create" }); return; }
+      if (action.id === "manage-rfx" && record) { openDetailAt(record.id, ["manage-rfx"]); return; }
+      if (action.id === "respond" && record) { setRfxWorkflow({ mode: "respond", recordId: record.id }); return; }
+    }
     if (lens === "resources") {
       if (action.id === "offer-resource") { setResourceWorkflow({ mode: "offer" }); return; }
       if (action.id === "edit-resource" && record) { setResourceWorkflow({ mode: "edit", recordId: record.id }); return; }
@@ -266,7 +284,7 @@ export function ExchangeShell({
   function executeNavigationNode(node: RecordNavigationNode) {
     const record = detailRecord; if (!record || !node.command) return;
     const action = detailActions.find((candidate) => candidate.id === node.actionId);
-    if (action) { void handleAction(action, record); return; }
+    if (action && !["respond", "manage-rfx"].includes(action.id)) { void handleAction(action, record); return; }
     if (["save", "watch", "track", "follow"].includes(node.command)) {
       const kind = node.command === "save" ? "saved" : node.command === "watch" ? "watching" : node.command === "track" ? "tracking" : "following";
       const relations = new Set(record.card?.relationships ?? []);
@@ -276,6 +294,12 @@ export function ExchangeShell({
     }
     if (node.command === "share") { void handleAction({ id: "share", position: 1, label: "Share", icon: "↗", trigger: "direct", ownership: "any", visible: true, applicable: true, authorized: true, operational: true, prerequisitesSatisfied: true }, record); return; }
     if (node.command === "refer" || node.command === "team" || node.command === "invite-team") { void runSharedWorkflow(node.command === "invite-team" ? "team" : node.command, record).then(() => setActionNotice(`${node.label} workflow created.`)).catch((error) => setActionNotice(error instanceof Error ? error.message : "Unable to create workflow.")); return; }
+    if (node.command === "create-rfx" || node.command === "draft-save-publish") setRfxWorkflow({ mode: "create" });
+    if (node.command === "update-rfx") setRfxWorkflow({ mode: "update", recordId: record.id });
+    if (node.command === "close-rfx") setRfxWorkflow({ mode: "close", recordId: record.id });
+    if (node.command === "award-advance") setRfxWorkflow({ mode: "award", recordId: record.id });
+    if (node.command === "respond") setRfxWorkflow({ mode: "respond", recordId: record.id });
+    if (node.command === "view-responses-matches") setRfxWorkflow({ mode: "responses", recordId: record.id });
     if (node.command === "offer-resource") setResourceWorkflow({ mode: "offer" });
     if (node.command === "edit-resource") setResourceWorkflow({ mode: "edit", recordId: record.id });
     if (node.command === "request-resource") setResourceWorkflow({ mode: "request", recordId: record.id });
@@ -311,10 +335,11 @@ export function ExchangeShell({
     <FloatingControls lens={lens} records={lensRecords.filter((record) => record.resource?.status !== "archived")} search={searchState.query} filters={floatingFilters} onFiltersChange={(next) => setFiltersByLens((current) => ({ ...current, [lens]: next }))} mapDisplayMode={mapView.camera.mode} onMapDisplayModeChange={(mode: MapDisplayMode) => setMapView((current) => ({ ...current, camera: { ...current.camera, mode, pitch: mode === "3d" ? 42 : 0 } }))} geolocationStatus={geolocationStatus} onLocate={locateViewer} onResetView={resetMapView} searchAreaAvailable={viewportDirty} onSearchArea={() => setViewportDirty(false)} />
     <ResultsDrawer state={drawer} onStateChange={setDrawer} lens={lens} lensLabel={definition.label} records={visibleRecords} totalAvailableCount={filteredRecords.length} selectedRecordId={selectedRecordId} actions={actions} activeActionIds={drawerActiveActionIds} onAction={(action) => { void handleAction(action, actionRecord); }} emptyMessage={definition.emptyMessage} resultContext={`${mapped} mapped · ${offMap} off-map`} query={drawerQuery} onQueryChange={(next) => setDrawerQueries((current) => ({ ...current, [lens]: next }))} onSelect={selectRecord} onOpen={openDetail} onToggleSave={(id) => { void toggleSaved(id); }} />
     <BottomNav activeLens={lens} onLensChange={changeLens} onMenu={() => setMenuOpen(true)} />
-    {detailRecord ? <DetailSurface record={detailRecord} actions={detailActions} activeActionIds={detailActiveActionIds} navigationPath={detailNavigationPath} onNavigationPathChange={updateDetailPath} onWorkflowNode={executeNavigationNode} onAction={(action) => { void handleAction(action, detailRecord); }} onClose={closeDetail} /> : null}
+    {detailRecord ? <DetailSurface record={detailRecord} actions={detailActions} activeActionIds={detailActiveActionIds} navigationPath={detailNavigationPath} onNavigationPathChange={updateDetailPath} onWorkflowNode={executeNavigationNode} onAction={(action) => { void handleAction(action, detailRecord); }} onRecordChanged={() => { void refreshLensRecords(lens); }} onClose={closeDetail} /> : null}
     {menuOpen ? <MenuSurface onClose={() => setMenuOpen(false)} /> : null}
     {resourceWorkflow ? <ResourceWorkflowSurface workflow={resourceWorkflow} record={resourceWorkflowRecord} onClose={() => setResourceWorkflow(undefined)} onCreate={createResource} onUpdate={updateResource} onRequest={requestResource} onArchive={archiveResource} /> : null}
     {intelligenceWorkflow ? <IntelligenceWorkflowSurface workflow={intelligenceWorkflow.mode} record={intelligenceWorkflowRecord} onClose={() => setIntelligenceWorkflow(undefined)} onCreate={createInsight} onUpdate={updateInsight} onAddNote={addIntelligenceNote} /> : null}
+    {rfxWorkflow ? <RfxWorkflowSurface workflow={rfxWorkflow} record={rfxWorkflowRecord} onClose={() => setRfxWorkflow(undefined)} onCommand={runRfxCommand} /> : null}
     <ResourceNotice message={resourceNotice} />
     {actionNotice ? <div className={styles.actionNotice} role="status" aria-live="polite">{actionNotice}</div> : null}
   </main>;
