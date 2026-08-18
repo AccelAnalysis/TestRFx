@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ConversionLink } from "@/components/marketing/acquisition-context";
 import {
   PUBLIC_DESTINATIONS,
   PUBLIC_FOOTER_GROUPS,
@@ -36,8 +37,13 @@ export function PublicFooter({
               <nav aria-label={`${group.label} footer links`}>
                 {group.destinationIds.map((destinationId) => {
                   const destination = PUBLIC_DESTINATIONS[destinationId];
-                  return (
-                    <Link href={destinationHref(destinationId)} key={destinationId}>
+                  const href = destinationHref(destinationId);
+                  return destinationId === "join" || destinationId === "signIn" ? (
+                    <ConversionLink href={href} key={destinationId}>
+                      {destination.label}
+                    </ConversionLink>
+                  ) : (
+                    <Link href={href} key={destinationId}>
                       {destination.label}
                     </Link>
                   );
