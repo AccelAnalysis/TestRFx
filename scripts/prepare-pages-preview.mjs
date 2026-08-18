@@ -163,6 +163,33 @@ export default function MembershipSelectionPage() {
 );
 
 await write(
+  "app/onboarding/organization-profile/page.tsx",
+  `import { OrganizationProfileForm } from "@/components/onboarding/organization-profile-form";
+import { organizationProfileContextFromSearchParams } from "@/lib/onboarding/organization-profile";
+
+export default function OrganizationProfilePage() {
+  return <OrganizationProfileForm initialContext={organizationProfileContextFromSearchParams({})} />;
+}
+`,
+);
+
+await write(
+  "app/onboarding/completion/page.tsx",
+  `import { ExchangeReadyCompletion } from "@/components/onboarding/exchange-ready-completion";
+import { getReferenceExchangeReadiness, resolveExchangeDestination } from "@/lib/onboarding/readiness";
+
+export default function CompletionPage() {
+  return (
+    <ExchangeReadyCompletion
+      readiness={getReferenceExchangeReadiness()}
+      returnTo={resolveExchangeDestination(undefined)}
+    />
+  );
+}
+`,
+);
+
+await write(
   "app/campaign/[slug]/page.tsx",
   `import { notFound } from "next/navigation";
 import { CampaignLandingPage } from "@/components/public/campaign-landing-page";
