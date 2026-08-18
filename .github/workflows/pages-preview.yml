@@ -36,12 +36,13 @@ jobs:
         run: npm run typecheck
 
       - name: Prepare static preview projection
-        run: node scripts/prepare-pages-preview.mjs
+        run: node scripts/prepare-pages-preview-compat.mjs && node scripts/prepare-pages-preview.mjs
 
       - name: Build static Pages preview
         run: npm run build
         env:
           RFXCHANGE_PAGES_PREVIEW: "1"
+          NEXT_PUBLIC_RFXCHANGE_PREVIEW: "1"
           PAGES_BASE_PATH: "/${{ github.event.repository.name }}"
           NEXT_PUBLIC_BASE_PATH: "/${{ github.event.repository.name }}"
 
