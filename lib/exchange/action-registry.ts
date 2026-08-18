@@ -3,6 +3,8 @@ import type { ExchangeLens, ExchangeRecord, LensAction, LensActionOwnership, Len
 type ActionSpec = { id: string; label: string; icon: string; trigger: LensActionTrigger; operational?: boolean; unavailableReason?: string; requiresRecord?: boolean; toggle?: LensActionToggle; };
 function spec(id: string, label: string, icon: string, trigger: LensActionTrigger, options: Omit<ActionSpec, "id" | "label" | "icon" | "trigger"> = {}): ActionSpec { return { id, label, icon, trigger, ...options }; }
 
+const capabilitiesServiceReason = "Connect the production Capabilities/AMACS service before enabling this source-defined workflow; reference capability data is not used as production truth.";
+
 const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }> = {
   rfx: {
     own: [
@@ -49,13 +51,13 @@ const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }>
   capabilities: {
     own: [
       spec("manage-capabilities", "Manage Capabilities", "✎", "menu", { requiresRecord: true }),
-      spec("ai-amacs", "AI → AMACS", "✦", "modal", { requiresRecord: true }),
-      spec("capability-evidence", "Add / Edit Evidence", "✓", "modal", { requiresRecord: true }),
-      spec("capability-gaps", "Capability Gaps", "▥", "direct", { requiresRecord: true }),
+      spec("ai-amacs", "AI → AMACS", "✦", "modal", { requiresRecord: true, operational: false, unavailableReason: capabilitiesServiceReason }),
+      spec("capability-evidence", "Add / Edit Evidence", "✓", "modal", { requiresRecord: true, operational: false, unavailableReason: "Connect the production evidence/object-storage command service before enabling evidence writes." }),
+      spec("capability-gaps", "Capability Gaps", "▥", "direct", { requiresRecord: true, operational: false, unavailableReason: capabilitiesServiceReason }),
     ],
     other: [
       spec("view", "View Capabilities", "◉", "menu", { requiresRecord: true }),
-      spec("match-rfx", "Match to RFx", "◇", "modal", { requiresRecord: true }),
+      spec("match-rfx", "Match to RFx", "◇", "modal", { requiresRecord: true, operational: false, unavailableReason: "Connect the production AMACS-backed requirement matching service before enabling Match to RFx." }),
       spec("refer", "Refer", "↗", "direct", { requiresRecord: true }),
       spec("follow", "Save / Follow", "☆", "direct", { requiresRecord: true, toggle: "follow" }),
     ],
