@@ -118,11 +118,12 @@ export function sanitizeVerificationContext(value: unknown): AccountVerification
 }
 
 export function buildOnboardingContinuation(context: AccountVerificationContext): string {
-  const params = new URLSearchParams({ stage: "organization" });
+  const params = new URLSearchParams();
   if (context.source) params.set("source", context.source);
   if (context.invitationId) params.set("invitation", context.invitationId);
   if (context.referralId) params.set("referral", context.referralId);
   if (context.campaignId) params.set("campaign", context.campaignId);
   if (context.returnTo) params.set("returnTo", context.returnTo);
-  return `/onboarding?${params.toString()}`;
+  const query = params.toString();
+  return query ? `/onboarding/organization?${query}` : "/onboarding/organization";
 }
