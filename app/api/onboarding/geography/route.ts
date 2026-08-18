@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildGeographyContext, validateGeographyDraft } from "@/lib/onboarding/geography";
+import { mergeOnboardingProgress } from "@/lib/onboarding/progress";
+import {
+  readOnboardingProgressFromRequest,
+  writeOnboardingProgressCookie,
+} from "@/lib/onboarding/progress-store";
 
 export async function POST(request: NextRequest) {
   let payload: unknown;
@@ -14,14 +19,21 @@ export async function POST(request: NextRequest) {
   if (!validation.ok) return NextResponse.json({ errors: validation.errors }, { status: 422 });
 
   const context = buildGeographyContext(validation.draft);
-
-  return NextResponse.json({
-    context,
-    persisted: false,
-    integration: {
-      geocoder: "reference-preview",
-      geographyPolicy: "reference-registry",
-      persistence: "session-client",
+  const progress = mergeOnboardingProgress(readOnboardingProgressFromRequest(request), {
+    checkpoints: [
+      {
+        id: "geography",
+        status: "complete",
+        value: `${context.primaryGeography.name}, ${context.primaryGeography.stateCode}`,
+      },
+    ],
+    context: {
+      geography: `${context.primaryGeography.name}, ${context.primaryGeography.stateCode}`,
+      mapPresence: "off_map",
     },
   });
+
+  const response = NextResponse.json({ context, progressSaved: true });
+  writeOnboardingProgressCookie(response, progress);
+  return response;
 }
