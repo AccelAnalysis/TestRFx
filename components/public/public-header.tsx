@@ -5,7 +5,13 @@ import {
 } from "@/lib/public/destinations";
 import styles from "./public-shell.module.css";
 
-export function PublicHeader() {
+export function PublicHeader({
+  joinHref = PUBLIC_DESTINATIONS.join.href,
+  signInHref = PUBLIC_DESTINATIONS.signIn.href,
+}: {
+  joinHref?: string;
+  signInHref?: string;
+} = {}) {
   return (
     <header className={styles.chrome}>
       <div className={styles.header}>
@@ -23,10 +29,10 @@ export function PublicHeader() {
           })}
         </nav>
         <div className={styles.headerActions}>
-          <Link className={styles.textAction} href={PUBLIC_DESTINATIONS.signIn.href}>
+          <Link className={styles.textAction} href={signInHref}>
             Sign In
           </Link>
-          <Link className={styles.primaryAction} href={PUBLIC_DESTINATIONS.join.href}>
+          <Link className={styles.primaryAction} href={joinHref}>
             Join Free
           </Link>
         </div>
