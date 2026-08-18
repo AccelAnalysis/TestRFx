@@ -5,12 +5,11 @@ import type { ExchangeRecord } from "@/lib/exchange/contracts";
 import { drawerWorkflowPath, type DrawerWorkflowExecution, type DrawerWorkflowNode } from "@/lib/exchange/drawer-workflows";
 import styles from "./drawer-workflow-navigator.module.css";
 
-export function DrawerWorkflowNavigator({ root, record, onClose, onExecute, onInspectReferralPolicy: _onInspectReferralPolicy }: {
+export function DrawerWorkflowNavigator({ root, record, onClose, onExecute }: {
   root: DrawerWorkflowNode;
   record?: ExchangeRecord;
   onClose: () => void;
   onExecute: (execution: DrawerWorkflowExecution, node: DrawerWorkflowNode) => void;
-  onInspectReferralPolicy: (node: DrawerWorkflowNode) => void;
 }) {
   const [pathIds, setPathIds] = useState<string[]>([]);
   useEffect(() => setPathIds([]), [root.id]);
