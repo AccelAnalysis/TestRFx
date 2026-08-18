@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sanitizeOnboardingProgressUpdate } from "@/lib/onboarding/progress";
 import {
-  applyOnboardingProgressUpdate,
+  mergeOnboardingProgress,
+  sanitizeOnboardingProgressUpdate,
+} from "@/lib/onboarding/progress";
+import {
   readOnboardingProgressFromRequest,
+  writeOnboardingProgressCookie,
 } from "@/lib/onboarding/progress-store";
 
 export const dynamic = "force-dynamic";
@@ -27,13 +30,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No supported onboarding progress updates were supplied." }, { status: 422 });
   }
 
-  const response = NextResponse.json({ ok: true }, { status: 200 });
-  const progress = applyOnboardingProgressUpdate(request, response, update);
-  return NextResponse.json(
+  const progress = mergeOnboardingProgress(readOnboardingProgressFromRequest(request), update);
+  const response = NextResponse.json(
     { ok: true, progress },
-    {
-      status: 200,
-      headers: response.headers,
-    },
+    { status: 200, headers: { "Cache-Control": "no-store" } },
   );
+  writeOnboardingProgressCookie(response, progress);
+  return response;
 }
