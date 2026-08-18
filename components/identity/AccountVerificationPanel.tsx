@@ -45,7 +45,7 @@ export function AccountVerificationPanel() {
   const [state, setState] = useState<AccountVerificationState>(token ? "verifying" : "idle");
   const [message, setMessage] = useState("");
   const [referencePath, setReferencePath] = useState("");
-  const [nextPath, setNextPath] = useState("/onboarding?stage=organization");
+  const [nextPath, setNextPath] = useState("/onboarding/organization?step=welcome");
   const [editingEmail, setEditingEmail] = useState(!initialEmail);
 
   const context = useMemo<AccountVerificationContext>(
@@ -56,6 +56,7 @@ export function AccountVerificationPanel() {
         referralId: searchParams.get("referral") ?? undefined,
         campaignId: searchParams.get("campaign") ?? undefined,
         returnTo: searchParams.get("returnTo") ?? undefined,
+        displayName: searchParams.get("displayName") ?? undefined,
       }),
     [searchParams],
   );
@@ -81,7 +82,7 @@ export function AccountVerificationPanel() {
         if (resolvedState === "verified" && data.email) {
           setEmail(data.email);
           setMaskedDestination(maskEmail(data.email));
-          setNextPath(data.nextPath ?? "/onboarding?stage=organization");
+          setNextPath(data.nextPath ?? "/onboarding/organization?step=welcome");
         }
       } catch {
         if (!cancelled) {
@@ -110,7 +111,7 @@ export function AccountVerificationPanel() {
         body: JSON.stringify({ action, email: normalized, context }),
       });
       const data = (await response.json()) as ApiResponse;
-      const resolvedState = response.ok ? responseState(data.state) : responseState(data.state);
+      const resolvedState = responseState(data.state);
       setState(resolvedState);
       setMessage(data.message ?? "");
 
@@ -209,9 +210,9 @@ export function AccountVerificationPanel() {
 
           {referencePath ? (
             <div className={styles.referenceBox}>
-              <strong>Reference chassis delivery</strong>
-              <p>Email delivery is an integration point in this repo. Use this local link to exercise the verification contract.</p>
-              <a className="button button-primary button-full" href={referencePath}>Open reference verification link</a>
+              <strong>Development verification delivery</strong>
+              <p>Transactional email is not enabled in this local environment. Use the signed one-time link below to exercise the real verification and onboarding-session contract.</p>
+              <a className="button button-primary button-full" href={referencePath}>Open verification link</a>
             </div>
           ) : null}
 
