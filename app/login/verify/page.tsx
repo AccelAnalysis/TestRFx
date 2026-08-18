@@ -27,7 +27,9 @@ export default function LoginVerifyPage() {
           <LoginVerificationFlow />
         </Suspense>
         <div className={styles.metaLinks}>
-          <Link href="/auth/sign-in/enter-email/email-found/send-sign-in-link/click-magic-link">View magic-link workflow</Link>
+          <Link href="/auth/sign-in/enter-email/continue/email-found-system/email-found/send-sign-in-link/check-email/click-magic-link">
+            View magic-link workflow
+          </Link>
           <span aria-hidden="true">·</span>
           <Link href="/">RFxchange</Link>
         </div>
