@@ -20,6 +20,12 @@
 .intelligence-notes article { padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: white; }
 .intelligence-notes p { margin: 0 0 5px; font-size: 12px; line-height: 1.45; }
 .intelligence-notes small { color: #72767e; font-size: 10px; }
+.intelligence-activity-list { display: grid; gap: 8px; }
+.intelligence-activity-list article { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: white; }
+.intelligence-activity-list article > span { width: 9px; height: 9px; flex: 0 0 auto; margin-top: 4px; border: 2px solid white; border-radius: 50%; background: var(--rf-gold); box-shadow: 0 0 0 2px rgba(214,162,58,.22); }
+.intelligence-activity-list article > div { display: grid; gap: 3px; }
+.intelligence-activity-list strong { font-size: 12px; }
+.intelligence-activity-list small { color: #72767e; font-size: 10px; }
 
 .intelligence-service-state { padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.72); color: #555a63; }
 .intelligence-service-state p { margin: 5px 0 0; font-size: 12px; line-height: 1.45; }
