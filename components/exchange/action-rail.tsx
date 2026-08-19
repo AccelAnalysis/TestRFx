@@ -30,10 +30,6 @@ export function ActionRail({
 
   return (
     <div className={styles.railShell}>
-      <div className={styles.contextRow} aria-hidden="true">
-        <span>Lens actions</span>
-        <strong>{contextLabel}</strong>
-      </div>
       <div className={styles.rail} aria-label={`${contextLabel} lens actions`}>
         {slots.map((position) => {
           const item = ordered.find((action) => action.position === position);
