@@ -28,13 +28,6 @@ function currentBounds(map: MapLibreMap): MapBounds {
   return { north: bounds.getNorth(), south: bounds.getSouth(), east: bounds.getEast(), west: bounds.getWest() };
 }
 
-function lensClass(lens: ExchangeLens) {
-  if (lens === "rfx") return styles.lensRfx;
-  if (lens === "resources") return styles.lensResources;
-  if (lens === "intelligence") return styles.lensIntelligence;
-  return styles.lensCapabilities;
-}
-
 function overlayHeatColor(lens: ExchangeLens) {
   if (lens === "capabilities") {
     return ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(46,94,170,0)", 0.25, "rgba(46,94,170,.2)", 0.55, "rgba(46,94,170,.5)", 0.8, "rgba(37,41,50,.65)", 1, "rgba(11,11,13,.82)"];
@@ -218,9 +211,6 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
       <div ref={hostRef} className={styles.mapHost} />
       {!styleReady && !loadError ? <div className={styles.loading} role="status">Loading live Exchange map…</div> : null}
       {loadError ? <div className={styles.error} role="status"><div><strong>Map temporarily unavailable</strong><p>{loadError}</p></div></div> : null}
-      <div className={styles.status} aria-live="polite"><span className={`${styles.lensDot} ${lensClass(lens)}`} aria-hidden /><span><strong>{lens === "rfx" ? "RFx opportunities" : lens === "resources" ? "Resources" : lens === "intelligence" ? "Market intelligence" : "Organization capabilities"}</strong><small>{summary.mapped} mapped · {summary.offMap} off-map</small></span></div>
-      <div className={styles.geographyChip}><small>Exchange geography</small><strong>{view.geography.label}</strong></div>
-      <div className={styles.legend} aria-hidden><span><i className={styles.legendExternal}>●</i> Exchange record</span><span><i className={styles.legendOwned}>●</i> Your organization</span><span><i className={styles.legendSponsored}>●</i> Sponsored</span></div>
     </div>
   );
 }
