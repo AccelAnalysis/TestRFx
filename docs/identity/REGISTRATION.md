@@ -1,149 +1,202 @@
 # Identity & Onboarding Shell — Registration
 
-Registration is the bounded RFxchange identity-creation module. It establishes a person-level account identity and preserves acquisition context, then hands the participant to Account Verification. It does **not** create the organization, geography, organization profile, capabilities, membership, or Exchange authorization context.
+Registration is the bounded RFxchange person-identity workflow. It preserves how a participant arrived, captures and resolves the account identity, records policy acceptance, creates or resumes the durable pending registration, initiates Account Verification, and then hands the verified participant to the next onboarding owner.
 
-## Chassis boundary
+Registration does **not** create organization authority, canonical geography, Organization Profile content, capabilities, commercial membership, or Exchange authorization. Those remain separate sibling modules in the RFxchange Operating Chassis.
+
+## Source-derived hierarchy
+
+The Registration and Onboarding source diagrams support the following Registration-owned child and grandchild tree:
 
 ```text
-Public / Acquisition Shell
-        │
-        ▼
-Login / Register Entry
-        │
-        ▼
 Registration
-  ├── capture entry context
-  ├── capture first name / last name / email
-  ├── acknowledge terms/privacy
-  ├── resolve identity (production adapter)
-  ├── create pending registration (production adapter)
-  └── initiate verification handoff
-        │
-        ▼
-Account Verification
-        │
-        ▼
-Organization selection / creation
-        ▼
-Geography
-        ▼
-Organization profile
-        ▼
-Capability enrichment
-        ▼
-Exchange-ready completion
+├── Entry context
+│   ├── Website / landing page
+│   ├── Campaign / referral link
+│   ├── Partner / invitation
+│   └── QR code / event / promo
+│
+├── Create account
+│   ├── Name
+│   ├── Email address
+│   ├── Authentication method
+│   ├── Security & privacy
+│   └── Review & create
+│
+├── Identity resolution
+│   ├── New account
+│   ├── Existing account → Login
+│   └── Pending verification → Resume verification
+│
+└── Verify email / access
+    ├── Send verification
+    ├── Verification link → Account Verification
+    ├── Resend verification → Account Verification
+    └── Change email address → Account Verification
 ```
 
-The module deliberately does not mount the authenticated Exchange map, result drawer, action rail, record cards, or bottom navigation.
+The remainder of the original Registration flow belongs to later modules and is therefore represented by handoff, not duplicated submenu branches:
 
-## Routes
+```text
+Account Verification
+  ↓
+Organization Selection / Creation
+  ↓
+Geography
+  ↓
+Organization Profile
+  ↓
+Capability Enrichment
+  ↓
+conditional Membership / Payment
+  ↓
+Exchange-ready Completion
+```
 
-- `GET /register` — registration surface.
-- `POST /api/identity/register` — normalized registration application boundary.
-- successful reference submissions hand off to `/onboarding?step=account-verification&registration=...`.
+## Password / authentication-source reconciliation
 
-## Entry attribution and public-entry compatibility
+The Registration diagram includes **Create password**. The Login source defines secure passwordless magic-link authentication, while the Onboarding source allows **Email / Password or Auth Method**. The platform already selected the Login architecture as the governed authentication contract. Registration therefore retains the source position as **Authentication method** and concretely uses passwordless email verification; it does not introduce a second password credential store.
 
-`/register` preserves the acquisition/deep-link context used by the Public Login/Register gateway:
+## Routes and nested navigation state
+
+The hierarchy has real, deep-linkable routes rather than presentation-only headings:
+
+```text
+/register
+/register/entry-context
+/register/entry-context/campaign-referral
+/register/create-account/name
+/register/create-account/email
+/register/create-account/auth-method
+/register/create-account/security-privacy
+/register/create-account/review
+/register/identity-resolution/new-account
+/register/identity-resolution/existing-account
+/register/identity-resolution/pending-verification
+/register/verify-email/send
+/register/verify-email/verification-link
+/register/verify-email/resend
+/register/verify-email/change-email
+```
+
+The Registration UI maintains the nested path in browser history, supports Back/Forward, provides breadcrumbs, and preserves supported acquisition context on every internal workflow transition.
+
+## Public-entry context
+
+Registration accepts and preserves the Public Login/Register entry vocabulary:
 
 - `returnTo`
 - `source`
 - `campaign`
 - `referral`
-- `invitation` (`invite` is accepted as a backward-compatible alias)
+- `invitation` (`invite` remains an accepted compatibility alias)
 - `organization`
 - `membership`
 - `geography`
 - `record`
 
-Registration adds an internal `entryKind` classification (`direct`, `marketing`, `campaign`, `referral`, `partner_invitation`, `event_qr`, or `login_recovery`) without replacing the raw `source` value supplied by acquisition.
+It also derives an internal `entryKind` of `direct`, `marketing`, `campaign`, `referral`, `partner_invitation`, `event_qr`, or `login_recovery`.
 
-Invitation wins over referral, which wins over campaign when deriving the canonical registration entry kind. `returnTo` must be an internal relative path and cannot point back into the auth-entry routes, preventing external redirects and identity-entry loops.
+These values are attribution and onboarding intent only. They do not grant organization membership, geography authority, membership entitlement, record access, or any Exchange permission. External/protocol-relative `returnTo` values and auth-entry loops are rejected.
 
-The same context is preserved when the participant switches from Registration to Login and when Registration hands off to Account Verification.
+## Real runtime service path
 
-## Registration payload
+The former stateless Registration adapter has been removed. `POST /api/identity/register` now requires configured runtime services and performs the real transaction:
 
-```ts
-{
-  firstName: string;
-  lastName: string;
-  email: string;
-  acceptedTerms: boolean;
-  marketingConsent: boolean;
-  context: {
-    entryKind: "direct" | "marketing" | "campaign" | "referral" |
-      "partner_invitation" | "event_qr" | "login_recovery";
-    returnTo?: string;
-    source?: string;
-    campaign?: string;
-    referral?: string;
-    invitation?: string;
-    organization?: string;
-    membership?: string;
-    geography?: string;
-    record?: string;
-  };
-}
-```
+1. validate and normalize submitted identity data;
+2. load the normalized email under a database transaction;
+3. route a verified existing identity to Login instead of creating a duplicate;
+4. create a new pending user or reuse the existing pending user;
+5. create or resume one active `registration_transactions` record;
+6. persist acquisition / referral / invitation / deep-link attribution;
+7. persist versioned Terms and Privacy acceptance;
+8. persist optional marketing consent separately;
+9. create a cryptographically random, single-use email verification challenge;
+10. persist only the SHA-256 token hash;
+11. supersede prior live challenges and apply resend cooldown policy;
+12. send the verification link through the configured transactional identity-email transport;
+13. record delivery success or failure and activity events;
+14. hand the participant to `/onboarding/account-verification`.
 
-The server normalizes names and email, validates required identity fields and terms acknowledgement, sanitizes entry context, and returns a `verification_required` result.
+There is no in-memory success path, transient fake account, browser-only registration truth, development token secret, or fake delivered-email state. If the database, policy versions, or email transport are not configured, the runtime returns a configuration/service error rather than manufacturing success.
 
-## Reference versus production behavior
+## Duplicate-account behavior
 
-The current TestRFx adapter is intentionally stateless. It creates a transient registration ID and proves the registration-to-verification contract without claiming that an account, verification challenge, or email has actually been persisted or delivered.
-
-Production identity infrastructure replaces the adapter behind the existing API boundary and should implement:
-
-1. normalized-email identity lookup;
-2. existing verified account → Login resolution;
-3. existing pending account → resume Account Verification;
-4. invitation lookup and binding;
-5. duplicate / abuse / blocked-account policy;
-6. durable pending user and registration transaction persistence;
-7. terms/privacy version recording and optional marketing consent;
-8. single-use expiring verification challenge creation;
-9. transactional verification email delivery and resend controls;
-10. audit/security events and rate limiting.
-
-The UI should not need to change when that adapter is introduced.
-
-## Identity data model target
-
-The production persistence boundary should distinguish permanent identity from transient registration state. Conceptual tables/services include:
+The source requires one account per user email. The server enforces that behavior through normalized email resolution and the database unique index:
 
 ```text
-users
-user_emails
-identities
-sessions
-registration_transactions
-registration_attributions
-email_verification_challenges
-invitations
-invitation_acceptances
-consents
-terms_acceptances
-security_events
-audit_events
+email submitted
+  ├── no identity
+  │    └── create pending user + registration → verification
+  ├── pending identity
+  │    └── reuse pending user + registration → resume verification
+  └── verified identity
+       └── do not duplicate → Login
 ```
 
-Organization membership is intentionally downstream of registration. Incoming `organization`, `membership`, and `geography` parameters are routing/onboarding intent only and must not be promoted to canonical organization truth by Registration.
+Changing the email during Account Verification re-runs the uniqueness check before the pending identity is changed.
 
-## Passwordless alignment
+## Persistence
 
-Registration does not request a password. The intended identity architecture uses email verification / passwordless authentication as the common primitive between first registration and Login. Passkeys, MFA, or other factors can be added later behind the identity service without changing this registration contract.
+Apply these schemas in order:
 
-## Accessibility and recovery
+```text
+db/schema.sql
+db/identity-verification.sql
+db/registration-runtime.sql
+```
 
-The reference surface includes:
+Registration runtime persistence includes:
 
-- semantic form submission;
-- browser autocomplete hints;
-- field-level `aria-invalid` and error descriptions;
-- non-marketing terms acknowledgement separated from optional marketing consent;
-- keyboard-operable controls;
-- explicit existing-account path to Login with context preservation;
-- server-side validation in addition to client input types.
+```text
+users.first_name / last_name / email_verified_at / account_status
+registration_transactions
+registration_attributions
+identity_policy_acceptances
+identity_marketing_consents
+email_verification_challenges
+identity_email_deliveries
+activity_events
+```
 
-Production adapters should add enumeration-safe existing-account messaging, resend verification, change-email recovery, expired challenge handling, and bot/rate-limit controls.
+The `registration_transactions` record owns transient account-creation state. The `users` row is the canonical person identity. Organization membership remains downstream.
+
+## Runtime configuration
+
+`.env.example` documents the required values:
+
+- `DATABASE_URL`
+- optional `DATABASE_POOL_MAX`
+- `RFX_TERMS_VERSION`
+- `RFX_PRIVACY_VERSION`
+- `RFXCHANGE_APP_URL`
+- `IDENTITY_EMAIL_DELIVERY_URL`
+- `IDENTITY_EMAIL_FROM`
+- optional `IDENTITY_EMAIL_DELIVERY_TOKEN`
+
+The email transport is a real outbound HTTP integration. It receives a transactional identity-email payload and must return a successful HTTP response before RFxchange records the delivery as sent.
+
+## Account Verification handoff
+
+Registration initiates verification, but Account Verification owns the challenge lifecycle. Concrete handoffs are:
+
+```text
+/register/verify-email/verification-link
+  → /onboarding/account-verification?registration=...
+
+/register/verify-email/resend
+  → /onboarding/account-verification?registration=...&mode=resend
+
+/register/verify-email/change-email
+  → /onboarding/account-verification?registration=...&mode=change-email
+```
+
+A successful token consumption marks the user email verified, marks the registration completed, emits the verification activity event, and continues to `/onboarding/organization` with preserved downstream context.
+
+## Source children intentionally not owned here
+
+The source also names Geography, Organization Setup, Organization Details, Location / Map Placement, Membership Selection, Stripe Payment, and Registration Complete. Those are represented by the corresponding already-defined Identity & Onboarding modules rather than being recreated inside Registration. This preserves one owner for canonical organization, geography, profile, capability, commercial membership, and readiness truth.
+
+## GitHub Pages preview boundary
+
+GitHub Pages is a static review surface and cannot execute the runtime API or PostgreSQL/email services. The Pages build may project the Registration hierarchy visually, but it must not manufacture account creation, verification delivery, or persistence. The normal production-capable Next.js build retains all runtime routes and services.

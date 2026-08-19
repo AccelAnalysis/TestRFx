@@ -1,5 +1,5 @@
-export const ACCOUNT_VERIFICATION_PURPOSE = "rfxchange-account-email-verification" as const;
-export const ACCOUNT_VERIFICATION_TTL_SECONDS = 30 * 60;
+export const ACCOUNT_VERIFICATION_TTL_SECONDS = 15 * 60;
+export const ACCOUNT_VERIFICATION_RESEND_COOLDOWN_SECONDS = 60;
 
 export type AccountVerificationState =
   | "idle"
@@ -9,6 +9,8 @@ export type AccountVerificationState =
   | "verified"
   | "expired"
   | "invalid"
+  | "rate_limited"
+  | "delivery_error"
   | "configuration_error";
 
 export type VerificationChallengeState =
@@ -27,39 +29,31 @@ export type VerificationEntrySource =
   | "campaign"
   | "unknown";
 
-export interface AccountVerificationContext {
+export type AccountVerificationContext = {
   source?: VerificationEntrySource;
   invitationId?: string;
   referralId?: string;
   campaignId?: string;
+  organization?: string;
+  membership?: string;
+  geography?: string;
+  record?: string;
   returnTo?: string;
-  displayName?: string;
-}
+};
 
-export interface VerificationTokenPayload {
-  version: 1;
-  purpose: typeof ACCOUNT_VERIFICATION_PURPOSE;
-  email: string;
-  issuedAt: number;
-  expiresAt: number;
-  nonce: string;
-  context: AccountVerificationContext;
-}
-
-export interface VerificationRequestResponse {
+export type VerificationRequestResponse = {
   state: "pending";
   maskedEmail: string;
   expiresInSeconds: number;
-  referenceDelivery: boolean;
-  verificationPath?: string;
-}
+  delivery: "sent";
+};
 
-export interface VerificationSuccessResponse {
+export type VerificationSuccessResponse = {
   state: "verified";
   email: string;
   nextPath: string;
   context: AccountVerificationContext;
-}
+};
 
 export function normalizeEmail(value: string): string {
   return value.trim().toLowerCase();
@@ -81,10 +75,10 @@ export function maskEmail(value: string): string {
   return `${visible}${"•".repeat(Math.max(3, Math.min(6, local.length - visible.length)))}@${domain}`;
 }
 
-function boundedValue(value: unknown, maxLength = 240): string | undefined {
+function boundedValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
-  if (!trimmed || trimmed.length > maxLength) return undefined;
+  if (!trimmed || trimmed.length > 240) return undefined;
   return trimmed;
 }
 
@@ -111,20 +105,28 @@ export function sanitizeVerificationContext(value: unknown): AccountVerification
     source: allowedSources.includes(source as VerificationEntrySource)
       ? (source as VerificationEntrySource)
       : undefined,
-    invitationId: boundedValue(raw.invitationId, 500),
+    invitationId: boundedValue(raw.invitationId),
     referralId: boundedValue(raw.referralId),
     campaignId: boundedValue(raw.campaignId),
+    organization: boundedValue(raw.organization),
+    membership: boundedValue(raw.membership),
+    geography: boundedValue(raw.geography),
+    record: boundedValue(raw.record),
     returnTo: returnTo && isInternalReturnPath(returnTo) ? returnTo : undefined,
-    displayName: boundedValue(raw.displayName, 160),
   };
 }
 
 export function buildOnboardingContinuation(context: AccountVerificationContext): string {
-  const params = new URLSearchParams({ step: context.invitationId ? "invitation.review" : "welcome" });
+  const params = new URLSearchParams();
   if (context.source) params.set("source", context.source);
   if (context.invitationId) params.set("invitation", context.invitationId);
   if (context.referralId) params.set("referral", context.referralId);
   if (context.campaignId) params.set("campaign", context.campaignId);
+  if (context.organization) params.set("organization", context.organization);
+  if (context.membership) params.set("membership", context.membership);
+  if (context.geography) params.set("geography", context.geography);
+  if (context.record) params.set("record", context.record);
   if (context.returnTo) params.set("returnTo", context.returnTo);
-  return `/onboarding/organization?${params.toString()}`;
+  const query = params.toString();
+  return query ? `/onboarding/organization?${query}` : "/onboarding/organization";
 }

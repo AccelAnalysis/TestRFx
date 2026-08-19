@@ -1,27 +1,36 @@
-import postgres, { type Sql } from "postgres";
+import postgres from "postgres";
 
-export class DatabaseConfigurationError extends Error {
-  constructor() {
-    super("DATABASE_URL is not configured for this environment.");
+export class DatabaseServiceUnavailableError extends Error {
+  constructor(message = "The RFxchange database service is not configured.") {
+    super(message);
+    this.name = "DatabaseServiceUnavailableError";
+  }
+}
+
+export class DatabaseConfigurationError extends DatabaseServiceUnavailableError {
+  constructor(message = "DATABASE_URL is required for this operation.") {
+    super(message);
     this.name = "DatabaseConfigurationError";
   }
 }
 
-let client: Sql | null = null;
+let database: ReturnType<typeof postgres> | undefined;
 
-export function getDatabase(): Sql {
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  if (!databaseUrl) throw new DatabaseConfigurationError();
+export function getDatabase() {
+  const connectionString = process.env.DATABASE_URL?.trim();
+  if (!connectionString) throw new DatabaseConfigurationError();
 
-  if (!client) {
-    client = postgres(databaseUrl, {
-      max: 5,
+  if (!database) {
+    const configuredPoolMax = Number.parseInt(process.env.DATABASE_POOL_MAX ?? "6", 10);
+    const maxConnections = Number.isFinite(configuredPoolMax) && configuredPoolMax > 0 ? configuredPoolMax : 6;
+    database = postgres(connectionString, {
+      max: maxConnections,
       idle_timeout: 20,
       connect_timeout: 10,
       prepare: false,
-      ...(process.env.NODE_ENV === "production" ? { ssl: "require" as const } : {}),
+      ssl: process.env.DATABASE_SSL === "disable" ? false : "require",
     });
   }
 
-  return client;
+  return database;
 }

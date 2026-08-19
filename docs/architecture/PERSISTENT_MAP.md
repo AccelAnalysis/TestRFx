@@ -2,9 +2,9 @@
 
 ## Purpose
 
-The Persistent Map is the spatial operating context of the authenticated RFxchange Exchange. It is a shell primitive, not a page and not a lens-owned implementation. RFx, Resources, Intelligence, and Capabilities project normalized Exchange records and map presentation into the same mounted map environment. Menu overlays the current Exchange state and does not change the map lens.
+The Persistent Map is the spatial operating context of the authenticated RFxchange Exchange. It is a shell primitive, not a page and not a lens-owned implementation. RFx, Resources, Intelligence, and Capabilities project normalized Exchange records and map semantics into the same mounted map environment. Menu overlays the current Exchange state and does not change the map lens.
 
-This module implements the provider-neutral chassis contract. A production Mapbox GL JS or MapLibre adapter can replace the reference spatial canvas without changing lens, record, drawer, card, selection, or detail contracts.
+The current implementation uses **MapLibre GL JS** as the live provider adapter. The style URL is configurable through `NEXT_PUBLIC_RFX_MAP_STYLE_URL`; the repository falls back to MapLibre's public demo style for development/preview.
 
 ## Governing invariants
 
@@ -13,84 +13,94 @@ This module implements the provider-neutral chassis contract. A production Mapbo
 3. Camera state survives lens changes, detail overlays, and Menu overlays.
 4. Marker, card, and detail surfaces share one `selectedRecordId`.
 5. Records without coordinates remain valid drawer results and do not receive artificial map points.
-6. Selected records are broken out of clusters so selection remains legible.
-7. The map is supplemental to the accessible result list; every mapped record remains reachable through the drawer.
-8. Geographic authorization is a service/API responsibility. Camera position must never be treated as authorization.
-9. Progressive availability applies to workflows, not to the shell: unavailable downstream actions do not close the map.
-10. The provider adapter owns camera/tile/rendering details; lenses own domain data and map semantics.
+6. Selected records render outside the clustered source so selection remains legible.
+7. The result drawer is authoritative; viewport scope filters located records but intentionally preserves off-map records.
+8. Geographic authorization remains a service/API responsibility. Camera position is never authorization.
+9. Progressive availability applies to workflows, not to the shell.
+10. The provider adapter owns rendering/camera/tile mechanics; lenses own domain records and semantic overlays.
 
-## Chassis state
+## True map hierarchy
 
-`MapViewState` adds a governed shell contract for:
+Only source-supported controls are represented. Search, Filter, and Sort remain sibling chassis workflows because they shape the result set across map and drawer; they are not duplicated inside the map menu.
 
-- camera center;
-- zoom;
-- bearing;
-- pitch;
-- 2D/3D mode;
-- current Exchange geography context;
-- optional queried bounds for a future viewport-query/search-this-area service.
+```text
+Authenticated Exchange → Persistent Map
+│
+├── View
+│   ├── 2D map
+│   ├── 3D map
+│   ├── Zoom in
+│   ├── Zoom out
+│   └── Reset Exchange view
+│
+├── Layers
+│   ├── Record markers & clusters
+│   └── Lens overlay (only when the lens supports one)
+│       ├── Intelligence → Heat / concentration
+│       └── Capabilities → Capability density
+│
+└── Geography
+    ├── Exchange geography / clear selected geography
+    ├── Source-backed geography choices from current lens records
+    ├── Use my location
+    └── Search this area
+```
 
-The current shell owns this state in `ExchangeShell`, which keeps it mounted while detail and Menu surfaces appear above it.
+The UI keeps nested navigation state (`root → view | layers | geography`) with a Back path rather than exposing unrelated controls as one flat popover.
+
+## Concrete workflows
+
+### View
+
+2D/3D changes the live MapLibre pitch while preserving the current lens and results. Zoom changes the live camera. Reset clears the selected geography and viewport scope and returns to the canonical Exchange camera.
+
+### Layers
+
+The record layer uses a live clustered GeoJSON source. Located owned records, external records, and sponsored records receive distinct presentation. Intelligence and Capabilities can enable/disable their supported heat/density overlay. RFx and Resources do not receive invented analytical overlays.
+
+### Geography
+
+Geography choices are derived from actual current-lens records rather than hard-coded menu destinations. Selecting a geography updates both the map context and the shared geography filter. If a geography has no map coordinates, it still remains a valid result filter without manufacturing a point.
+
+`Use my location` uses the browser Geolocation service, renders the current-location point, and recenters the shared map. No external reverse-geocoder is assumed.
+
+### Search this area
+
+The map reports its real visible bounds. `Search this area` copies those bounds into `queriedBounds`, and the result pipeline scopes located records to that viewport while retaining off-map records. Panning/zooming again marks the viewport dirty until the user deliberately reapplies the area. `/api/exchange/results` accepts `north`, `south`, `east`, and `west` query parameters and applies the same viewport service rule.
+
+### Marker / cluster → result
+
+MapLibre performs provider clustering. Selecting a cluster requests its real expansion zoom. Selecting a record point updates the shell's canonical `selectedRecordId`, which synchronizes the drawer card and detail surface.
 
 ## Lens projections
 
-The provider-neutral reference implementation exposes four map presentations:
+- **RFx** — located opportunity/RFx records and clusters.
+- **Resources** — located providers/offers/requests and clusters; off-map and service-area records remain available in the drawer.
+- **Intelligence** — located Intelligence records plus a real MapLibre heatmap treatment.
+- **Capabilities** — located organizations/capabilities plus a real MapLibre density/heat treatment.
 
-- **RFx** — point/cluster opportunity view.
-- **Resources** — point/cluster availability view.
-- **Intelligence** — analytical heat treatment over located intelligence records.
-- **Capabilities** — density treatment over located organization capability records.
+## Service boundaries
 
-These treatments are deliberately presentation-level. Production heatmaps, polygons, service areas, AMACS concentration layers, and sponsored layers should be supplied through a future map-provider/layer adapter rather than embedded directly in lens pages.
+Implemented now:
 
-## Interaction contract
+- live MapLibre GL JS provider;
+- provider GeoJSON clustering;
+- provider heatmap layer;
+- browser Geolocation;
+- real map bounds/camera synchronization;
+- source-backed geography hierarchy;
+- concrete viewport-query service shared by UI and results API;
+- mapped/off-map/sponsored map classification;
+- map failure degradation that leaves the drawer usable.
 
-### Marker → record
+Still requires external production infrastructure or authoritative data and therefore is **not** fabricated in this repository:
 
-Selecting a marker calls the shell's shared record selector. If the result drawer is in Peek, the shell promotes it to Mid so the synchronized card becomes visible.
+- server-authorized geography/boundary datasets;
+- PostGIS-backed viewport, polygon, service-area, and intersection queries;
+- production geocoder/reverse-geocoder;
+- AMACS-derived production concentration datasets;
+- production Intelligence aggregation datasets;
+- durable map telemetry/observability backend;
+- a production map style/tile service SLA.
 
-### Record → marker
-
-Selecting a card updates the same `selectedRecordId`, which highlights the corresponding marker when a location exists. Off-map records remain selected in the drawer without map side effects.
-
-### Cluster → camera
-
-Selecting a cluster recenters the reference camera on the cluster and increases zoom. Once the map crosses the clustering threshold, individual records are exposed.
-
-### Pan / zoom / 2D–3D
-
-The reference canvas supports pointer pan, keyboard pan, keyboard zoom, explicit zoom controls, and 2D/3D presentation switching. The top-shell Reset Map control restores the default Exchange geography view.
-
-## Provider boundary
-
-`lib/exchange/map-model.ts` is intentionally provider-neutral. It currently supplies:
-
-- default map/geography state;
-- lens map presentation metadata;
-- coordinate projection for the deterministic reference canvas;
-- record mapped/off-map summary;
-- clustering;
-- pan and zoom camera operations;
-- map bounds derivation;
-- 2D/3D state changes.
-
-A production adapter should implement equivalent behavior against the chosen map provider while preserving `MapViewState` and shell selection semantics.
-
-## Production integration points
-
-The next map-specific integrations belong behind this boundary:
-
-- Mapbox GL JS / MapLibre provider adapter;
-- server-authorized geography and locality boundaries;
-- viewport and `Search this area` querying;
-- PostGIS point, polygon, service-area, and intersection queries;
-- production marker clustering;
-- Intelligence heat/fill/polygon layers;
-- AMACS capability density layers;
-- current-location/geocoder services;
-- location privacy modes (exact, approximate, service area, hidden);
-- sponsored marker governance;
-- map performance/error telemetry.
-
-None of those integrations should require RFx, Resources, Intelligence, or Capabilities to replace the shared shell composition.
+These remain integration points, not placeholder buttons.

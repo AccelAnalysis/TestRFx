@@ -1,27 +1,23 @@
-import { notFound } from "next/navigation";
-import { CampaignLandingPage } from "@/components/public/campaign-landing-page";
+import { notFound, redirect } from "next/navigation";
 import {
-  buildCampaignRegistrationHref,
+  campaignCanonicalPath,
   campaigns,
   getCampaign,
-  type CampaignSearchParams,
 } from "@/lib/public/campaigns";
 
 export function generateStaticParams() {
-  return campaigns.filter((campaign) => campaign.status === "live").map((campaign) => ({ slug: campaign.slug }));
+  return campaigns
+    .filter((campaign) => campaign.status === "live")
+    .map((campaign) => ({ slug: campaign.slug }));
 }
 
-export default async function CampaignPage({
+export default async function LegacyCampaignPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<CampaignSearchParams>;
 }) {
   const { slug } = await params;
   const campaign = getCampaign(slug);
   if (!campaign) notFound();
-  const attribution = await searchParams;
-  const registrationHref = buildCampaignRegistrationHref(campaign, attribution);
-  return <CampaignLandingPage campaign={campaign} registrationHref={registrationHref} />;
+  redirect(campaignCanonicalPath(campaign));
 }

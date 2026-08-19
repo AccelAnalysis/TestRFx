@@ -1,345 +1,429 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import styles from "./capability-enrichment.module.css";
 import {
-  CAPABILITY_ENRICHMENT_SESSION_KEY,
-  CAPABILITY_ENRICHMENT_STAGES,
-  REFERENCE_CAPABILITY_SUGGESTIONS,
-  REFERENCE_DISCOVERABILITY_TERMS,
-  REFERENCE_ORGANIZATION_CONTEXT,
-  calculateCapabilityProfileStrength,
-  capabilityGapRecommendations,
-  draftFromSuggestion,
-  type CapabilityDraft,
+  CAPABILITY_ENRICHMENT_LEAF_PATHS,
+  CAPABILITY_ENRICHMENT_TREE,
+  capabilityWorkflowHref,
+  getCapabilityWorkflowSection,
+  getCapabilityWorkflowTask,
+  type AmacsCandidate,
   type CapabilityEnrichmentSnapshot,
-  type CapabilityEnrichmentStageId,
-  type CapabilityEvidenceItem
+  type CapabilityEvidenceKind,
 } from "@/lib/onboarding/capability-enrichment";
 
-const evidenceTemplates: Array<Pick<CapabilityEvidenceItem, "kind" | "label">> = [
-  { kind: "certification", label: "Certification" },
-  { kind: "license", label: "License" },
-  { kind: "past-performance", label: "Past performance" },
-  { kind: "case-study", label: "Case study" }
-];
-
-function stageIndex(stage: CapabilityEnrichmentStageId) {
-  return CAPABILITY_ENRICHMENT_STAGES.findIndex((item) => item.id === stage);
+interface Props {
+  path: string[];
+  organizationId?: string;
 }
 
-export default function CapabilityEnrichment() {
-  const [stage, setStage] = useState<CapabilityEnrichmentStageId>("context");
-  const [capabilities, setCapabilities] = useState<CapabilityDraft[]>([]);
-  const [keywords, setKeywords] = useState<string[]>([]);
-  const [manualCapability, setManualCapability] = useState("");
-  const [hydrated, setHydrated] = useState(false);
-  const [saved, setSaved] = useState(false);
+interface ServiceStatus {
+  busy: boolean;
+  message?: string;
+  error?: string;
+}
 
-  useEffect(() => {
+type InterpretationCandidate = AmacsCandidate & { confidence?: number; rationale?: string };
+
+const evidenceKindByTask: Record<string, CapabilityEvidenceKind> = {
+  certifications: "certification",
+  licenses: "license",
+  "case-studies": "case-study",
+  "supporting-documents": "supporting-document",
+};
+
+function splitTerms(value: string) {
+  return [...new Set(value.split(/[,\n]/).map((item) => item.trim()).filter(Boolean))];
+}
+
+export default function CapabilityEnrichment({ path, organizationId }: Props) {
+  const [snapshot, setSnapshot] = useState<CapabilityEnrichmentSnapshot>();
+  const [status, setStatus] = useState<ServiceStatus>({ busy: false });
+  const section = getCapabilityWorkflowSection(path[0]);
+  const task = getCapabilityWorkflowTask(path[0], path[1]);
+  const currentLeaf = path.length === 2 ? path.join("/") : undefined;
+
+  const load = useCallback(async () => {
+    if (!organizationId) return;
+    setStatus((current) => ({ ...current, busy: true, error: undefined }));
     try {
-      const raw = window.sessionStorage.getItem(CAPABILITY_ENRICHMENT_SESSION_KEY);
-      if (raw) {
-        const snapshot = JSON.parse(raw) as Partial<CapabilityEnrichmentSnapshot>;
-        if (snapshot.stage && CAPABILITY_ENRICHMENT_STAGES.some((item) => item.id === snapshot.stage)) setStage(snapshot.stage);
-        if (Array.isArray(snapshot.capabilities)) setCapabilities(snapshot.capabilities);
-        if (Array.isArray(snapshot.keywords)) setKeywords(snapshot.keywords);
+      const response = await fetch(`/api/onboarding/capabilities?organizationId=${encodeURIComponent(organizationId)}`, { cache: "no-store" });
+      const body = await response.json() as CapabilityEnrichmentSnapshot & { error?: string };
+      if (!response.ok) throw new Error(body.error ?? `Capability service returned ${response.status}.`);
+      setSnapshot(body);
+      setStatus({ busy: false });
+    } catch (error) {
+      setSnapshot(undefined);
+      setStatus({ busy: false, error: error instanceof Error ? error.message : "Capability service unavailable." });
+    }
+  }, [organizationId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function postAction(payload: Record<string, unknown>, successMessage: string, completeLeaf = true) {
+    if (!organizationId) {
+      setStatus({ busy: false, error: "Complete organization selection/profile first so capability records have a canonical organization owner." });
+      return false;
+    }
+    setStatus({ busy: true });
+    try {
+      const response = await fetch("/api/onboarding/capabilities", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...payload, organizationId }),
+      });
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? `Capability service returned ${response.status}.`);
+      if (completeLeaf && currentLeaf) {
+        const progress = await fetch("/api/onboarding/capabilities", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ action: "save-progress", organizationId, path, completedLeafPath: currentLeaf }),
+        });
+        if (!progress.ok) {
+          const progressBody = await progress.json() as { error?: string };
+          throw new Error(progressBody.error ?? "The record saved, but onboarding progress could not be persisted.");
+        }
       }
-    } catch {
-      window.sessionStorage.removeItem(CAPABILITY_ENRICHMENT_SESSION_KEY);
-    } finally {
-      setHydrated(true);
+      await load();
+      setStatus({ busy: false, message: successMessage });
+      return true;
+    } catch (error) {
+      setStatus({ busy: false, error: error instanceof Error ? error.message : "Unable to save." });
+      return false;
     }
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    const snapshot: CapabilityEnrichmentSnapshot = {
-      stage,
-      capabilities,
-      keywords,
-      updatedAt: new Date().toISOString()
-    };
-    window.sessionStorage.setItem(CAPABILITY_ENRICHMENT_SESSION_KEY, JSON.stringify(snapshot));
-  }, [capabilities, hydrated, keywords, stage]);
-
-  const currentIndex = stageIndex(stage);
-  const strength = useMemo(() => calculateCapabilityProfileStrength(capabilities, keywords), [capabilities, keywords]);
-  const gaps = useMemo(() => capabilityGapRecommendations(capabilities, keywords), [capabilities, keywords]);
-
-  function goTo(index: number) {
-    const target = CAPABILITY_ENRICHMENT_STAGES[Math.max(0, Math.min(index, CAPABILITY_ENRICHMENT_STAGES.length - 1))];
-    setStage(target.id);
-    setSaved(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function addSuggestion(id: string) {
-    const suggestion = REFERENCE_CAPABILITY_SUGGESTIONS.find((item) => item.id === id);
-    if (!suggestion || capabilities.some((item) => item.id === id)) return;
-    setCapabilities((current) => [...current, draftFromSuggestion(suggestion)]);
-  }
-
-  function addManualCapability() {
-    const name = manualCapability.trim();
-    if (!name) return;
-    const id = `manual-${Date.now()}`;
-    setCapabilities((current) => [
-      ...current,
-      {
-        id,
-        name,
-        description: "User-entered capability awaiting refinement and structured AMACS review.",
-        provenance: "entered-by-user",
-        mappingStatus: "needs-review",
-        evidence: [],
-        publicationStatus: "draft"
-      }
-    ]);
-    setManualCapability("");
-  }
-
-  function removeCapability(id: string) {
-    setCapabilities((current) => current.filter((item) => item.id !== id));
-  }
-
-  function updateMapping(id: string, status: CapabilityDraft["mappingStatus"]) {
-    setCapabilities((current) => current.map((item) => item.id === id ? { ...item, mappingStatus: status } : item));
-  }
-
-  function addEvidence(capabilityId: string, template: Pick<CapabilityEvidenceItem, "kind" | "label">) {
-    setCapabilities((current) => current.map((item) => {
-      if (item.id !== capabilityId) return item;
-      const evidence: CapabilityEvidenceItem = {
-        id: `${item.id}-${template.kind}-${Date.now()}`,
-        kind: template.kind,
-        label: `${template.label} · reference attachment`
-      };
-      return { ...item, evidence: [...item.evidence, evidence] };
-    }));
-  }
-
-  function toggleKeyword(keyword: string) {
-    setKeywords((current) => current.includes(keyword) ? current.filter((item) => item !== keyword) : [...current, keyword]);
-  }
-
-  function setPublicationStatus(status: CapabilityDraft["publicationStatus"]) {
-    setCapabilities((current) => current.map((item) => ({ ...item, publicationStatus: status })));
-    setSaved(false);
-  }
-
-  function renderStage() {
-    if (stage === "context") {
-      return (
-        <section className={styles.stagePanel} aria-labelledby="context-title">
-          <p className={styles.kicker}>Reuse before re-entry</p>
-          <h2 id="context-title">Start from organization context</h2>
-          <p className={styles.lead}>Capability Enrichment should hydrate from the canonical organization profile instead of asking the user to repeat industries, services, and geography.</p>
-          <div className={styles.contextCard}>
-            <div>
-              <span>Organization</span>
-              <strong>{REFERENCE_ORGANIZATION_CONTEXT.organizationName}</strong>
-            </div>
-            <p>{REFERENCE_ORGANIZATION_CONTEXT.description}</p>
-            <div className={styles.contextGrid}>
-              <div><span>Industries</span><strong>{REFERENCE_ORGANIZATION_CONTEXT.industries.join(" · ")}</strong></div>
-              <div><span>Services</span><strong>{REFERENCE_ORGANIZATION_CONTEXT.services.join(" · ")}</strong></div>
-              <div><span>Geography</span><strong>{REFERENCE_ORGANIZATION_CONTEXT.geography.join(" · ")}</strong></div>
-            </div>
-          </div>
-          <aside className={styles.boundaryNote}><strong>Production boundary:</strong> this reference context is deterministic. The organization profile service remains the source of truth when connected.</aside>
-        </section>
-      );
-    }
-
-    if (stage === "capabilities") {
-      return (
-        <section className={styles.stagePanel} aria-labelledby="capability-title">
-          <p className={styles.kicker}>Human language first</p>
-          <h2 id="capability-title">What can your organization do?</h2>
-          <p className={styles.lead}>Users can accept profile-derived suggestions or describe a capability in plain language. They do not need to understand AMACS before entering a claim.</p>
-          <div className={styles.suggestionGrid}>
-            {REFERENCE_CAPABILITY_SUGGESTIONS.map((suggestion) => {
-              const selected = capabilities.some((item) => item.id === suggestion.id);
-              return (
-                <button className={`${styles.suggestionCard} ${selected ? styles.selectedCard : ""}`} key={suggestion.id} onClick={() => selected ? removeCapability(suggestion.id) : addSuggestion(suggestion.id)} type="button">
-                  <span>{selected ? "Selected" : "Suggested"}</span>
-                  <strong>{suggestion.name}</strong>
-                  <small>{suggestion.description}</small>
-                </button>
-              );
-            })}
-          </div>
-          <div className={styles.manualEntry}>
-            <label htmlFor="manual-capability">Describe another capability</label>
-            <div>
-              <input id="manual-capability" value={manualCapability} onChange={(event) => setManualCapability(event.target.value)} placeholder="e.g. Commercial HVAC inspection and maintenance" />
-              <button type="button" onClick={addManualCapability}>Add</button>
-            </div>
-          </div>
-          <SelectedCapabilities capabilities={capabilities} onRemove={removeCapability} />
-        </section>
-      );
-    }
-
-    if (stage === "amacs") {
-      return (
-        <section className={styles.stagePanel} aria-labelledby="amacs-title">
-          <p className={styles.kicker}>Structured projection</p>
-          <h2 id="amacs-title">Review AMACS mapping candidates</h2>
-          <p className={styles.lead}>The reference build shows the confirmation pattern without pretending to run production AI. A future mapping service may propose candidates; organization users confirm or flag them for review.</p>
-          {capabilities.length === 0 ? <EmptyMessage>There are no capability claims to map yet. You can continue and return later.</EmptyMessage> : (
-            <div className={styles.stack}>
-              {capabilities.map((capability) => (
-                <article className={styles.mappingCard} key={capability.id}>
-                  <div>
-                    <span className={styles.statusPill}>{capability.provenance === "entered-by-user" ? "User entered" : "Profile suggested"}</span>
-                    <h3>{capability.name}</h3>
-                    <p>{capability.amacsLabel ?? "No deterministic AMACS candidate is available for this user-entered capability."}</p>
-                  </div>
-                  <div className={styles.mappingActions}>
-                    <button type="button" disabled={!capability.amacsNodeId} aria-pressed={capability.mappingStatus === "accepted"} onClick={() => updateMapping(capability.id, "accepted")}>Accept mapping</button>
-                    <button type="button" aria-pressed={capability.mappingStatus === "needs-review"} onClick={() => updateMapping(capability.id, "needs-review")}>Needs review</button>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-          <aside className={styles.boundaryNote}><strong>Truth rule:</strong> inference is not verification. Suggested AMACS alignment stays distinct from user-confirmed mapping and any later governed verification process.</aside>
-        </section>
-      );
-    }
-
-    if (stage === "evidence") {
-      return (
-        <section className={styles.stagePanel} aria-labelledby="evidence-title">
-          <p className={styles.kicker}>Support the claim</p>
-          <h2 id="evidence-title">Associate capability evidence</h2>
-          <p className={styles.lead}>Evidence belongs to a capability claim. Files will ultimately use the shared object-storage service while the capability domain keeps metadata, relationships, permissions, and audit history.</p>
-          {capabilities.length === 0 ? <EmptyMessage>No capability claims are present. Evidence can be added later from the authenticated Capabilities lens.</EmptyMessage> : (
-            <div className={styles.stack}>
-              {capabilities.map((capability) => (
-                <article className={styles.evidenceCard} key={capability.id}>
-                  <div className={styles.cardHeader}><div><span>Capability</span><h3>{capability.name}</h3></div><strong>{capability.evidence.length} item{capability.evidence.length === 1 ? "" : "s"}</strong></div>
-                  <div className={styles.evidenceActions}>
-                    {evidenceTemplates.map((template) => <button type="button" key={template.kind} onClick={() => addEvidence(capability.id, template)}>+ {template.label}</button>)}
-                  </div>
-                  {capability.evidence.length > 0 && <ul className={styles.evidenceList}>{capability.evidence.map((item) => <li key={item.id}>{item.label}</li>)}</ul>}
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      );
-    }
-
-    if (stage === "discoverability") {
-      return (
-        <section className={styles.stagePanel} aria-labelledby="discoverability-title">
-          <p className={styles.kicker}>Search vocabulary</p>
-          <h2 id="discoverability-title">Add specialties and alternate terminology</h2>
-          <p className={styles.lead}>Discoverability terms improve search and matching without being promoted to AMACS taxonomy truth.</p>
-          <div className={styles.keywordGrid}>
-            {REFERENCE_DISCOVERABILITY_TERMS.map((keyword) => <button type="button" key={keyword} className={keywords.includes(keyword) ? styles.keywordSelected : ""} aria-pressed={keywords.includes(keyword)} onClick={() => toggleKeyword(keyword)}>{keyword}</button>)}
-          </div>
-          <div className={styles.selectedTerms}><span>Selected terms</span><strong>{keywords.length > 0 ? keywords.join(" · ") : "None yet"}</strong></div>
-        </section>
-      );
-    }
-
-    if (stage === "review") {
-      return (
-        <section className={styles.stagePanel} aria-labelledby="review-title">
-          <p className={styles.kicker}>Advisory, not punitive</p>
-          <h2 id="review-title">Review capability profile strength</h2>
-          <div className={styles.scoreCard}>
-            <div className={styles.scoreRing} aria-label={`Profile strength ${strength} percent`}><strong>{strength}</strong><span>/100</span></div>
-            <div><span>Reference profile strength</span><h3>{capabilities.length} capability {capabilities.length === 1 ? "claim" : "claims"}</h3><p>{capabilities.filter((item) => item.mappingStatus === "accepted").length} AMACS confirmed · {capabilities.filter((item) => item.evidence.length > 0).length} evidence-supported</p></div>
-          </div>
-          <div className={styles.gapList}>
-            {gaps.map((gap) => <div key={gap}><span>→</span><p>{gap}</p></div>)}
-          </div>
-          <aside className={styles.boundaryNote}><strong>Readiness rule:</strong> enrichment quality can improve matching and discoverability, but missing optional enrichment should not become an arbitrary activation wall.</aside>
-        </section>
-      );
-    }
-
-    return (
-      <section className={styles.stagePanel} aria-labelledby="publish-title">
-        <p className={styles.kicker}>Publication intent</p>
-        <h2 id="publish-title">Choose what happens to these claims next</h2>
-        <p className={styles.lead}>Capability Enrichment initializes the same capability records the authenticated Capabilities lens will later manage. The next onboarding module owns the actual Exchange-ready gate.</p>
-        <div className={styles.publicationOptions}>
-          <button type="button" onClick={() => setPublicationStatus("draft")}><span>Keep draft</span><strong>Save enrichment without Exchange visibility</strong></button>
-          <button type="button" onClick={() => setPublicationStatus("ready")}><span>Ready</span><strong>Mark claims ready for the Exchange-ready checkpoint</strong></button>
-          <button type="button" onClick={() => setPublicationStatus("published")}><span>Reference preview</span><strong>Preview the eventual published state</strong></button>
-        </div>
-        <div className={styles.handoffCard}>
-          <div><span>Canonical handoff</span><strong>Organization capability records → Exchange Capabilities lens</strong></div>
-          <p>Onboarding does not become a second capability application. It initializes and enriches records that the same organization will continue managing inside the authenticated Exchange.</p>
-          <Link href="/exchange/capabilities">Preview Capabilities lens</Link>
-        </div>
-        <button className={styles.saveButton} type="button" onClick={() => setSaved(true)}>Save reference enrichment snapshot</button>
-        {saved && <p className={styles.savedMessage} role="status">Saved for this browser session. Production persistence remains behind the capability service/repository boundary.</p>}
-      </section>
-    );
-  }
+  const nextLeafHref = useMemo(() => {
+    if (!currentLeaf) return undefined;
+    const index = CAPABILITY_ENRICHMENT_LEAF_PATHS.findIndex(([sectionId, taskId]) => `${sectionId}/${taskId}` === currentLeaf);
+    const next = CAPABILITY_ENRICHMENT_LEAF_PATHS[index + 1];
+    return next ? capabilityWorkflowHref([...next], organizationId) : undefined;
+  }, [currentLeaf, organizationId]);
 
   return (
     <main className={styles.shell}>
-      <div className={styles.topBar}>
-        <Link href="/onboarding" className={styles.backLink}>← Onboarding</Link>
-        <span>RFxchange</span>
-        <span className={styles.referenceBadge}>Reference workflow</span>
-      </div>
+      <header className={styles.topBar}>
+        <Link href="/onboarding">← Onboarding</Link>
+        <strong>RFxchange</strong>
+        <span>Capability Enrichment</span>
+      </header>
 
       <div className={styles.layout}>
         <aside className={styles.sidebar}>
           <p className={styles.eyebrow}>Identity &amp; Onboarding</p>
           <h1>Capability Enrichment</h1>
-          <p>Initialize structured capability identity without recreating the authenticated Capabilities product.</p>
-          <div className={styles.progressSummary}>
-            <span>Profile strength</span>
-            <strong>{strength}%</strong>
-            <div><i style={{ width: `${strength}%` }} /></div>
-          </div>
-          <ol className={styles.stepList}>
-            {CAPABILITY_ENRICHMENT_STAGES.map((item, index) => (
-              <li key={item.id} className={index === currentIndex ? styles.activeStep : index < currentIndex ? styles.completedStep : ""}>
-                <button type="button" onClick={() => goTo(index)}>
-                  <span>{index < currentIndex ? "✓" : index + 1}</span>
-                  <div><strong>{item.label}</strong><small>{item.description}</small></div>
-                </button>
-              </li>
-            ))}
-          </ol>
+          <p className={styles.sidebarCopy}>Progressive enrichment. The source-defined branches can be revisited and expanded anytime.</p>
+          <Link className={styles.rootLink} href={capabilityWorkflowHref([], organizationId)}>Capability Enrichment overview</Link>
+          <nav aria-label="Capability Enrichment hierarchy" className={styles.treeNav}>
+            {CAPABILITY_ENRICHMENT_TREE.map((item) => {
+              const active = section?.id === item.id;
+              const completed = item.children.filter((child) => snapshot?.progress.completedLeafPaths.includes(`${item.id}/${child.id}`)).length;
+              return (
+                <div className={styles.treeBranch} key={item.id}>
+                  <Link className={active ? styles.activeBranch : ""} href={capabilityWorkflowHref([item.id], organizationId)}>
+                    <span>{completed}/{item.children.length}</span>
+                    <strong>{item.label}</strong>
+                  </Link>
+                  {active && (
+                    <div className={styles.treeChildren}>
+                      {item.children.map((child) => {
+                        const childActive = task?.id === child.id;
+                        const childComplete = snapshot?.progress.completedLeafPaths.includes(`${item.id}/${child.id}`);
+                        return (
+                          <Link key={child.id} className={childActive ? styles.activeChild : ""} href={capabilityWorkflowHref([item.id, child.id], organizationId)}>
+                            <span>{childComplete ? "✓" : "•"}</span>{child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
         </aside>
 
-        <div className={styles.mainColumn}>
-          <div className={styles.mobileProgress}><span>Step {currentIndex + 1} of {CAPABILITY_ENRICHMENT_STAGES.length}</span><strong>{CAPABILITY_ENRICHMENT_STAGES[currentIndex].label}</strong></div>
-          {renderStage()}
-          <nav className={styles.stageNav} aria-label="Capability enrichment steps">
-            <button type="button" disabled={currentIndex === 0} onClick={() => goTo(currentIndex - 1)}>Back</button>
-            <button type="button" className={styles.skipButton} onClick={() => goTo(Math.min(currentIndex + 1, CAPABILITY_ENRICHMENT_STAGES.length - 1))}>Save &amp; continue later</button>
-            {currentIndex < CAPABILITY_ENRICHMENT_STAGES.length - 1 ? <button type="button" className={styles.primaryButton} onClick={() => goTo(currentIndex + 1)}>Continue</button> : <Link className={styles.primaryLink} href="/onboarding">Return to onboarding overview</Link>}
-          </nav>
-        </div>
+        <section className={styles.workspace}>
+          <Breadcrumbs path={path} organizationId={organizationId} />
+          {!organizationId && <ServiceGate message="Capability Enrichment needs the organization created/selected earlier in onboarding. No reference organization is substituted." />}
+          {organizationId && status.error && <ServiceGate message={status.error} />}
+          {status.message && <div className={styles.success} role="status">{status.message}</div>}
+          {status.busy && <div className={styles.loading} role="status">Saving or loading canonical data…</div>}
+
+          {path.length === 0 && <Overview snapshot={snapshot} organizationId={organizationId} />}
+          {path.length === 1 && section && <SectionOverview section={section} snapshot={snapshot} organizationId={organizationId} />}
+          {path.length === 2 && section && task && (
+            <WorkflowLeaf
+              sectionId={section.id}
+              taskId={task.id}
+              organizationId={organizationId}
+              snapshot={snapshot}
+              postAction={postAction}
+              setStatus={setStatus}
+            />
+          )}
+
+          <footer className={styles.workflowFooter}>
+            {path.length === 2 && nextLeafHref && <Link href={nextLeafHref}>Next source-defined task →</Link>}
+            {path.length === 2 && !nextLeafHref && <Link className={styles.primaryLink} href={`/onboarding/completion${organizationId ? `?organizationId=${encodeURIComponent(organizationId)}` : ""}`}>Continue to Review &amp; Completion Checkpoint →</Link>}
+          </footer>
+        </section>
       </div>
     </main>
   );
 }
 
-function SelectedCapabilities({ capabilities, onRemove }: { capabilities: CapabilityDraft[]; onRemove: (id: string) => void }) {
-  if (capabilities.length === 0) return <EmptyMessage>No capabilities selected yet. You can still continue and return later.</EmptyMessage>;
+function Breadcrumbs({ path, organizationId }: Props) {
+  const section = getCapabilityWorkflowSection(path[0]);
+  const task = getCapabilityWorkflowTask(path[0], path[1]);
   return (
-    <div className={styles.selectedCapabilities}>
-      <span>Selected capability claims</span>
-      {capabilities.map((capability) => <div key={capability.id}><strong>{capability.name}</strong><button type="button" onClick={() => onRemove(capability.id)}>Remove</button></div>)}
+    <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+      <Link href={capabilityWorkflowHref([], organizationId)}>Capability Enrichment</Link>
+      {section && <><span>›</span><Link href={capabilityWorkflowHref([section.id], organizationId)}>{section.label}</Link></>}
+      {task && <><span>›</span><strong>{task.label}</strong></>}
+    </nav>
+  );
+}
+
+function Overview({ snapshot, organizationId }: { snapshot?: CapabilityEnrichmentSnapshot; organizationId?: string }) {
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>Organization / Capabilities Enrichment (Multi-Step)</p>
+      <h2>Build the organization’s capability identity</h2>
+      <p className={styles.lead}>The hierarchy below mirrors the source flow. Review/completion is deliberately outside this module and follows after the six enrichment branches.</p>
+      {snapshot && (
+        <div className={styles.contextStrip}>
+          <div><span>Organization</span><strong>{snapshot.organization.organizationName}</strong></div>
+          <div><span>Capability claims</span><strong>{snapshot.claims.length}</strong></div>
+          <div><span>AMACS release</span><strong>{snapshot.amacsRelease?.version ?? "Not deployed"}</strong></div>
+        </div>
+      )}
+      <div className={styles.cardGrid}>
+        {CAPABILITY_ENRICHMENT_TREE.map((section, index) => (
+          <Link className={styles.workflowCard} key={section.id} href={capabilityWorkflowHref([section.id], organizationId)}>
+            <span>0{index + 1}</span><h3>{section.label}</h3><p>{section.description}</p><small>{section.children.length} source-defined workflow{section.children.length === 1 ? "" : "s"} →</small>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
 
-function EmptyMessage({ children }: { children: React.ReactNode }) {
-  return <div className={styles.emptyMessage}>{children}</div>;
+function SectionOverview({ section, snapshot, organizationId }: { section: (typeof CAPABILITY_ENRICHMENT_TREE)[number]; snapshot?: CapabilityEnrichmentSnapshot; organizationId?: string }) {
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>Capability Enrichment</p>
+      <h2>{section.label}</h2>
+      <p className={styles.lead}>{section.description}</p>
+      <div className={styles.childList}>
+        {section.children.map((child) => (
+          <Link key={child.id} href={capabilityWorkflowHref([section.id, child.id], organizationId)}>
+            <div><strong>{child.label}</strong><p>{child.description}</p></div>
+            <span>{snapshot?.progress.completedLeafPaths.includes(`${section.id}/${child.id}`) ? "✓" : "→"}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function WorkflowLeaf({
+  sectionId,
+  taskId,
+  organizationId,
+  snapshot,
+  postAction,
+  setStatus,
+}: {
+  sectionId: string;
+  taskId: string;
+  organizationId?: string;
+  snapshot?: CapabilityEnrichmentSnapshot;
+  postAction: (payload: Record<string, unknown>, successMessage: string, completeLeaf?: boolean) => Promise<boolean>;
+  setStatus: (status: ServiceStatus) => void;
+}) {
+  const task = getCapabilityWorkflowTask(sectionId, taskId)!;
+  if (task.owner === "organization-profile") return <ProfileOwnedTask taskId={taskId} organizationId={organizationId} snapshot={snapshot} />;
+  if (taskId === "detailed-capabilities") return <CapabilityClaims snapshot={snapshot} postAction={postAction} />;
+  if (taskId === "solutions") return <Solutions snapshot={snapshot} postAction={postAction} />;
+  if (taskId === "ai-assistance") return <AmacsAssistance organizationId={organizationId} snapshot={snapshot} postAction={postAction} setStatus={setStatus} />;
+  if (taskId === "suggestions") return <AmacsSuggestions snapshot={snapshot} postAction={postAction} setStatus={setStatus} />;
+  if (evidenceKindByTask[taskId]) return <EvidenceWorkflow kind={evidenceKindByTask[taskId]} snapshot={snapshot} postAction={postAction} />;
+  if (["tags", "keywords", "specialties"].includes(taskId)) return <TermsWorkflow field={taskId as "tags" | "keywords" | "specialties"} snapshot={snapshot} postAction={postAction} />;
+  return null;
+}
+
+function ProfileOwnedTask({ taskId, organizationId, snapshot }: { taskId: string; organizationId?: string; snapshot?: CapabilityEnrichmentSnapshot }) {
+  const org = snapshot?.organization;
+  const returnTo = capabilityWorkflowHref([
+    CAPABILITY_ENRICHMENT_TREE.find((section) => section.children.some((child) => child.id === taskId))!.id,
+    taskId,
+  ], organizationId);
+  const profileHref = `/onboarding/organization-profile?${new URLSearchParams({ ...(organizationId ? { organizationId } : {}), returnTo }).toString()}`;
+  let content: React.ReactNode;
+  if (taskId === "organization-overview") content = <dl className={styles.dataList}><div><dt>Name</dt><dd>{org?.organizationName ?? "—"}</dd></div><div><dt>Legal name</dt><dd>{org?.legalName ?? "—"}</dd></div><div><dt>Website</dt><dd>{org?.website ?? "—"}</dd></div></dl>;
+  else if (taskId === "contacts") content = org?.contacts.length ? <div className={styles.recordList}>{org.contacts.map((contact) => <article key={contact.id}><strong>{contact.name}</strong><span>{contact.title}</span><p>{contact.email}{contact.phone ? ` · ${contact.phone}` : ""}</p></article>)}</div> : <p className={styles.empty}>No canonical contacts loaded.</p>;
+  else if (taskId === "description") content = <p className={styles.readOnlyValue}>{org?.description ?? "No canonical description loaded."}</p>;
+  else if (taskId === "industries-served") content = <Pills values={org?.industries ?? []} empty="No industries loaded." />;
+  else if (taskId === "service-offerings") content = <Pills values={org?.services ?? []} empty="No service offerings loaded." />;
+  else content = <dl className={styles.dataList}><div><dt>Website</dt><dd>{org?.website ?? "—"}</dd></div><div><dt>Organization ID</dt><dd>{org?.organizationId ?? organizationId ?? "—"}</dd></div></dl>;
+
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>Canonical profile handoff</p>
+      <h2>{getCapabilityWorkflowTask(CAPABILITY_ENRICHMENT_TREE.find((section) => section.children.some((child) => child.id === taskId))!.id, taskId)?.label}</h2>
+      <p className={styles.lead}>This information belongs to Organization Profile. Capability Enrichment reads it; it does not maintain a duplicate copy.</p>
+      {content}
+      <Link className={styles.primaryLink} href={profileHref}>Open Organization Profile →</Link>
+    </div>
+  );
+}
+
+function CapabilityClaims({ snapshot, postAction }: { snapshot?: CapabilityEnrichmentSnapshot; postAction: (payload: Record<string, unknown>, message: string, complete?: boolean) => Promise<boolean> }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>Capabilities Entry</p><h2>Detailed capabilities</h2>
+      <p className={styles.lead}>Create organization capability claims in ordinary language. AMACS mapping happens in its own branch.</p>
+      <form className={styles.form} onSubmit={async (event) => { event.preventDefault(); if (await postAction({ action: "upsert-claim", name, description }, "Capability claim saved.")) { setName(""); setDescription(""); } }}>
+        <label>Capability name<input required value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label>Detailed capability description<textarea required rows={5} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+        <button type="submit">Add capability</button>
+      </form>
+      <ClaimList snapshot={snapshot} onArchive={(claimId) => postAction({ action: "archive-claim", claimId }, "Capability archived.", false)} />
+    </div>
+  );
+}
+
+function Solutions({ snapshot, postAction }: { snapshot?: CapabilityEnrichmentSnapshot; postAction: (payload: Record<string, unknown>, message: string, complete?: boolean) => Promise<boolean> }) {
+  const [claimId, setClaimId] = useState("");
+  const [solution, setSolution] = useState("");
+  const selected = snapshot?.claims.find((claim) => claim.id === claimId);
+  useEffect(() => { setSolution(selected?.solution ?? ""); }, [selected?.id, selected?.solution]);
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>Capabilities Entry</p><h2>Solutions</h2>
+      <p className={styles.lead}>Describe the solution or delivery approach associated with an existing capability claim.</p>
+      <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void postAction({ action: "save-solution", claimId, solution }, "Solution saved."); }}>
+        <ClaimSelect claims={snapshot?.claims ?? []} value={claimId} onChange={setClaimId} />
+        <label>Solution / approach<textarea required rows={6} value={solution} onChange={(event) => setSolution(event.target.value)} /></label>
+        <button type="submit" disabled={!claimId}>Save solution</button>
+      </form>
+    </div>
+  );
+}
+
+function AmacsSuggestions({ snapshot, postAction, setStatus }: { snapshot?: CapabilityEnrichmentSnapshot; postAction: (payload: Record<string, unknown>, message: string, complete?: boolean) => Promise<boolean>; setStatus: (status: ServiceStatus) => void }) {
+  const [claimId, setClaimId] = useState("");
+  const [q, setQ] = useState("");
+  const [candidates, setCandidates] = useState<AmacsCandidate[]>([]);
+  async function search() {
+    setStatus({ busy: true });
+    try {
+      const response = await fetch(`/api/onboarding/capabilities/amacs?q=${encodeURIComponent(q)}`);
+      const body = await response.json() as { candidates?: AmacsCandidate[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "AMACS search failed.");
+      setCandidates(body.candidates ?? []); setStatus({ busy: false });
+    } catch (error) { setStatus({ busy: false, error: error instanceof Error ? error.message : "AMACS search failed." }); }
+  }
+  return <AmacsCandidateSurface title="Suggestions" description="Search the immutable AMACS release deployed to RFxchange. Search terms and aliases help find concepts, but the organization explicitly confirms the mapping." snapshot={snapshot} claimId={claimId} setClaimId={setClaimId} q={q} setQ={setQ} candidates={candidates} run={search} runLabel="Search AMACS" postAction={postAction} />;
+}
+
+function AmacsAssistance({ organizationId, snapshot, postAction, setStatus }: { organizationId?: string; snapshot?: CapabilityEnrichmentSnapshot; postAction: (payload: Record<string, unknown>, message: string, complete?: boolean) => Promise<boolean>; setStatus: (status: ServiceStatus) => void }) {
+  const [claimId, setClaimId] = useState("");
+  const claim = snapshot?.claims.find((item) => item.id === claimId);
+  const [text, setText] = useState("");
+  const [candidates, setCandidates] = useState<InterpretationCandidate[]>([]);
+  useEffect(() => { setText(claim ? [claim.name, claim.description, claim.solution].filter(Boolean).join("\n") : ""); }, [claim?.id]);
+  async function interpret() {
+    if (!organizationId) return;
+    setStatus({ busy: true });
+    try {
+      const response = await fetch("/api/onboarding/capabilities/amacs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ organizationId, text }) });
+      const body = await response.json() as { candidates?: InterpretationCandidate[]; error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Interpretation service failed.");
+      setCandidates(body.candidates ?? []); setStatus({ busy: false });
+    } catch (error) { setStatus({ busy: false, error: error instanceof Error ? error.message : "Interpretation service failed." }); }
+  }
+  return <AmacsCandidateSurface title="AI assistance" description="The configured interpretation provider may propose AMACS candidates, but returned IDs are validated against the active AMACS release and remain non-authoritative until you accept one." snapshot={snapshot} claimId={claimId} setClaimId={setClaimId} q={text} setQ={setText} candidates={candidates} run={interpret} runLabel="Request interpretation" postAction={postAction} multiline />;
+}
+
+function AmacsCandidateSurface({ title, description, snapshot, claimId, setClaimId, q, setQ, candidates, run, runLabel, postAction, multiline = false }: {
+  title: string; description: string; snapshot?: CapabilityEnrichmentSnapshot; claimId: string; setClaimId: (id: string) => void; q: string; setQ: (value: string) => void; candidates: InterpretationCandidate[]; run: () => Promise<void>; runLabel: string; postAction: (payload: Record<string, unknown>, message: string, complete?: boolean) => Promise<boolean>; multiline?: boolean;
+}) {
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>AMACS Mapping / AI-to-AMACS Assistance</p><h2>{title}</h2><p className={styles.lead}>{description}</p>
+      <div className={styles.amacsRelease}><span>Deployed release</span><strong>{snapshot?.amacsRelease ? `AMACS ${snapshot.amacsRelease.version}` : "No AMACS release deployed"}</strong>{snapshot?.amacsRelease && <small>Source {snapshot.amacsRelease.sourceCommitSha.slice(0, 12)}</small>}</div>
+      <div className={styles.form}>
+        <ClaimSelect claims={snapshot?.claims ?? []} value={claimId} onChange={setClaimId} />
+        <label>{multiline ? "Capability text for interpretation" : "Search AMACS"}{multiline ? <textarea rows={5} value={q} onChange={(event) => setQ(event.target.value)} /> : <input value={q} onChange={(event) => setQ(event.target.value)} />}</label>
+        <button type="button" disabled={!claimId || q.trim().length < 2 || !snapshot?.amacsRelease} onClick={() => void run()}>{runLabel}</button>
+      </div>
+      <div className={styles.recordList}>
+        {candidates.map((candidate) => <article key={candidate.conceptId}><span>{candidate.conceptId}</span><strong>{candidate.label}</strong><p>{candidate.definition}</p>{candidate.matchedAlias && <small>Matched alias: {candidate.matchedAlias}</small>}{candidate.rationale && <small>{candidate.rationale}</small>}<button type="button" disabled={!claimId} onClick={() => void postAction({ action: "accept-amacs-mapping", claimId, releaseId: candidate.releaseId, conceptId: candidate.conceptId }, "AMACS mapping accepted.")}>Accept mapping</button></article>)}
+        {candidates.length === 0 && <p className={styles.empty}>No candidates loaded.</p>}
+      </div>
+    </div>
+  );
+}
+
+function EvidenceWorkflow({ kind, snapshot, postAction }: { kind: CapabilityEvidenceKind; snapshot?: CapabilityEnrichmentSnapshot; postAction: (payload: Record<string, unknown>, message: string, complete?: boolean) => Promise<boolean> }) {
+  const [claimId, setClaimId] = useState("");
+  const [label, setLabel] = useState(""); const [issuer, setIssuer] = useState(""); const [sourceUrl, setSourceUrl] = useState(""); const [notes, setNotes] = useState("");
+  const labels: Record<CapabilityEvidenceKind, string> = { certification: "Certifications", license: "Licenses", "case-study": "Case studies", "supporting-document": "Supporting documents" };
+  const items = snapshot?.claims.flatMap((claim) => claim.evidence.filter((item) => item.kind === kind).map((item) => ({ ...item, claimName: claim.name }))) ?? [];
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>Evidence / Certifications</p><h2>{labels[kind]}</h2>
+      <p className={styles.lead}>Evidence is stored as a provenance-bearing record attached to a capability claim. Supporting documents use authoritative URLs rather than fake attachments.</p>
+      <form className={styles.form} onSubmit={async (event) => { event.preventDefault(); if (await postAction({ action: "add-evidence", claimId, kind, label, issuer, sourceUrl, notes }, "Evidence saved.")) { setLabel(""); setIssuer(""); setSourceUrl(""); setNotes(""); } }}>
+        <ClaimSelect claims={snapshot?.claims ?? []} value={claimId} onChange={setClaimId} />
+        <label>Evidence title<input required value={label} onChange={(event) => setLabel(event.target.value)} /></label>
+        {(kind === "certification" || kind === "license") && <label>Issuer<input value={issuer} onChange={(event) => setIssuer(event.target.value)} /></label>}
+        <label>{kind === "supporting-document" ? "Document URL" : "Source URL (optional)"}<input required={kind === "supporting-document"} type="url" value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} placeholder="https://…" /></label>
+        <label>Notes<textarea rows={3} value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
+        <button type="submit" disabled={!claimId}>Add evidence</button>
+      </form>
+      <div className={styles.recordList}>{items.map((item) => <article key={item.id}><span>{item.claimName}</span><strong>{item.label}</strong>{item.issuer && <p>{item.issuer}</p>}{item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noreferrer">Open source ↗</a>}<button type="button" className={styles.dangerButton} onClick={() => void postAction({ action: "delete-evidence", evidenceId: item.id }, "Evidence removed.", false)}>Remove</button></article>)}{items.length === 0 && <p className={styles.empty}>No {labels[kind].toLowerCase()} saved.</p>}</div>
+    </div>
+  );
+}
+
+function TermsWorkflow({ field, snapshot, postAction }: { field: "tags" | "keywords" | "specialties"; snapshot?: CapabilityEnrichmentSnapshot; postAction: (payload: Record<string, unknown>, message: string, complete?: boolean) => Promise<boolean> }) {
+  const existing = snapshot?.[field] ?? [];
+  const [value, setValue] = useState("");
+  useEffect(() => { setValue(existing.join(", ")); }, [field, existing.join("|")]);
+  return (
+    <div className={styles.panel}>
+      <p className={styles.kicker}>Tags / Keywords / Specialties</p><h2>{field[0].toUpperCase() + field.slice(1)}</h2>
+      <p className={styles.lead}>These terms improve discoverability. They remain separate from canonical AMACS concept mappings.</p>
+      <form className={styles.form} onSubmit={(event) => { event.preventDefault(); void postAction({ action: "save-terms", field, values: splitTerms(value) }, `${field[0].toUpperCase() + field.slice(1)} saved.`); }}>
+        <label>Comma- or line-separated {field}<textarea rows={6} value={value} onChange={(event) => setValue(event.target.value)} /></label>
+        <button type="submit">Save {field}</button>
+      </form>
+      <Pills values={existing} empty={`No ${field} saved.`} />
+    </div>
+  );
+}
+
+function ClaimList({ snapshot, onArchive }: { snapshot?: CapabilityEnrichmentSnapshot; onArchive: (id: string) => Promise<boolean> }) {
+  if (!snapshot?.claims.length) return <p className={styles.empty}>No capability claims saved.</p>;
+  return <div className={styles.recordList}>{snapshot.claims.map((claim) => <article key={claim.id}><span>{claim.mappingStatus === "accepted" ? claim.amacsLabel ?? claim.amacsConceptId : "Unmapped"}</span><strong>{claim.name}</strong><p>{claim.description}</p>{claim.solution && <small>Solution: {claim.solution}</small>}<button type="button" className={styles.dangerButton} onClick={() => void onArchive(claim.id)}>Archive</button></article>)}</div>;
+}
+
+function ClaimSelect({ claims, value, onChange }: { claims: CapabilityEnrichmentSnapshot["claims"]; value: string; onChange: (value: string) => void }) {
+  return <label>Capability claim<select required value={value} onChange={(event) => onChange(event.target.value)}><option value="">Select a capability</option>{claims.map((claim) => <option value={claim.id} key={claim.id}>{claim.name}</option>)}</select></label>;
+}
+
+function Pills({ values, empty }: { values: string[]; empty: string }) {
+  return values.length ? <div className={styles.pills}>{values.map((value) => <span key={value}>{value}</span>)}</div> : <p className={styles.empty}>{empty}</p>;
+}
+
+function ServiceGate({ message }: { message: string }) {
+  return <div className={styles.serviceGate} role="alert"><strong>Service connection required</strong><p>{message}</p><small>No mock or browser-only fallback is used.</small></div>;
 }

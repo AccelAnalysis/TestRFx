@@ -1,29 +1,32 @@
 import Link from "next/link";
-
-const steps = [
-  { label: "Account verification", href: "/onboarding/account-verification", detail: "Verify control of the account email." },
-  { label: "Organization", href: "/onboarding/organization?step=welcome", detail: "Resolve, claim, join, or create the canonical organization." },
-  { label: "Geography", href: "/onboarding/geography", detail: "Establish authoritative location and service geography." },
-  { label: "Organization profile", href: "/onboarding/organization-profile", detail: "Complete organization identity, contact, roles, and visibility." },
-  { label: "Capabilities", href: "/onboarding/capabilities", detail: "Enrich capabilities and AMACS context." },
-  { label: "Exchange ready", href: "/onboarding/completion", detail: "Confirm readiness and enter the authenticated Exchange." },
-];
+import { listOnboardingDetailDefinitions, onboardingDetailHref } from "@/lib/onboarding/detail-surface";
 
 export default function OnboardingPage() {
+  const steps = listOnboardingDetailDefinitions().filter((definition) => definition.subject !== "membership");
+  const membership = listOnboardingDetailDefinitions().find((definition) => definition.subject === "membership");
+
   return (
     <main className="identity-shell onboarding-shell">
       <section className="identity-card onboarding-card">
         <p className="eyebrow">Exchange onboarding</p>
         <h1>Build your organization context</h1>
-        <p className="muted">Each onboarding stage is a concrete route. Complete the stages in order so organization identity, geography, profile data, and capabilities resolve against the same canonical organization.</p>
+        <p className="muted">
+          Each stage opens the governed Detail Surface hierarchy and then hands concrete work to the onboarding workflow that owns it.
+        </p>
         <div className="step-list">
-          {steps.map((step, index) => (
-            <Link className="step" href={step.href} key={step.label}>
-              <span>{index + 1}</span>
-              <div><strong>{step.label}</strong><small>{step.detail}</small></div>
+          {steps.map((step) => (
+            <Link className="step" href={onboardingDetailHref(step.subject)} key={step.subject} style={{ textDecoration: "none" }}>
+              <span>{step.step}</span>
+              <strong>{step.label}</strong>
             </Link>
           ))}
         </div>
+        {membership ? (
+          <p className="muted">
+            Commercial membership is a conditional path, not a universal access gate. <Link href={onboardingDetailHref(membership.subject)}>Review membership options.</Link>
+          </p>
+        ) : null}
+        <Link className="button button-primary button-full" href="/onboarding/detail/readiness">Review Exchange readiness</Link>
       </section>
     </main>
   );
