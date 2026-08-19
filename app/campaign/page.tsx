@@ -1,34 +1,57 @@
 import Link from "next/link";
-import { campaigns } from "@/lib/public/campaigns";
+import { AcquisitionContextCapture } from "@/components/marketing/acquisition-context";
+import { CampaignHierarchy } from "@/components/public/campaign-hierarchy";
+import { PublicFooter } from "@/components/public/public-footer";
+import { PublicHeader } from "@/components/public/public-header";
+import {
+  campaignFamilyPath,
+  campaignsForFamily,
+  liveCampaignFamilies,
+} from "@/lib/public/campaigns";
 
 export default function CampaignIndexPage() {
-  const liveCampaigns = campaigns.filter((campaign) => campaign.status === "live");
+  const families = liveCampaignFamilies();
+
   return (
     <main className="campaign-shell">
-      <nav className="campaign-nav">
-        <Link className="campaign-brand" href="/">RFxchange</Link>
-        <div className="campaign-nav-actions"><Link href="/login">Sign in</Link><Link className="button button-primary" href="/register">Join free</Link></div>
-      </nav>
-      <header className="campaign-hero" style={{ minHeight: "520px" }}>
-        <div className="campaign-hero-copy">
+      <AcquisitionContextCapture />
+      <div className="campaign-accent" aria-hidden="true" />
+      <PublicHeader />
+
+      <div className="campaign-page-width">
+        <header className="campaign-directory-hero">
           <p className="eyebrow">Public / Acquisition Shell</p>
-          <h1>Campaign landing pages that route into one RFxchange.</h1>
-          <p className="campaign-lede">These reference campaigns demonstrate membership, geography, use-case, capability, audience, and partner acquisition without forking identity, onboarding, or the authenticated Exchange.</p>
+          <h1>Campaign Landing Pages</h1>
+          <p>
+            Campaigns organize acquisition by the concrete audiences, launch contexts, use cases,
+            capability themes, membership paths, and partner/referral paths that currently exist in
+            RFxchange. Each branch leads back into the same Identity, Onboarding, and Exchange chassis.
+          </p>
+        </header>
+
+        <div className="campaign-directory-layout">
+          <CampaignHierarchy />
+          <section aria-labelledby="campaign-family-heading">
+            <p className="eyebrow">Child workflows</p>
+            <h2 id="campaign-family-heading" className="sr-only">Campaign families</h2>
+            <div className="campaign-directory-grid">
+              {families.map((family) => {
+                const familyCampaigns = campaignsForFamily(family.id);
+                return (
+                  <article className="campaign-directory-card" key={family.id}>
+                    <p className="eyebrow">{familyCampaigns.length} live path{familyCampaigns.length === 1 ? "" : "s"}</p>
+                    <h2>{family.label}</h2>
+                    <p>{family.summary}</p>
+                    <Link href={campaignFamilyPath(family.id)}>Open {family.label} →</Link>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         </div>
-      </header>
-      <section className="campaign-section">
-        <p className="eyebrow">Live campaign references</p>
-        <div className="campaign-benefits">
-          {liveCampaigns.map((campaign) => (
-            <article key={campaign.slug}>
-              <p className="eyebrow">{campaign.family.replaceAll("-", " ")}</p>
-              <h3>{campaign.headline}</h3>
-              <p className="muted">{campaign.audience} · routes to {campaign.intendedLens}</p>
-              <Link href={`/campaign/${campaign.slug}`}>Open campaign →</Link>
-            </article>
-          ))}
-        </div>
-      </section>
+      </div>
+
+      <PublicFooter />
     </main>
   );
 }

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listOnboardingDetailDefinitions } from "@/lib/onboarding/detail-surface";
+import { listOnboardingDetailDefinitions, onboardingDetailHref } from "@/lib/onboarding/detail-surface";
 
 export default function OnboardingDetailIndexPage() {
   const definitions = listOnboardingDetailDefinitions();
@@ -7,15 +7,16 @@ export default function OnboardingDetailIndexPage() {
     <main className="identity-shell onboarding-shell">
       <section className="identity-card onboarding-card">
         <p className="eyebrow">Identity & onboarding chassis</p>
-        <h1>Detail Surface reference routes</h1>
+        <h1>Detail Surface hierarchy</h1>
         <p className="muted">
-          Each route exercises the reusable review/edit/resolve surface. Adjacent onboarding domains provide canonical data, validation, and persistence through this contract rather than creating separate detail-page patterns.
+          Drill into the source-defined child and grandchild workflows. Detail Surface owns hierarchy and continuity;
+          canonical values and mutations stay with the onboarding services that own them.
         </p>
         <div className="step-list">
           {definitions.map((definition) => (
-            <Link className="step" href={`/onboarding/detail/${definition.subject}`} key={definition.subject} style={{ textDecoration: "none" }}>
+            <Link className="step" href={onboardingDetailHref(definition.subject)} key={definition.subject} style={{ textDecoration: "none" }}>
               <span>{definition.step}</span>
-              <strong>{definition.subjectLabel}</strong>
+              <strong>{definition.label} · {definition.children.length} paths</strong>
             </Link>
           ))}
         </div>
