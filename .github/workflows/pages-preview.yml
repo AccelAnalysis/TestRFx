@@ -39,6 +39,7 @@ jobs:
         run: |
           node scripts/prepare-pages-preview.mjs
           node scripts/prepare-onboarding-detail-preview.mjs
+          node scripts/prepare-membership-preview.mjs
 
       - name: Build static Pages preview
         run: npm run build

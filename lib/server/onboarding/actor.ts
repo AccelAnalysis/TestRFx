@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { getDatabase, DatabaseServiceUnavailableError } from "@/lib/server/database";
 
+export const RFX_SESSION_COOKIE = "rfx_session";
+
 export class OnboardingUnauthorizedError extends Error {
   constructor(message = "An authenticated RFxchange organization session is required.") {
     super(message);
@@ -25,7 +27,7 @@ export interface OnboardingActor {
   permissions: string[];
 }
 
-type SessionPayload = {
+export type RfxSessionPayload = {
   userId: string;
   organizationId: string;
   expiresAt: number;
@@ -45,7 +47,7 @@ function sign(encodedPayload: string) {
   return createHmac("sha256", sessionSecret()).update(encodedPayload).digest("base64url");
 }
 
-function parseSession(value: string | undefined): SessionPayload | undefined {
+function parseSession(value: string | undefined): RfxSessionPayload | undefined {
   if (!value) return undefined;
   const [encodedPayload, signature] = value.split(".");
   if (!encodedPayload || !signature) return undefined;
@@ -56,23 +58,36 @@ function parseSession(value: string | undefined): SessionPayload | undefined {
   if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) return undefined;
 
   try {
-    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as Partial<SessionPayload>;
+    const payload = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as Partial<RfxSessionPayload>;
     if (!payload.userId || !payload.organizationId || !payload.expiresAt) return undefined;
     if (!uuidPattern.test(payload.userId) || !uuidPattern.test(payload.organizationId)) return undefined;
     if (payload.expiresAt <= Date.now()) return undefined;
-    return payload as SessionPayload;
+    return payload as RfxSessionPayload;
   } catch {
     return undefined;
   }
 }
 
-export function createRfxSessionCookieValue(payload: SessionPayload) {
+function cookieValue(cookieHeader: string | null, name: string) {
+  if (!cookieHeader) return undefined;
+  for (const part of cookieHeader.split(";")) {
+    const [key, ...valueParts] = part.trim().split("=");
+    if (key === name) return valueParts.join("=") || undefined;
+  }
+  return undefined;
+}
+
+export function readRfxSessionFromCookieHeader(cookieHeader: string | null): RfxSessionPayload | undefined {
+  return parseSession(cookieValue(cookieHeader, RFX_SESSION_COOKIE));
+}
+
+export function createRfxSessionCookieValue(payload: RfxSessionPayload) {
   const encodedPayload = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
   return `${encodedPayload}.${sign(encodedPayload)}`;
 }
 
 export async function resolveOnboardingActor(request: NextRequest, requestedOrganizationId?: string): Promise<OnboardingActor> {
-  const session = parseSession(request.cookies.get("rfx_session")?.value);
+  const session = parseSession(request.cookies.get(RFX_SESSION_COOKIE)?.value);
   if (!session) throw new OnboardingUnauthorizedError();
   if (requestedOrganizationId && requestedOrganizationId !== session.organizationId) {
     throw new OnboardingForbiddenError("The requested organization does not match the active organization session.");

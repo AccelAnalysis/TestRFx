@@ -1,154 +1,199 @@
-# Public Pricing / Membership integration
+# Pricing / Membership — hierarchy and production services
 
-## Purpose
+## Review result
 
-Pricing / Membership is a Public / Acquisition Shell surface that explains the current commercial offer and captures membership intent without becoming a second billing application.
+The first Pricing / Membership implementation established `/founding`, the organization-level Founding Membership concept, the 250-organization capacity rule, the $49/month offer, the credit-policy contract, and a handoff into `/onboarding/membership`.
 
-This module is intentionally stacked on the Marketing shell because Marketing owns the public chrome and the canonical `/founding` destination. It does not take ownership of Login, Registration, or the main Onboarding route; those sibling modules consume the membership context through their shared acquisition/auth-entry contracts.
+The review found five material gaps:
 
-The governing lifecycle is:
+1. the registration source hierarchy was flattened; Membership Selection, Stripe Payment, and Registration Complete were not represented as a nested navigable workflow,
+2. the Menu source's Billing & Membership children and grandchildren did not have Membership-owned service destinations,
+3. `/onboarding/membership` stopped at a disabled "integration pending" button,
+4. the catalog and Founding capacity were deterministic reference data rather than Stripe + RFxchange repository truth,
+5. Stripe Checkout, webhook reconciliation, organization billing history, Customer Portal, and capacity reservation were documented seams rather than application services.
 
-```text
-Public offer
-  -> membership context
-  -> Identity / Registration
-  -> geography + organization + location
-  -> membership selection
-  -> Stripe payment integration
-  -> organization membership activation
-  -> authenticated Menu > Billing & Membership
-```
+This follow-on resolves those gaps without adding unsupported plan types or turning Billing into another Exchange lens.
 
-## Current public offer
+## Source-derived hierarchy
 
-The reference catalog exposes one paid plan:
-
-- Founding Membership
-- $49/month
-- organization-level membership
-- capped at 250 organizations
-
-The public page is `/founding`. It deliberately separates `Join Free` from `Founding Membership`: creating an RFxchange identity and purchasing an organization membership are different decisions.
-
-## Shell ownership
-
-### Public / Acquisition Shell owns
-
-- `/founding` presentation inside the shared Marketing chrome/footer
-- public plan catalog
-- price, capacity rule, membership explanation, and FAQs
-- Join Free / Sign In / Founding Membership calls to action
-- membership-context handoff into the shared public auth gateway
-
-### Identity & Onboarding owns
-
-- verified person
-- geography
-- organization selection / creation
-- organization details and location
-- active-organization resolution
-- honoring the membership return destination after the organization context exists
-
-This PR does not overwrite the Login, Registration, or main Onboarding pages owned by sibling Public/Auth/Identity PRs.
-
-### Membership service owns
-
-- plan catalog and versions
-- organization membership lifecycle
-- capacity reservation and activation
-- entitlements
-- billing references and Stripe reconciliation
-- credits ledger
-- membership lifecycle events
-
-### Stripe owns
-
-- secure checkout and payment processing
-- payment method collection
-- subscription/payment/invoice events
-
-Stripe success must be reconciled server-side before RFxchange changes membership truth or unlocks paid entitlements.
-
-### Authenticated Exchange Menu owns
-
-Ongoing servicing belongs in `Menu > Billing & Membership`, including current plan, plan changes, payment methods, credits, invoices, payment history, and membership lifecycle.
-
-## Membership context handoff
-
-The public Founding Membership CTA uses the shared public auth-entry vocabulary:
+### Registration Steps 9–11
 
 ```text
-/join?membership=founding&returnTo=/onboarding/membership?membership=founding
+Registration membership path
+├── 9. Membership Selection
+│   ├── Founding Membership ($49/mo)
+│   └── Future plans as available
+├── 10. Payment (Stripe)
+│   ├── Enter payment details
+│   ├── Secure checkout
+│   └── Payment confirmation
+└── 11. Registration Complete
+    ├── Account activated
+    ├── Organization profile created
+    ├── Dashboard / Exchange access
+    └── Welcome / Onboarding tips
 ```
 
-The Marketing `/join` gateway preserves query context into Identity. The sibling Auth Entry / Registration / Onboarding modules are responsible for carrying the same context across their own boundaries and honoring the sanitized return destination.
+The repository represents the three major stages with real routes:
 
-Membership context is not proof of entitlement. It only preserves the visitor's commercial decision while identity and organization context are established.
+- `/onboarding/membership`
+- `/onboarding/membership/payment`
+- `/onboarding/membership/complete`
 
-## Progressive availability
+The bullet children are represented in the nested workflow state and on the corresponding stage surface. No additional registration stages were invented.
 
-`/onboarding/membership` is the Pricing/Membership integration surface after organization setup. It intentionally displays Stripe checkout as unavailable in this reference slice.
+### Menu > Billing & Membership
 
-This follows the operating-chassis progressive-availability rule: the integration position is visible, but the UI does not pretend a workflow is operational before authenticated organization context, billing authorization, live capacity reservation, Stripe checkout, and webhook reconciliation exist.
+```text
+Billing & Membership
+├── Current Plan
+├── Change Plan
+│   ├── Compare Plans
+│   ├── Select Plan
+│   ├── Review Changes
+│   └── Confirm
+├── Payment Methods
+├── Credits
+├── Invoices
+│   ├── Invoice History
+│   ├── Download PDF
+│   └── Payment Status
+├── Payment History
+└── Membership Lifecycle
+```
 
-## Domain contracts
+`lib/membership/navigation.ts` is the Membership-owned source of this exact subtree. It gives the hierarchical Menu work a concrete service destination for every source node.
 
-`lib/membership/contracts.ts` defines the Pricing/Membership vocabulary for plan codes, money, capacity, public catalog snapshots, credit policy, the membership-selection route, and the public Join gateway handoff.
+The implementation does **not** invent another paid plan merely to make Change Plan look active. `Compare Plans` reads the live catalog. Select / Review / Confirm are real server operations, but they return a governed conflict when no alternate live plan exists.
 
-`lib/membership/catalog.ts` is the deterministic reference catalog. Production should replace live availability with a membership repository/service while retaining the public contract.
+## Public Pricing / Membership hierarchy
 
-`GET /api/membership/catalog` exposes the public catalog boundary. It is intentionally `no-store` because production capacity state can change.
+The public `/founding` page retains the original Pricing / Membership sections already established for this slice:
 
-## Persistence target
+- Membership offer
+- Availability
+- Credits
+- How membership works
+- FAQ
 
-`db/membership.sql` extends the chassis PostgreSQL model with:
+These are in-page acquisition destinations, not new platform applications. The page now reads live Stripe price data and RFxchange capacity data. If those services are not available, the paid CTA is withheld rather than replaced with a fake success path.
 
-- `membership_plans`
-- `organization_plan_memberships`
-- `membership_lifecycle_events`
-- `membership_capacity_reservations`
-- `billing_accounts`
-- `billing_invoices`
-- `billing_payments`
-- `credit_accounts`
-- `credit_ledger_entries`
+## Production membership service
 
-This intentionally distinguishes user-to-organization membership (`organization_memberships` in the chassis schema) from the organization's commercial RFxchange plan (`organization_plan_memberships`).
+The production application boundary is now:
 
-## Credit policy
+```text
+Public / Onboarding / Menu UI
+           │
+           ▼
+Membership API routes
+           │
+           ▼
+Membership application service
+      ┌────┴──────────────┐
+      ▼                   ▼
+Stripe Billing        PostgreSQL
+      │                   │
+Hosted Checkout       organization membership truth
+Customer Portal       capacity reservation
+Invoices              lifecycle / invoice / payment mirror
+Webhooks              credit ledger
+```
 
-The reference contract establishes:
+### Stripe
 
-- 1 credit = $1
-- organization-level ledger ownership
-- issued credits expire after 12 months
+The Stripe adapter uses the configured secret key and the plan lookup key `rfxchange_founding_monthly` by default. It reads the actual recurring Price instead of using the old deterministic catalog value.
 
-The ledger model is used instead of a mutable `credit_balance` field so issuance, consumption, adjustment, reversal, and expiration remain explainable and auditable.
+Hosted Checkout Sessions are created in `subscription` mode. Payment methods are not hard-coded. The Checkout Session and resulting Subscription receive RFxchange organization, user, membership, and capacity-reservation metadata. Raw card details never pass through RFxchange.
 
-## Parallel PR integration
+Stripe success is not treated as a browser-only entitlement signal. The webhook endpoint verifies the Stripe signature and reconciles:
 
-This slice is designed to compose with the parallel shell work rather than edit the same files:
+- `checkout.session.completed`
+- `invoice.paid`
+- `invoice.payment_failed`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
 
-- Marketing owns shared public chrome/footer and the `/founding` route seed; this module upgrades that route.
-- Login / Register Entry owns the `membership` and `returnTo` acquisition-context vocabulary.
-- Registration owns person-level identity establishment and should preserve acquisition context downstream.
-- Onboarding owns organization/geography/profile readiness and should honor the membership return destination only after the necessary organization context exists.
+`invoice.paid` and a server-retrieved paid Checkout Session can activate the commercial membership. Webhook events are idempotently recorded in `stripe_webhook_events`.
 
-The Pricing/Membership PR therefore avoids edits to `app/page.tsx`, `app/login/page.tsx`, `app/register/page.tsx`, and `app/onboarding/page.tsx`.
+### RFxchange persistence
 
-## Production integration points
+`db/membership-runtime.sql` upgrades the existing Membership schema with:
 
-The next membership implementation can plug into this slice without redesigning the public page:
+- Stripe Price lookup key,
+- Checkout Session references,
+- invoice-linked payment history,
+- webhook idempotency/audit records,
+- indexes supporting capacity and reconciliation.
 
-1. authenticated active-organization resolution
-2. server-side billing authorization
-3. live Founding Membership capacity query and atomic reservation
-4. Stripe Customer / Price / Checkout Session creation
-5. webhook verification and idempotent reconciliation
-6. entitlement assignment after verified activation
-7. authenticated Billing & Membership Menu surfaces
-8. invoice/payment retrieval
-9. persistent credit ledger operations
-10. acquisition attribution persistence
+Founding capacity is reserved transactionally while the plan row is locked. Expired reservations are released. Historical organizations with `activated_at` count toward the first-250 designation even if they later cancel, preserving the meaning of "first 250 organizations."
 
-The public page should continue to consume governed membership data rather than hard-coding a separate marketing definition of the plan.
+### Organization context
+
+Checkout and authenticated Billing APIs do not trust organization IDs supplied in request JSON or query parameters.
+
+Membership now consumes the same signed `rfx_session` established by the canonical Identity & Onboarding flow after a verified person is connected to an organization. `lib/membership/context.ts` translates that signed active-organization session into the Membership actor contract; it does not mint a second Membership-specific identity cookie or use a second signing secret.
+
+Every protected Membership operation then revalidates the signed user/organization pair against the canonical `organization_memberships` table before reading billing data, reserving Founding capacity, creating Stripe Checkout, opening the Customer Portal, or confirming returned Checkout state.
+
+This keeps authentication authority in one platform session while preserving Membership's server-side authorization boundary.
+
+## API map
+
+### Public
+
+- `GET /api/membership/catalog` — live Stripe + PostgreSQL catalog/capacity
+
+### Registration payment
+
+- `POST /api/membership/checkout` — validate actor, reserve capacity, create Stripe Checkout Session
+- `POST /api/membership/webhooks/stripe` — verify and reconcile Stripe events
+
+### Authenticated Menu > Billing & Membership
+
+- `GET /api/membership/account/current`
+- `GET /api/membership/account/credits`
+- `GET /api/membership/account/invoices`
+- `GET /api/membership/account/payments`
+- `GET /api/membership/account/lifecycle`
+- `GET /api/membership/invoices/{invoiceId}/pdf`
+- `POST /api/membership/portal`
+- `POST /api/membership/change-plan/select`
+- `POST /api/membership/change-plan/review`
+- `POST /api/membership/change-plan/confirm`
+
+The Menu remains the presentation owner. Membership owns the commercial services behind the Menu subtree.
+
+## Credits
+
+Credits remain an RFxchange organization ledger, not Stripe usage billing:
+
+- 1 credit = $1,
+- issued credits expire after 12 months,
+- ledger entries preserve issuance, consumption, adjustment, reversal, and expiration history.
+
+The account endpoint reads the real ledger. It does not manufacture a client-side credit balance.
+
+## GitHub Pages boundary
+
+GitHub Pages is static and cannot execute Stripe, PostgreSQL, authenticated organization sessions, or webhooks. The Pages workflow therefore runs `scripts/prepare-membership-preview.mjs` after the existing platform and onboarding preview projections. The replacement pages are explicitly labeled static previews and never report live capacity, create checkout sessions, or claim membership activation.
+
+The production source remains server-capable and is typechecked before the preview projection is applied.
+
+## Required runtime configuration
+
+See `.env.example`:
+
+- `DATABASE_URL`
+- `RFXCHANGE_SESSION_SECRET`
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- optional `RFXCHANGE_FOUNDING_PRICE_LOOKUP_KEY`
+
+The configured Stripe account must contain the RFxchange Founding organization product/price keyed as `rfxchange_founding_monthly`; runtime mode follows the configured Stripe secret key rather than hard-coded live/test IDs.
+
+## Remaining platform-owned integration
+
+The Membership module is no longer a mocked service. Deployment still must apply the PostgreSQL membership schema/runtime migration, configure the canonical RFxchange organization session secret, and provide Stripe runtime secrets/webhook delivery.
+
+Identity and Organization Selection remain the owners of participant identity and active-organization resolution. Membership consumes that authority and revalidates it; it does not create a competing identity system.
