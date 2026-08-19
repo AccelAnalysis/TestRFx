@@ -132,9 +132,11 @@ Founding capacity is reserved transactionally while the plan row is locked. Expi
 
 Checkout and authenticated Billing APIs do not trust organization IDs supplied in request JSON or query parameters.
 
-`lib/membership/context.ts` defines a short-lived signed, HttpOnly organization membership context. The upstream authenticated Identity/Organization service must issue that cookie only after it has resolved the signed-in user and active organization. Every Membership mutation then verifies the signed context against the canonical `organization_memberships` table.
+Membership now consumes the same signed `rfx_session` established by the canonical Identity & Onboarding flow after a verified person is connected to an organization. `lib/membership/context.ts` translates that signed active-organization session into the Membership actor contract; it does not mint a second Membership-specific identity cookie or use a second signing secret.
 
-This is an integration contract, not a public context-minting endpoint. TestRFx does not create a developer bypass that would let a browser choose arbitrary organization/user UUIDs.
+Every protected Membership operation then revalidates the signed user/organization pair against the canonical `organization_memberships` table before reading billing data, reserving Founding capacity, creating Stripe Checkout, opening the Customer Portal, or confirming returned Checkout state.
+
+This keeps authentication authority in one platform session while preserving Membership's server-side authorization boundary.
 
 ## API map
 
@@ -174,7 +176,7 @@ The account endpoint reads the real ledger. It does not manufacture a client-sid
 
 ## GitHub Pages boundary
 
-GitHub Pages is static and cannot execute Stripe, PostgreSQL, signed context, or webhooks. The Pages workflow therefore runs `scripts/prepare-membership-preview.mjs` after the existing preview projection. The replacement pages are explicitly labeled static previews and never report live capacity, create checkout sessions, or claim membership activation.
+GitHub Pages is static and cannot execute Stripe, PostgreSQL, authenticated organization sessions, or webhooks. The Pages workflow therefore runs `scripts/prepare-membership-preview.mjs` after the existing platform and onboarding preview projections. The replacement pages are explicitly labeled static previews and never report live capacity, create checkout sessions, or claim membership activation.
 
 The production source remains server-capable and is typechecked before the preview projection is applied.
 
@@ -183,18 +185,15 @@ The production source remains server-capable and is typechecked before the previ
 See `.env.example`:
 
 - `DATABASE_URL`
+- `RFXCHANGE_SESSION_SECRET`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
-- `RFXCHANGE_MEMBERSHIP_CONTEXT_SECRET`
 - optional `RFXCHANGE_FOUNDING_PRICE_LOOKUP_KEY`
 
-The connected Stripe account already contains the RFxchange Founding organization product/price keyed as `rfxchange_founding_monthly`; runtime mode still follows the configured Stripe secret key rather than hard-coded live/test IDs.
+The configured Stripe account must contain the RFxchange Founding organization product/price keyed as `rfxchange_founding_monthly`; runtime mode follows the configured Stripe secret key rather than hard-coded live/test IDs.
 
 ## Remaining platform-owned integration
 
-The Membership module is no longer a mocked service, but two dependencies remain correctly outside its authority:
+The Membership module is no longer a mocked service. Deployment still must apply the PostgreSQL membership schema/runtime migration, configure the canonical RFxchange organization session secret, and provide Stripe runtime secrets/webhook delivery.
 
-1. the production Identity/Organization layer must issue the signed Membership context after authenticated active-organization resolution;
-2. deployment must apply the PostgreSQL membership schema/runtime migration and provide the runtime secrets/webhook endpoint.
-
-Those are infrastructure and Identity responsibilities, not reasons to simulate checkout inside Pricing / Membership.
+Identity and Organization Selection remain the owners of participant identity and active-organization resolution. Membership consumes that authority and revalidates it; it does not create a competing identity system.
