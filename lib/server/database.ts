@@ -7,15 +7,24 @@ export class DatabaseServiceUnavailableError extends Error {
   }
 }
 
+export class DatabaseConfigurationError extends DatabaseServiceUnavailableError {
+  constructor(message = "DATABASE_URL is required for this operation.") {
+    super(message);
+    this.name = "DatabaseConfigurationError";
+  }
+}
+
 let database: ReturnType<typeof postgres> | undefined;
 
 export function getDatabase() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new DatabaseServiceUnavailableError();
+  const connectionString = process.env.DATABASE_URL?.trim();
+  if (!connectionString) throw new DatabaseConfigurationError();
 
   if (!database) {
+    const configuredPoolMax = Number.parseInt(process.env.DATABASE_POOL_MAX ?? "6", 10);
+    const maxConnections = Number.isFinite(configuredPoolMax) && configuredPoolMax > 0 ? configuredPoolMax : 6;
     database = postgres(connectionString, {
-      max: 6,
+      max: maxConnections,
       idle_timeout: 20,
       connect_timeout: 10,
       prepare: false,

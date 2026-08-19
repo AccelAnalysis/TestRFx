@@ -1,5 +1,9 @@
-import { RegistrationForm } from "@/components/identity/registration-form";
+import { RegistrationWorkflow } from "@/components/identity/registration-workflow";
 import { registrationContextFromSearchParams } from "@/lib/identity/registration";
+
+function first(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
 
 export default async function RegisterPage({
   searchParams,
@@ -11,7 +15,11 @@ export default async function RegisterPage({
 
   return (
     <main className="identity-shell">
-      <RegistrationForm initialContext={context} />
+      <RegistrationWorkflow
+        initialPath={["create-account", "name"]}
+        initialContext={context}
+        initialRegistrationId={first(params.registration)}
+      />
     </main>
   );
 }
