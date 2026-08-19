@@ -2,13 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   ONBOARDING_SESSION_COOKIE,
   verifyOnboardingSessionToken,
+  type OnboardingSession,
 } from "@/lib/identity/onboarding-session";
+import { createRfxSessionCookieValue } from "@/lib/server/onboarding/actor";
 import {
   normalizeDomain,
   sanitizeOrganizationAuthorityMethod,
   sanitizeOrganizationType,
   sanitizeOrganizationUserRole,
   type OrganizationMutationRequest,
+  type OrganizationResolution,
 } from "@/lib/onboarding/organization";
 import {
   claimOrganization,
@@ -31,9 +34,14 @@ import {
   resolveInvitation,
   searchOrganizations,
 } from "@/lib/onboarding/organization-repository";
-import { DatabaseConfigurationError } from "@/lib/server/database";
+import {
+  DatabaseConfigurationError,
+  DatabaseServiceUnavailableError,
+  getDatabase,
+} from "@/lib/server/database";
 
 export const dynamic = "force-dynamic";
+const ACTIVE_ORGANIZATION_SESSION_TTL_SECONDS = 24 * 60 * 60;
 
 function noStore(body: unknown, status = 200) {
   return NextResponse.json(body, {
@@ -55,6 +63,46 @@ function requireSession(request: NextRequest) {
   return session;
 }
 
+async function attachActiveOrganizationSession(
+  response: NextResponse,
+  session: OnboardingSession,
+  resolution: OrganizationResolution | null,
+) {
+  if (!resolution || resolution.status !== "connected" || !resolution.organizationId) return response;
+
+  const sql = getDatabase();
+  const rows = await sql<{ user_id: string }[]>`
+    SELECT u.id::text AS user_id
+    FROM users u
+    JOIN organization_memberships om ON om.user_id = u.id
+    WHERE lower(btrim(u.email)) = ${session.email.trim().toLowerCase()}
+      AND om.organization_id = ${resolution.organizationId}::uuid
+    LIMIT 1
+  `;
+  const userId = rows[0]?.user_id;
+  if (!userId) {
+    throw new OrganizationWorkflowError(
+      "The resolved organization membership could not be bound to the verified account.",
+      409,
+      "organization_session_unavailable",
+    );
+  }
+
+  const token = createRfxSessionCookieValue({
+    userId,
+    organizationId: resolution.organizationId,
+    expiresAt: Date.now() + ACTIVE_ORGANIZATION_SESSION_TTL_SECONDS * 1000,
+  });
+  response.cookies.set("rfx_session", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: ACTIVE_ORGANIZATION_SESSION_TTL_SECONDS,
+  });
+  return response;
+}
+
 function bounded(value: unknown, length: number) {
   return typeof value === "string" ? value.trim().slice(0, length) : undefined;
 }
@@ -63,10 +111,10 @@ function handleError(error: unknown) {
   if (error instanceof OrganizationWorkflowError) {
     return noStore({ error: error.message, code: error.code, details: error.details }, error.status);
   }
-  if (error instanceof DatabaseConfigurationError) {
+  if (error instanceof DatabaseConfigurationError || error instanceof DatabaseServiceUnavailableError) {
     return noStore(
       {
-        error: "Organization onboarding requires the RFxchange PostgreSQL database. Set DATABASE_URL and apply the organization-selection migration.",
+        error: "Organization onboarding requires the RFxchange PostgreSQL database and server session secret. Set DATABASE_URL and RFXCHANGE_SESSION_SECRET, then apply the organization-selection migration.",
         code: "database_not_configured",
       },
       503,
@@ -82,7 +130,8 @@ export async function GET(request: NextRequest) {
     const params = request.nextUrl.searchParams;
 
     if (params.get("state") === "1") {
-      return noStore({ resolution: await getOrganizationState(session) });
+      const resolution = await getOrganizationState(session);
+      return attachActiveOrganizationSession(noStore({ resolution }), session, resolution);
     }
 
     const invitation = params.get("invitation")?.trim();
@@ -126,7 +175,8 @@ export async function POST(request: NextRequest) {
       if (!body.invitationToken?.trim()) {
         return noStore({ error: "Invitation token is required.", code: "invalid_request" }, 400);
       }
-      return noStore({ resolution: await acceptInvitation(session, body.invitationToken.trim(), body.context) });
+      const resolution = await acceptInvitation(session, body.invitationToken.trim(), body.context);
+      return attachActiveOrganizationSession(noStore({ resolution }), session, resolution);
     }
 
     if (body.action === "request_access") {
@@ -154,7 +204,11 @@ export async function POST(request: NextRequest) {
         evidenceReference: bounded(body.evidenceReference, 300),
         context: body.context,
       });
-      return noStore({ resolution }, resolution.status === "connected" ? 200 : 202);
+      return attachActiveOrganizationSession(
+        noStore({ resolution }, resolution.status === "connected" ? 200 : 202),
+        session,
+        resolution,
+      );
     }
 
     if (body.action === "create") {
@@ -162,14 +216,13 @@ export async function POST(request: NextRequest) {
       if (!body.name?.trim() || !type) {
         return noStore({ error: "Organization name and type are required.", code: "invalid_request" }, 400);
       }
-      return noStore({
-        resolution: await createOrganization(session, {
-          name: body.name.trim(),
-          type,
-          website: typeof body.website === "string" ? body.website.trim() : undefined,
-          context: body.context,
-        }),
-      }, 201);
+      const resolution = await createOrganization(session, {
+        name: body.name.trim(),
+        type,
+        website: typeof body.website === "string" ? body.website.trim() : undefined,
+        context: body.context,
+      });
+      return attachActiveOrganizationSession(noStore({ resolution }, 201), session, resolution);
     }
 
     if (body.action === "review_access") {
