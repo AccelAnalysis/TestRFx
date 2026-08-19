@@ -68,7 +68,7 @@ export function ResultsDrawer({
         onPointerUp={(event) => finishDrag(event.clientY)} onPointerCancel={() => { dragStart.current = null; }}
         aria-label={stateLabel[state]} aria-controls={listId} aria-expanded={state !== "peek"}><span /></button>
       <div className={styles.header}>
-        <div className={styles.headingBlock}><p className={styles.eyebrow}>{lensLabel}</p><h2>{resultHeading}</h2><p className={styles.resultContext} aria-live="polite">{resultContext ?? `${breakdown.mapped} mapped · ${breakdown.offMap} off-map`}{resultStatus === "refreshing" ? " · Refreshing…" : ""}</p></div>
+        <div className={styles.headingBlock}><h2>{resultHeading}</h2><p className={styles.resultContext} aria-live="polite">{resultContext ?? `${breakdown.mapped} mapped · ${breakdown.offMap} off-map`}{resultStatus === "refreshing" ? " · Refreshing…" : ""}</p></div>
         <div className={styles.headerActions}><label className={styles.sortControl}><span className="sr-only">Sort results</span><select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results"><option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option></select></label></div>
       </div>
       {records.length > 0 ? <ActionRail actions={actions} activeActionIds={activeActionIds} onAction={onAction} /> : null}
