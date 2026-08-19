@@ -5,6 +5,12 @@ import {
   normalizeEmail,
 } from "@/lib/identity/account-verification";
 import {
+  createOnboardingSessionToken,
+  onboardingSessionConfigured,
+  ONBOARDING_SESSION_COOKIE,
+  ONBOARDING_SESSION_TTL_SECONDS,
+} from "@/lib/identity/onboarding-session";
+import {
   issueAccountVerification,
   VerificationEmailConflictError,
   VerificationNotFoundError,
@@ -48,6 +54,15 @@ export async function POST(request: NextRequest) {
     if (body.action === "verify") {
       const token = typeof body.token === "string" ? body.token : "";
       if (!token) return noStore({ state: "invalid", message: "Verification token is required." }, 400);
+      if (!onboardingSessionConfigured()) {
+        return noStore(
+          {
+            state: "configuration_error",
+            message: "Verified onboarding sessions require RFXCHANGE_SESSION_SECRET with at least 32 characters.",
+          },
+          503,
+        );
+      }
 
       const result = await verifyAccountVerificationToken(token);
       if (result.kind === "expired") {
@@ -57,12 +72,25 @@ export async function POST(request: NextRequest) {
         return noStore({ state: "invalid", message: "This verification link is invalid or has already been used." }, 400);
       }
 
-      return noStore({
+      const onboardingSession = createOnboardingSessionToken(result.email);
+      if (!onboardingSession) {
+        return noStore({ state: "configuration_error", message: "Verified onboarding session could not be established." }, 503);
+      }
+
+      const response = noStore({
         state: "verified",
         email: result.email,
         context: result.context,
         nextPath: result.nextPath,
       });
+      response.cookies.set(ONBOARDING_SESSION_COOKIE, onboardingSession, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: ONBOARDING_SESSION_TTL_SECONDS,
+      });
+      return response;
     }
 
     if (body.action === "request" || body.action === "resend" || body.action === "change_email") {
