@@ -9,18 +9,8 @@ export interface ExchangeMapPinRenderState {
   recordId: string;
   location: Coordinates;
   kind: ExchangeMapPinKind;
-  /**
-   * Transition state supplied by the Exchange shell. The renderer deliberately
-   * does not use this value to move the pin's geographic anchor: the teardrop
-   * tip is always locked to the record coordinate at ground altitude.
-   */
-  altitude: number;
   scale: number;
   opacity: number;
-}
-
-export interface MercatorCoordinateFactory {
-  fromLngLat(lngLat: [number, number], altitude?: number): { x: number; y: number; z: number };
 }
 
 type GLContext = WebGLRenderingContext | WebGL2RenderingContext;
@@ -52,7 +42,8 @@ const PIN_BASE_WIDTH = 52;
 const PIN_BASE_HEIGHT = 72;
 const PIN_TEXTURE_WIDTH = 192;
 const PIN_TEXTURE_HEIGHT = 256;
-const SPRITE_FLOATS_PER_VERTEX = 8;
+const PIN_TEXTURE_TIP_Y = 236;
+const SPRITE_FLOATS_PER_VERTEX = 5;
 
 const palettes: Record<ExchangeMapPinKind, PinPalette> = {
   highlight: {
@@ -86,22 +77,13 @@ function shaderSources(gl: GLContext): ShaderSources {
     return {
       vertex: `#version 300 es
         precision highp float;
-        in vec3 a_anchor;
-        in vec2 a_offset;
+        in vec2 a_position;
         in vec2 a_uv;
         in float a_opacity;
-        uniform mat4 u_matrix;
-        uniform vec2 u_viewport;
         out vec2 v_uv;
         out float v_opacity;
         void main() {
-          vec4 clip = u_matrix * vec4(a_anchor, 1.0);
-          vec2 offsetNdc = vec2(
-            (a_offset.x * 2.0) / u_viewport.x,
-            (a_offset.y * 2.0) / u_viewport.y
-          );
-          clip.xy += offsetNdc * clip.w;
-          gl_Position = clip;
+          gl_Position = vec4(a_position, 0.0, 1.0);
           v_uv = a_uv;
           v_opacity = a_opacity;
         }
@@ -126,22 +108,13 @@ function shaderSources(gl: GLContext): ShaderSources {
   return {
     vertex: `
       precision highp float;
-      attribute vec3 a_anchor;
-      attribute vec2 a_offset;
+      attribute vec2 a_position;
       attribute vec2 a_uv;
       attribute float a_opacity;
-      uniform mat4 u_matrix;
-      uniform vec2 u_viewport;
       varying vec2 v_uv;
       varying float v_opacity;
       void main() {
-        vec4 clip = u_matrix * vec4(a_anchor, 1.0);
-        vec2 offsetNdc = vec2(
-          (a_offset.x * 2.0) / u_viewport.x,
-          (a_offset.y * 2.0) / u_viewport.y
-        );
-        clip.xy += offsetNdc * clip.w;
-        gl_Position = clip;
+        gl_Position = vec4(a_position, 0.0, 1.0);
         v_uv = a_uv;
         v_opacity = a_opacity;
       }
@@ -197,11 +170,11 @@ function createProgram(gl: GLContext, vertexSource: string, fragmentSource: stri
 
 function pinPath(dx = 0, dy = 0) {
   const path = new Path2D();
-  path.moveTo(96 + dx, 236 + dy);
+  path.moveTo(96 + dx, PIN_TEXTURE_TIP_Y + dy);
   path.bezierCurveTo(80 + dx, 210 + dy, 34 + dx, 158 + dy, 26 + dx, 106 + dy);
   path.bezierCurveTo(18 + dx, 50 + dy, 49 + dx, 18 + dy, 94 + dx, 16 + dy);
   path.bezierCurveTo(140 + dx, 14 + dy, 171 + dx, 49 + dy, 166 + dx, 103 + dy);
-  path.bezierCurveTo(161 + dx, 153 + dy, 113 + dx, 210 + dy, 96 + dx, 236 + dy);
+  path.bezierCurveTo(161 + dx, 153 + dy, 113 + dx, 210 + dy, 96 + dx, PIN_TEXTURE_TIP_Y + dy);
   path.closePath();
   path.ellipse(96 + dx, 84 + dy, 32, 30, 0, 0, Math.PI * 2);
   return path;
@@ -217,9 +190,10 @@ function createPinCanvas(kind: ExchangeMapPinKind) {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Faux thickness behind the front face gives the dimensional 2.5D read while
-  // the marker itself remains a camera-facing billboard.
-  const side = pinPath(8, 7);
+  // Faux thickness stays horizontal so the front and side silhouettes share
+  // one geographic tip. The marker therefore reads as dimensional without a
+  // second visual point beneath the record coordinate.
+  const side = pinPath(8, 0);
   const sideGradient = ctx.createLinearGradient(42, 28, 162, 220);
   sideGradient.addColorStop(0, palette.dark);
   sideGradient.addColorStop(0.55, palette.edge);
@@ -294,24 +268,12 @@ function createTexture(gl: GLContext, kind: ExchangeMapPinKind) {
   return texture;
 }
 
-function projectMercator(
-  matrix: Float32Array,
-  coordinate: { x: number; y: number; z: number },
-  width: number,
-  height: number,
-) {
-  const { x, y, z } = coordinate;
-  const clipX = matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12];
-  const clipY = matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13];
-  const clipW = matrix[3] * x + matrix[7] * y + matrix[11] * z + matrix[15];
-  if (!Number.isFinite(clipW) || clipW <= 0.000001) return undefined;
+function clipX(pixelX: number, viewportWidth: number) {
+  return pixelX / viewportWidth * 2 - 1;
+}
 
-  const ndcX = clipX / clipW;
-  const ndcY = clipY / clipW;
-  return {
-    x: (ndcX * 0.5 + 0.5) * width,
-    y: (1 - (ndcY * 0.5 + 0.5)) * height,
-  };
+function clipY(pixelY: number, viewportHeight: number) {
+  return 1 - pixelY / viewportHeight * 2;
 }
 
 export class ExchangePinLayer implements CustomLayerInterface {
@@ -327,8 +289,6 @@ export class ExchangePinLayer implements CustomLayerInterface {
   private spriteBuffer?: WebGLBuffer;
   private focusTexture?: WebGLTexture;
   private highlightTexture?: WebGLTexture;
-
-  constructor(private readonly mercatorCoordinate: MercatorCoordinateFactory) {}
 
   setPins(pins: ExchangeMapPinRenderState[]) {
     this.pins = pins.filter((pin) => finiteCoordinate(pin.location) && pin.opacity > 0.001 && pin.scale > 0.001);
@@ -369,85 +329,86 @@ export class ExchangePinLayer implements CustomLayerInterface {
     this.hitBoxes = [];
   }
 
-  private drawSprites(
-    gl: GLContext,
-    matrix: Float32Array,
-    kind: ExchangeMapPinKind,
-    viewportWidth: number,
-    viewportHeight: number,
-  ) {
-    if (!this.spriteProgram || !this.spriteBuffer) return;
+  private drawSprites(gl: GLContext, kind: ExchangeMapPinKind, viewportWidth: number, viewportHeight: number) {
+    if (!this.map || !this.spriteProgram || !this.spriteBuffer) return;
     const texture = kind === "focus" ? this.focusTexture : this.highlightTexture;
     if (!texture) return;
 
     const vertices: number[] = [];
-    const addVertex = (
-      anchor: { x: number; y: number; z: number },
-      offsetX: number,
-      offsetY: number,
-      u: number,
-      v: number,
-      opacity: number,
-    ) => vertices.push(anchor.x, anchor.y, anchor.z, offsetX, offsetY, u, v, opacity);
+    const nextHitBoxes: PinHitBox[] = [];
+
+    const addVertex = (x: number, y: number, u: number, v: number, opacity: number) => {
+      vertices.push(clipX(x, viewportWidth), clipY(y, viewportHeight), u, v, opacity);
+    };
 
     for (const pin of this.pins) {
       if (pin.kind !== kind) continue;
 
-      // Critical anchoring rule: the teardrop tip is the record's geographic
-      // coordinate. The pin body grows upward in screen space from that fixed
-      // point; focus/highlight state never lifts the coordinate itself.
-      const anchor = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], 0);
+      // map.project() performs the geographic projection in JavaScript double
+      // precision. The GPU only receives normalized screen coordinates near
+      // [-1, 1], eliminating Mercator Float32 precision jitter during pan/zoom.
+      const point = this.map.project([pin.location.lng, pin.location.lat]);
+      if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+
       const width = PIN_BASE_WIDTH * pin.scale;
       const height = PIN_BASE_HEIGHT * pin.scale;
-      const left = -width / 2;
-      const right = width / 2;
-      const tip = 0;
-      const top = height;
+      const left = point.x - width / 2;
+      const right = point.x + width / 2;
 
-      addVertex(anchor, left, tip, 0, 0, pin.opacity);
-      addVertex(anchor, right, tip, 1, 0, pin.opacity);
-      addVertex(anchor, right, top, 1, 1, pin.opacity);
-      addVertex(anchor, left, tip, 0, 0, pin.opacity);
-      addVertex(anchor, right, top, 1, 1, pin.opacity);
-      addVertex(anchor, left, top, 0, 1, pin.opacity);
+      // The procedural texture has transparent pixels below its actual tip.
+      // Extend the quad slightly below the geographic point so the painted
+      // teardrop tip, not the texture rectangle, lands exactly on the record.
+      const tailPadding = (PIN_TEXTURE_HEIGHT - PIN_TEXTURE_TIP_Y) / PIN_TEXTURE_HEIGHT * height;
+      const bottom = point.y + tailPadding;
+      const top = bottom - height;
+
+      addVertex(left, bottom, 0, 0, pin.opacity);
+      addVertex(right, bottom, 1, 0, pin.opacity);
+      addVertex(right, top, 1, 1, pin.opacity);
+      addVertex(left, bottom, 0, 0, pin.opacity);
+      addVertex(right, top, 1, 1, pin.opacity);
+      addVertex(left, top, 0, 1, pin.opacity);
+
+      nextHitBoxes.push({
+        recordId: pin.recordId,
+        priority: pin.kind === "focus" ? 2 : 1,
+        left,
+        right,
+        top,
+        bottom: point.y + 4,
+      });
     }
 
-    if (!vertices.length) return;
+    if (vertices.length) {
+      gl.useProgram(this.spriteProgram);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.DYNAMIC_DRAW);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(gl.getUniformLocation(this.spriteProgram, "u_texture"), 0);
 
-    gl.useProgram(this.spriteProgram);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.DYNAMIC_DRAW);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.spriteProgram, "u_matrix"), false, matrix);
-    gl.uniform2f(gl.getUniformLocation(this.spriteProgram, "u_viewport"), viewportWidth, viewportHeight);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.uniform1i(gl.getUniformLocation(this.spriteProgram, "u_texture"), 0);
+      const stride = SPRITE_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
+      const positionLocation = gl.getAttribLocation(this.spriteProgram, "a_position");
+      const uvLocation = gl.getAttribLocation(this.spriteProgram, "a_uv");
+      const opacityLocation = gl.getAttribLocation(this.spriteProgram, "a_opacity");
 
-    const stride = SPRITE_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
-    const anchorLocation = gl.getAttribLocation(this.spriteProgram, "a_anchor");
-    const offsetLocation = gl.getAttribLocation(this.spriteProgram, "a_offset");
-    const uvLocation = gl.getAttribLocation(this.spriteProgram, "a_uv");
-    const opacityLocation = gl.getAttribLocation(this.spriteProgram, "a_opacity");
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, stride, 0);
+      gl.enableVertexAttribArray(uvLocation);
+      gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, stride, 2 * Float32Array.BYTES_PER_ELEMENT);
+      gl.enableVertexAttribArray(opacityLocation);
+      gl.vertexAttribPointer(opacityLocation, 1, gl.FLOAT, false, stride, 4 * Float32Array.BYTES_PER_ELEMENT);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / SPRITE_FLOATS_PER_VERTEX);
+      gl.disableVertexAttribArray(positionLocation);
+      gl.disableVertexAttribArray(uvLocation);
+      gl.disableVertexAttribArray(opacityLocation);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+    }
 
-    gl.enableVertexAttribArray(anchorLocation);
-    gl.vertexAttribPointer(anchorLocation, 3, gl.FLOAT, false, stride, 0);
-    gl.enableVertexAttribArray(offsetLocation);
-    gl.vertexAttribPointer(offsetLocation, 2, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
-    gl.enableVertexAttribArray(uvLocation);
-    gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, stride, 5 * Float32Array.BYTES_PER_ELEMENT);
-    gl.enableVertexAttribArray(opacityLocation);
-    gl.vertexAttribPointer(opacityLocation, 1, gl.FLOAT, false, stride, 7 * Float32Array.BYTES_PER_ELEMENT);
-
-    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / SPRITE_FLOATS_PER_VERTEX);
-
-    gl.disableVertexAttribArray(anchorLocation);
-    gl.disableVertexAttribArray(offsetLocation);
-    gl.disableVertexAttribArray(uvLocation);
-    gl.disableVertexAttribArray(opacityLocation);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+    this.hitBoxes.push(...nextHitBoxes);
   }
 
-  render(gl: GLContext, args: CustomRenderMethodInput) {
+  render(gl: GLContext, _args: CustomRenderMethodInput) {
     if (!this.visible || !this.pins.length || !this.map || !this.spriteProgram) {
       this.hitBoxes = [];
       return;
@@ -456,7 +417,6 @@ export class ExchangePinLayer implements CustomLayerInterface {
     const canvas = this.map.getCanvas();
     const width = Math.max(1, canvas.clientWidth);
     const height = Math.max(1, canvas.clientHeight);
-    const matrix = new Float32Array(args.defaultProjectionData.mainMatrix as ArrayLike<number>);
 
     const depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST);
     const cullWasEnabled = gl.isEnabled(gl.CULL_FACE);
@@ -469,29 +429,13 @@ export class ExchangePinLayer implements CustomLayerInterface {
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
 
-    this.drawSprites(gl, matrix, "highlight", width, height);
-    this.drawSprites(gl, matrix, "focus", width, height);
+    this.hitBoxes = [];
+    this.drawSprites(gl, "highlight", width, height);
+    this.drawSprites(gl, "focus", width, height);
 
     gl.depthMask(depthWriteWasEnabled);
     if (depthWasEnabled) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
     if (cullWasEnabled) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
     if (blendWasEnabled) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
-
-    this.hitBoxes = this.pins.flatMap((pin) => {
-      const anchor = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], 0);
-      const point = projectMercator(matrix, anchor, width, height);
-      if (!point) return [];
-
-      const pinWidth = PIN_BASE_WIDTH * pin.scale;
-      const pinHeight = PIN_BASE_HEIGHT * pin.scale;
-      return [{
-        recordId: pin.recordId,
-        priority: pin.kind === "focus" ? 2 : 1,
-        left: point.x - pinWidth / 2,
-        right: point.x + pinWidth / 2,
-        top: point.y - pinHeight,
-        bottom: point.y + 4,
-      }];
-    });
   }
 }
