@@ -4,17 +4,21 @@ on:
   pull_request:
     branches:
       - main
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
   push:
     branches:
       - main
-      - "agent/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: "pages-preview-${{ github.ref }}"
+  group: "pages-preview-build-${{ github.event.pull_request.number || github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -35,38 +39,50 @@ jobs:
       - name: Validate production source
         run: npm run typecheck
 
+      - name: Resolve preview base path
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            preview_path="pr-${{ github.event.pull_request.number }}"
+            base_path="/${{ github.event.repository.name }}/${preview_path}"
+          else
+            preview_path=""
+            base_path="/${{ github.event.repository.name }}"
+          fi
+
+          echo "RFX_PREVIEW_PATH=${preview_path}" >> "$GITHUB_ENV"
+          echo "PAGES_BASE_PATH=${base_path}" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_BASE_PATH=${base_path}" >> "$GITHUB_ENV"
+
       - name: Prepare static preview projection
-        run: node scripts/prepare-pages-preview.mjs
+        run: |
+          node scripts/prepare-pages-preview.mjs
+          node scripts/prepare-onboarding-detail-preview.mjs
+          node scripts/prepare-membership-preview.mjs
 
       - name: Build static Pages preview
         run: npm run build
         env:
           RFXCHANGE_PAGES_PREVIEW: "1"
-          PAGES_BASE_PATH: "/${{ github.event.repository.name }}"
-          NEXT_PUBLIC_BASE_PATH: "/${{ github.event.repository.name }}"
+          PAGES_BASE_PATH: ${{ env.PAGES_BASE_PATH }}
+          NEXT_PUBLIC_BASE_PATH: ${{ env.NEXT_PUBLIC_BASE_PATH }}
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
         with:
+          name: pages-preview-site
           path: ./out
+          if-no-files-found: error
+          retention-days: 7
 
-  deploy-preview:
-    if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
-    needs: build-preview
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-
-      - name: Deploy Pages preview
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Record preview target
+        shell: bash
+        run: |
+          root="https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
+          if [[ -n "${RFX_PREVIEW_PATH}" ]]; then
+            echo "### Visual preview target" >> "$GITHUB_STEP_SUMMARY"
+            echo "${root}/${RFX_PREVIEW_PATH}/exchange/rfx/" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "### Main Pages target" >> "$GITHUB_STEP_SUMMARY"
+            echo "${root}/" >> "$GITHUB_STEP_SUMMARY"
+          fi

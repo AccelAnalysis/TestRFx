@@ -11,25 +11,22 @@ The persistent lens set remains:
 - Intelligence
 - Capabilities
 
-Menu opens above that mounted Exchange state and provides organization, person/account, referral, communication, saved/watch, commercial, privacy, support, and session utilities. Closing Menu returns the member to the same Exchange context.
+Menu opens above the mounted Exchange state. Closing Menu returns the member to the same lens, map, search, drawer, selection, and detail context.
 
 ## Operating-chassis boundary
 
 The shell owns:
 
-- the persistent RFx / Resources / Intelligence / Capabilities / Menu bottom navigation;
+- persistent RFx / Resources / Intelligence / Capabilities / Menu bottom navigation;
 - opening and closing the Menu overlay;
-- preserving the active lens, map, query, drawer, selected record, and detail context underneath Menu;
-- responsive mobile-sheet and desktop-side-surface behavior;
-- accessible dialog semantics and Escape/back behavior;
-- the stable Menu destination registry;
-- progressive-availability presentation for utility integration points.
+- nested Menu navigation state and Back/Escape behavior;
+- responsive mobile-sheet and desktop-side-surface composition;
+- the stable Menu hierarchy and destination contract;
+- progressive-availability presentation.
 
-The utility domains own their business logic and persistence. Menu must not duplicate those services.
+The utility domains own their business logic, authorization, persistence, and final execution. Menu must not duplicate those services.
 
-## Canonical Menu structure
-
-The governed top-level order is:
+## Canonical top-level order
 
 1. Organization Profile
 2. My Profile
@@ -44,35 +41,269 @@ The governed top-level order is:
 11. About RFxchange
 12. Sign out
 
-The implementation groups these visually for scanning, but does not change the canonical ordering or ownership semantics.
+## Hierarchical Menu contract
+
+The initial Menu build correctly reserved the top-level sections, but flattened deeper destinations into action rows. The complete contract now uses a navigable `MenuNode` tree.
+
+Each node may define:
+
+```text
+id
+label
+description
+scope
+kind
+surface
+availability
+destructive?
+requiredRole?
+destination?
+details?
+children?
+```
+
+Node kinds are:
+
+```text
+section
+submenu
+task
+workflow
+confirmation
+handoff
+```
+
+Surface kinds are:
+
+```text
+overview
+list
+form
+detail
+sequence
+handoff
+```
+
+The important availability rule is:
+
+> Structural navigation may be available before the production workflow is operational.
+
+A member may therefore navigate Menu → Organization Profile → Organization Administration → Delete Organization → Step 1 Impact Review even while the final delete mutation remains disabled. The hierarchy is stable; the service integration determines whether execution is operational.
+
+## Complete source-derived Menu tree
+
+```text
+Menu
+│
+├── Organization Profile
+│   ├── Organization Details
+│   ├── Verified Information
+│   ├── Capabilities / AMACS
+│   ├── Locations
+│   ├── Team Members
+│   │   ├── Team List
+│   │   ├── Roles & Permissions
+│   │   ├── Invitations
+│   │   └── Access Management
+│   ├── Documents & Evidence
+│   ├── Brand & Visibility Settings
+│   ├── Edit / Manage Organization
+│   │   ├── Basic Information
+│   │   ├── Contact & Address
+│   │   ├── Industry & Codes
+│   │   ├── Certifications
+│   │   ├── Description
+│   │   └── Logo & Branding
+│   └── Organization Administration
+│       ├── Leave Organization
+│       ├── Transfer Organization Ownership
+│       │   ├── Select New Owner
+│       │   ├── Review Impact
+│       │   └── Confirm Transfer
+│       ├── Remove Team Member
+│       ├── Deactivate Organization
+│       └── Delete Organization [Admin / Owner]
+│           ├── Step 1 — Impact Review
+│           ├── Step 2 — Confirm Identity
+│           └── Final Confirmation
+│
+├── My Profile
+│   ├── Edit Profile
+│   │   ├── Personal Information
+│   │   ├── Contact Details
+│   │   └── Profile Photo
+│   ├── Role & Permissions
+│   └── Linked Organizations
+│       ├── Organizations You Belong To
+│       ├── Switch Active Organization
+│       └── Set Default Organization
+│
+├── Security & Account
+│   ├── Change Password
+│   ├── Multi-Factor Authentication (MFA)
+│   ├── Authentication Methods
+│   ├── Active Sessions / Devices
+│   ├── Sign Out of All Devices
+│   └── Danger Zone
+│       └── Delete Personal Account
+│           ├── Step 1 — Impact Review
+│           ├── Step 2 — Confirm Identity
+│           └── Final Confirmation
+│
+├── Settings
+│   ├── Application Preferences
+│   ├── Notification Preferences
+│   ├── Privacy Preferences
+│   └── General Preferences
+│
+├── Referrals Management
+│   ├── Overview
+│   │   ├── Summary
+│   │   ├── In Progress
+│   │   ├── Completed
+│   │   └── Earnings
+│   ├── Referrals
+│   │   ├── Sent Referrals
+│   │   ├── Received Referrals
+│   │   ├── In Progress
+│   │   ├── Completed / Won
+│   │   └── Closed / Lost
+│   ├── Referral Policies
+│   │   ├── My Referral Policy
+│   │   ├── Payout Terms
+│   │   ├── Minimums & Rules
+│   │   └── Eligibility Criteria
+│   ├── Payments & Payouts
+│   │   ├── Earnings Summary
+│   │   ├── Payout History
+│   │   ├── Pending Payouts
+│   │   └── Payment Methods
+│   ├── Reports
+│   │   ├── Performance
+│   │   ├── Conversion Rates
+│   │   ├── Top Referrers
+│   │   └── Trend Analysis
+│   ├── Create Referral
+│   │   ├── Select Organization
+│   │   ├── Select Recipient
+│   │   ├── Attach Context
+│   │   │   ├── RFx
+│   │   │   ├── Resource
+│   │   │   ├── Capability
+│   │   │   └── Intelligence
+│   │   ├── Referral Policy Preview
+│   │   ├── Notes / Message
+│   │   └── Submit Referral
+│   └── Referral Details
+│       ├── Referral Information
+│       ├── Status & Timeline
+│       ├── Messages / Notes
+│       └── Payout Information
+│
+├── Messages & Notifications
+│   ├── Messages
+│   │   ├── All Messages
+│   │   ├── Unread
+│   │   ├── Archived
+│   │   └── Search
+│   └── Notifications
+│       ├── All Notifications
+│       ├── Unread
+│       ├── System Alerts
+│       ├── Activity Updates
+│       └── Mark All Read
+│
+├── Saved & Watchlist
+│   ├── Saved Organizations
+│   ├── Saved RFx
+│   ├── Saved Resources
+│   ├── Watched RFx
+│   └── Watched Organizations
+│
+├── Billing & Membership
+│   ├── Current Plan
+│   ├── Change Plan
+│   │   ├── Compare Plans
+│   │   ├── Select Plan
+│   │   ├── Review Changes
+│   │   └── Confirm
+│   ├── Payment Methods
+│   ├── Invoices
+│   │   ├── Invoice History
+│   │   ├── Download PDF
+│   │   └── Payment Status
+│   ├── Payment History
+│   ├── Credits
+│   └── Membership Lifecycle
+│
+├── Privacy & Data
+│   ├── Data Download
+│   ├── Privacy Controls
+│   ├── Consent
+│   └── Data Requests
+│
+├── Help & Support
+│   ├── Help Center
+│   ├── How-To Guides
+│   ├── FAQs
+│   └── Contact Support
+│
+├── About RFxchange
+│   ├── About the Platform
+│   ├── Terms of Service
+│   ├── Privacy Policy
+│   ├── Platform Rules
+│   ├── Accessibility
+│   └── Version Information
+│
+└── Sign Out
+    └── Confirm Sign Out
+```
+
+`General Preferences`, `Credits`, `Platform Rules`, and `Accessibility` are intentional platform-level additions from the broader RFxchange architecture. The remaining named nodes above are source-defined Menu concepts or explicit children from the original Menu buildout.
+
+## Nested navigation state
+
+Menu keeps its own navigation stack while the Exchange remains mounted beneath it.
+
+Example:
+
+```text
+Exchange state
+  lens = capabilities
+  query = cybersecurity
+  drawer = expanded
+  selected = cap-042
+
+Menu stack
+  Organization Profile
+    → Organization Administration
+      → Transfer Organization Ownership
+        → Review Impact
+```
+
+Back pops one Menu level. Escape does the same. Escape/close at the Menu root dismisses Menu and restores the exact Exchange context that remained mounted underneath.
+
+Breadcrumbs expose the current Menu path and can move directly back to an ancestor.
 
 ## Organization Profile
 
-Organization Profile is the administrative view of the same canonical organization used throughout the Exchange. It is not a second capability or organization application.
+Organization Profile administers the same canonical organization used by RFx, Resources, Intelligence, Capabilities, Referrals, billing, and relationships.
 
-The Menu contract reserves utility actions for:
+It must not create a Menu-specific copy of organization data.
 
-- organization details;
-- verified information;
-- Capabilities / AMACS administration;
-- locations;
-- team members, roles, invitations, and permissions;
-- documents and evidence;
-- brand and Exchange visibility;
-- leaving the organization;
-- transferring ownership;
-- deactivation;
-- organization deletion.
+`Capabilities / AMACS` is a handoff to the same capability identity used by onboarding, search, matching, referrals, RFx, Intelligence, and the Capabilities lens.
 
-`Capabilities / AMACS` must hand into the same capability identity used by onboarding, search, matching, referrals, RFx, Intelligence, and the Capabilities lens. It must not create a Menu-specific capability store.
+Organization editing and organization administration are intentionally separate:
+
+- editing changes descriptive/profile information;
+- administration changes membership, ownership, participation state, or organization lifecycle.
 
 ## Person versus organization
 
-Menu keeps person-level and organization-level identity separate:
-
 ```text
 Person
-  ├── profile
+  ├── personal profile
   ├── authentication
   ├── sessions/devices
   ├── preferences
@@ -93,11 +324,11 @@ Person
               └── Exchange activity
 ```
 
-If a member belongs to more than one organization, the active organization switcher belongs at the top of Menu. Switching organizations is a context operation; it must re-resolve permissions, ownership, commercial membership, and downstream action availability.
+Switching active organization is a context operation. Production must re-resolve permissions, ownership, membership/entitlement state, record ownership, and downstream action availability.
 
 ## Referrals are cross-lens
 
-Referral creation may originate from RFx, Resource, Intelligence, Capability, or organization context, but referral administration belongs in Menu.
+Referral creation may originate from RFx, Resource, Intelligence, Capability, or organization context. Referral administration belongs in Menu.
 
 ```text
 RFx ───────────┐
@@ -108,45 +339,65 @@ Organization ──┘                  ▼
                          Menu > Referrals Management
 ```
 
-Referrals therefore remain outside `ExchangeLens` and must not be added back to persistent bottom navigation.
-
-Menu reserves management destinations for overview, lifecycle, referral policy, payments/payouts, reporting, and creation. The production referral service remains authoritative for referral eligibility, terms, status, fees, payouts, and audit history.
+The Menu hierarchy now reserves the full dashboard, lifecycle, policies, payouts, reports, create-referral composer, and referral-detail surfaces from the source flow.
 
 ## Messages and notifications
 
-Messages and notifications share one Menu entry but remain distinct concepts.
+Messages are conversations/inbox items.
 
-- Messages are conversations/inbox items.
-- Notifications are event-driven platform alerts.
+Notifications are event-driven platform alerts.
 
-Production RFx, Resource, Capability, Intelligence, referral, organization, membership, and account services should emit events into one shared notification service instead of building lens-specific notification centers.
+They share one Menu entry but remain separate child surfaces. `Mark All Read` is explicitly represented as a notification workflow rather than being hidden inside generic notification text.
 
 ## Saved and watch relationships
 
-Menu presents saved and watched relationships across record classes. The production relationship service should normalize these relationships rather than having each lens own a separate save implementation.
+Saved and watched records should use one shared relationship service rather than lens-specific save systems.
 
-The current contract includes saved organizations, RFx, resources, watched RFx, and watched organizations, and is intentionally extensible to other Exchange record classes.
+The current hierarchy includes:
+
+- saved organizations;
+- saved RFx;
+- saved resources;
+- watched RFx;
+- watched organizations.
+
+The relationship service may later extend the same contract to Intelligence and other Exchange record classes without creating another Menu architecture.
 
 ## Billing and membership
 
-Billing & Membership is generally scoped to the active organization. It should resolve commercial membership separately from user-to-organization membership.
+Billing & Membership is scoped to the active organization.
 
-The Menu contract reserves:
+The hierarchy now distinguishes:
 
-- current plan / entitlement state;
-- plan changes;
+- current plan;
+- plan-change workflow;
 - payment methods;
-- invoices;
+- invoices and invoice artifacts;
+- payment history;
 - organization credit ledger;
 - membership lifecycle.
 
-Production billing must enforce server-side organization authority, capacity rules, Stripe/payment reconciliation, credit rules, and entitlement changes. The Menu client must not infer commercial truth from UI state.
+Commercial membership remains separate from person-to-organization membership.
 
 ## Destructive-action policy
 
-Sign out, leave organization, transfer ownership, deactivate/delete organization, sign out all devices, and delete personal account are governed actions.
+The four source-emphasized destructive actions are:
 
-A production destructive-action controller should apply the appropriate combination of:
+1. Sign Out
+2. Leave Organization
+3. Delete Personal Account
+4. Delete Organization
+
+Transfer ownership, remove team member, deactivate organization, and sign out all devices are also governed administrative/destructive workflows.
+
+The source defines shared dependency checks before account or organization deletion:
+
+- active membership or unpaid invoices;
+- unpaid referral payouts;
+- active RFx, resources, or team responsibilities;
+- sole administrator / ownership status.
+
+Production execution should apply the appropriate combination of:
 
 1. server-side authorization;
 2. dependency checks;
@@ -158,72 +409,71 @@ A production destructive-action controller should apply the appropriate combinat
 8. audit/activity event emission;
 9. downstream notification.
 
-The reference chassis does not simulate these mutations. It exposes their stable UI positions and marks the production service boundary explicitly.
+The reference chassis exposes the complete navigation/step structure but does not simulate irreversible mutations.
 
 ## Progressive availability
 
-Menu uses the same architectural principle as the lens action rail: intended functionality may be visible before the backing workflow is operational.
+Menu uses the same governing distinction as the lens action rail:
 
-A Menu action therefore carries an availability state. In the reference implementation, downstream utility workflows are shown as `integration` points rather than fake operational actions.
+```text
+visible
+applicable
+authorized
+operational
+```
 
-Production services may make those actions operational without changing the Menu information architecture.
+The current reference tree focuses on structural availability and `operational` versus `integration` state. Production policy services should resolve visibility, applicability, and authorization server-side before enabling final execution.
+
+A disabled service must not make its parent Menu path disappear. This keeps product information architecture stable as integrations go live.
 
 ## Responsive behavior
 
 Mobile:
 
 - Menu opens as a near-full-height bottom sheet over the current Exchange.
-- The Exchange remains visually present beneath the backdrop.
-- Nested utility areas remain within the Menu controller rather than routing into unrelated full-page applications.
+- Child and grandchild surfaces stay in the Menu controller.
+- Breadcrumbs and Back expose hierarchy without mounting a parallel app.
 
 Desktop:
 
 - Menu becomes a right-side utility surface over the persistent Exchange.
-- The same hierarchy and contracts are preserved.
-
-## State continuity
-
-Opening Menu must not mutate the active Exchange view state.
-
-At minimum, the following remain mounted underneath the overlay:
-
-- active lens;
-- search query and future structured filters/sort;
-- map camera / geography state;
-- drawer state;
-- selected record;
-- list position;
-- detail state where applicable.
-
-The current chassis already preserves these values because `MenuSurface` is mounted as an overlay rather than a route-level replacement.
+- The same hierarchy and navigation stack are preserved.
 
 ## Integration services
 
-The production Menu ultimately consumes shared platform services:
-
 ```text
 Menu
-├── Identity / session service
-├── Organization / membership / permissions service
+├── Identity / session / account service
+├── Organization profile service
+├── Organization membership / permissions service
+├── Organization geography service
+├── Organization verification service
 ├── Capability / AMACS service
-├── Referral service
+├── Object storage / media / evidence service
+├── Referral / referral policy / payout / reporting services
 ├── Relationship service (save/watch/follow)
-├── Communications / notification service
-├── Commercial membership / billing / credit service
+├── Messaging service
+├── Notification service
+├── Commercial membership / billing / credit services
 ├── Privacy / consent / data-request service
 ├── Support service
 └── Audit / activity event service
 ```
 
-The dependency direction is important: these services plug into Menu. They do not get to create additional persistent lenses or independent application shells.
+These services plug into Menu. They do not get to create new persistent lenses or independent application shells.
 
 ## Current reference implementation
 
-This branch adds:
+The branch now provides:
 
-- `lib/exchange/menu.ts` as the stable utility registry and availability contract;
-- a hierarchical `MenuSurface` with organization context, section drill-in, source-defined utility destinations, destructive-action boundaries, Escape/back behavior, and responsive presentation;
-- explicit Menu dialog state on the existing bottom navigation;
-- progressive-availability labels so non-operational services are visible without being falsely represented as complete.
+- a complete hierarchical `MenuNode` tree instead of a flat action list;
+- all explicit missing source children identified during review;
+- nested navigation stack with Back, Escape, and breadcrumbs;
+- real child/grandchild task surfaces inside the Menu overlay;
+- explicit multi-step transfer, account deletion, organization deletion, plan change, referral creation, and sign-out workflows;
+- shared destructive-impact check presentation;
+- concrete service/handoff destination metadata for leaves;
+- progressive availability where navigation remains usable but production execution remains disabled until its service is connected;
+- preservation of the underlying Exchange state because Menu remains an overlay.
 
-The reference member and organization values are deterministic chassis context only. Production authenticated viewer, active organization, roles, permissions, membership, counts, notification state, and utility availability must be supplied by server-backed application services.
+The reference member and organization values remain deterministic chassis context only. Production authenticated viewer context, role/permission evaluation, notification counts, billing truth, workflow persistence, and final mutations must come from server-backed application services.

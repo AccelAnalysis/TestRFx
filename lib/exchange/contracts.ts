@@ -10,6 +10,8 @@ export type SearchLocationMode = "all" | "mapped" | "off-map";
 export type SearchOwnership = "all" | "mine" | "others";
 export type SearchSuggestionKind = "record" | "organization" | "geography" | "metadata";
 export type MapDisplayMode = "2d" | "3d";
+export type MapStyleId = "standard" | "bright" | "light" | "dark" | "muted";
+export type MapControlRoute = "root" | "view" | "basemap" | "layers" | "geography";
 export type GeolocationStatus = "idle" | "requesting" | "located" | "denied" | "unavailable";
 export type RecordRelationshipFilter = "all" | "mine" | "others";
 export type ExchangeCardPlacement = "organic" | "featured" | "sponsored";
@@ -22,12 +24,15 @@ export type LensActionToggle = "save" | "watch" | "track" | "follow";
 export type ResourceAvailabilityState = "available" | "limited" | "scheduled";
 export type ResourceVisibility = "public-location" | "service-area" | "off-map";
 export type ResourceStatus = "active" | "archived";
+export type MapHighlightReason = "featured" | "sponsored" | "verified" | "recommended" | "time-sensitive" | "program" | "custom";
 
 export type Coordinates = { lat: number; lng: number };
 export interface MapCamera { center: Coordinates; zoom: number; bearing: number; pitch: number; mode: MapDisplayMode; }
 export interface MapBounds { north: number; south: number; east: number; west: number; }
 export interface MapGeographyContext { id: string; label: string; scope: "authorized" | "selected" | "reference"; }
-export interface MapViewState { camera: MapCamera; geography: MapGeographyContext; queriedBounds?: MapBounds; }
+export interface MapLayerVisibility { records: boolean; lensOverlay: boolean; }
+export interface MapGeographyOption { id: string; label: string; center?: Coordinates; bounds?: MapBounds; recordCount: number; }
+export interface MapViewState { camera: MapCamera; geography: MapGeographyContext; style: MapStyleId; layers: MapLayerVisibility; currentBounds?: MapBounds; queriedBounds?: MapBounds; }
 export interface DrawerQueryState { sort: DrawerSort; location: DrawerLocationFilter; ownership: DrawerOwnershipFilter; savedOnly: boolean; featuredOnly: boolean; }
 export interface ExchangeCardMedia { kind: ExchangeCardMediaKind; label: string; src?: string; alt?: string; }
 export interface ExchangeCardStatus { label: string; tone?: ExchangeStatusTone; }
@@ -43,10 +48,12 @@ export interface ResourceProjection {
   status: ResourceStatus;
   sponsored?: boolean;
 }
+export interface MapHighlight { reason: MapHighlightReason; priority?: number; active?: boolean; }
 
 export interface ExchangeRecord {
   id: string; type: ExchangeRecordType; title: string; organization: string; summary: string; geography: string; metadata: string[];
   location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection; resource?: ResourceProjection;
+  mapHighlight?: MapHighlight;
 }
 
 export interface LensAction {
