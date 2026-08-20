@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
         basePath: pagesBasePath,
         trailingSlash: true,
         images: { unoptimized: true },
+        // Visual previews are intentionally decoupled from repository-wide
+        // production type validation. chassis-ci remains the merge-quality gate.
+        // The static build must still successfully bundle/export the preview.
+        typescript: { ignoreBuildErrors: true },
       }
     : {}),
 };
