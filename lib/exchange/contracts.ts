@@ -24,6 +24,7 @@ export type LensActionToggle = "save" | "watch" | "track" | "follow";
 export type ResourceAvailabilityState = "available" | "limited" | "scheduled";
 export type ResourceVisibility = "public-location" | "service-area" | "off-map";
 export type ResourceStatus = "active" | "archived";
+export type MapHighlightReason = "featured" | "sponsored" | "verified" | "recommended" | "time-sensitive" | "program" | "custom";
 
 export type Coordinates = { lat: number; lng: number };
 export interface MapCamera { center: Coordinates; zoom: number; bearing: number; pitch: number; mode: MapDisplayMode; }
@@ -47,10 +48,12 @@ export interface ResourceProjection {
   status: ResourceStatus;
   sponsored?: boolean;
 }
+export interface MapHighlight { reason: MapHighlightReason; priority?: number; active?: boolean; }
 
 export interface ExchangeRecord {
   id: string; type: ExchangeRecordType; title: string; organization: string; summary: string; geography: string; metadata: string[];
   location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection; resource?: ResourceProjection;
+  mapHighlight?: MapHighlight;
 }
 
 export interface LensAction {
