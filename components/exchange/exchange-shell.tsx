@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Coordinates, DrawerQueryState, DrawerState, ExchangeFilters, ExchangeLens, ExchangeRecord, ExchangeSearchState, GeolocationStatus, LensAction, MapGeographyOption, MapViewState, RecentSearch, SavedSearch } from "@/lib/exchange/contracts";
+import type { Coordinates, DrawerQueryState, DrawerState, ExchangeFilters, ExchangeLens, ExchangeRecord, ExchangeSearchState, ExchangeViewerContext, GeolocationStatus, LensAction, MapGeographyOption, MapViewState, RecentSearch, SavedSearch } from "@/lib/exchange/contracts";
 import { exchangeSeed } from "@/lib/exchange/seed";
+import { deriveReferenceViewerContext } from "@/lib/exchange/action-registry";
 import { applyExchangeFilters, createExchangeFilters } from "@/lib/exchange/filter";
 import { applyDrawerQuery, createDefaultDrawerQuery } from "@/lib/exchange/drawer";
 import { intelligenceSeed, type IntelligenceWorkflow } from "@/lib/exchange/intelligence";
@@ -42,7 +43,15 @@ type IntelligenceFlow = { mode: IntelligenceWorkflow; recordId?: string };
 type CapabilityFlow = { mode: CapabilityWorkflowMode; recordId: string };
 type RfxFlow = { entry: RfxWorkflowEntry; recordId: string };
 
-export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initialLens?: ExchangeLens; initialRecordId?: string }) {
+export function ExchangeShell({
+  initialLens = "rfx",
+  initialRecordId,
+  viewerContext,
+}: {
+  initialLens?: ExchangeLens;
+  initialRecordId?: string;
+  viewerContext?: Partial<ExchangeViewerContext>;
+}) {
   const [lens, setLens] = useState<ExchangeLens>(initialLens);
   const [recordsState, setRecordsState] = useState<ExchangeRecord[]>(initialRecords);
   const [searchByLens, setSearchByLens] = useState<Record<ExchangeLens, ExchangeSearchState>>(initialSearchStates);
@@ -51,7 +60,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const [drawer, setDrawer] = useState<DrawerState>("mid"); const [mapView, setMapView] = useState<MapViewState>(createDefaultMapView);
   const [selectedRecordId, setSelectedRecordId] = useState<string | undefined>(initialRecordId); const [detailRecordId, setDetailRecordId] = useState<string | undefined>(initialRecordId); const [menuOpen, setMenuOpen] = useState(false);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]); const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]); const [savedRecordIds, setSavedRecordIds] = useState<Set<string>>(() => new Set(initialSavedRecordIds));
-  const [actionState, setActionState] = useState<Record<string, boolean>>({}); const [actionNotice, setActionNotice] = useState("");
+  const [actionNotice, setActionNotice] = useState("");
   const [rfxWorkflow, setRfxWorkflow] = useState<RfxFlow>();
   const [resourceWorkflow, setResourceWorkflow] = useState<ResourceWorkflow | undefined>(); const [resourceNotice, setResourceNotice] = useState<string>();
   const [intelligenceWorkflow, setIntelligenceWorkflow] = useState<IntelligenceFlow>(); const [intelligenceNotes, setIntelligenceNotes] = useState<Record<string, string[]>>({});
@@ -59,6 +68,8 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const [geolocationStatus, setGeolocationStatus] = useState<GeolocationStatus>("idle"); const [viewerLocation, setViewerLocation] = useState<Coordinates | undefined>(); const [viewportDirty, setViewportDirty] = useState(false);
 
   const allRecords = useMemo(() => recordsState.map((record) => ({ ...record, saved: savedRecordIds.has(record.id) })), [recordsState, savedRecordIds]);
+  const referenceViewerContext = useMemo(() => deriveReferenceViewerContext(allRecords), [allRecords]);
+  const resolvedViewerContext = useMemo<ExchangeViewerContext>(() => ({ ...referenceViewerContext, ...viewerContext }), [referenceViewerContext, viewerContext]);
   const definition = lensDefinitions[lens]; const searchState = searchByLens[lens]; const floatingFilters = filtersByLens[lens]; const drawerQuery = drawerQueries[lens];
   const searchResponse = useMemo(() => searchExchangeRecords(allRecords, lens, searchState), [allRecords, lens, searchState]); const searchRecords = useMemo(() => searchResponse.results.map((result) => result.record), [searchResponse]);
   const filteredRecords = useMemo(() => applyExchangeFilters(searchRecords, floatingFilters), [searchRecords, floatingFilters]);
@@ -66,7 +77,7 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   const records = useMemo(() => applyDrawerQuery(viewportRecords, drawerQuery), [viewportRecords, drawerQuery]);
   const lensRecords = useMemo(() => allRecords.filter((record) => record.type === typeByLens[lens]), [allRecords, lens]); const suggestions = useMemo(() => getSearchSuggestions(allRecords, lens, searchState.query), [allRecords, lens, searchState.query]);
   const mapGeographies = useMemo(() => deriveMapGeographies(lensRecords.filter((record) => record.resource?.status !== "archived")), [lensRecords]);
-  const selectedRecord = allRecords.find((record) => record.id === selectedRecordId); const detailRecord = allRecords.find((record) => record.id === detailRecordId); const actionRecord = selectedRecord && records.some((record) => record.id === selectedRecord.id) ? selectedRecord : records[0]; const actions = definition.actions(actionRecord);
+  const detailRecord = allRecords.find((record) => record.id === detailRecordId); const actions = definition.actions(resolvedViewerContext);
   const rfxWorkflowRecord = rfxWorkflow ? allRecords.find((record) => record.id === rfxWorkflow.recordId) : undefined;
   const resourceWorkflowRecord = resourceWorkflow && "recordId" in resourceWorkflow ? allRecords.find((record) => record.id === resourceWorkflow.recordId) : undefined;
   const intelligenceWorkflowRecord = intelligenceWorkflow?.recordId ? allRecords.find((record) => record.id === intelligenceWorkflow.recordId) : undefined;
@@ -110,13 +121,11 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   function openDetail(id: string) { setSelectedRecordId(id); setDetailRecordId(id); setUrl(lens, id, "push", searchState); }
   function closeDetail() { setDetailRecordId(undefined); setUrl(lens, undefined, "replace", searchState); }
   function toggleSaved(id: string) { setSavedRecordIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; }); }
-  function actionKey(record: ExchangeRecord, action: LensAction) { return `${record.id}:${action.id}`; }
-  function actionIsActive(record: ExchangeRecord | undefined, action: LensAction) { if (!record || !action.toggle) return false; if (lens === "rfx" && action.id === "watch") return savedRecordIds.has(record.id); if (action.toggle === "save") return savedRecordIds.has(record.id); if (lens === "capabilities" && action.id === "follow") return savedRecordIds.has(record.id); return actionState[actionKey(record, action)] ?? false; }
-  function activeActionIds(record: ExchangeRecord | undefined, resolved: LensAction[]) { return resolved.filter((action) => actionIsActive(record, action)).map((action) => action.id); }
 
-  function beginCreateRfx(anchor?: ExchangeRecord) {
+  function beginCreateRfx() {
     const id = `rfx-local-${typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now()}`;
-    const draft: ExchangeRecord = { id, type: "rfx", title: "New RFx draft", organization: "Your Organization", summary: "RFx draft created from the issuer workflow.", geography: anchor?.geography ?? "Geography not yet defined", metadata: ["Draft", "Owned by you"], ownedByViewer: true, card: { eyebrow: "RFx Draft", status: { label: "Draft", tone: "neutral" }, relationships: ["owned"] } };
+    const contextualGeography = floatingFilters.geography || mapView.geography.label || "Geography not yet defined";
+    const draft: ExchangeRecord = { id, type: "rfx", title: "New RFx draft", organization: "Your Organization", summary: "RFx draft created from the issuer workflow.", geography: contextualGeography, metadata: ["Draft", "Owned by you"], ownedByViewer: true, card: { eyebrow: "RFx Draft", status: { label: "Draft", tone: "neutral" }, relationships: ["owned"] } };
     setRecordsState((current) => [draft, ...current]); persistLocalRfxDraft(draft); setSelectedRecordId(id); setDetailRecordId(undefined); setRfxWorkflow({ entry: "create-rfx", recordId: id });
   }
 
@@ -141,24 +150,57 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   function updateInsight(record: ExchangeRecord) { setRecordsState((current) => current.map((item) => item.id === record.id ? record : item)); setActionNotice("Insight updated in the reference session."); }
   function addIntelligenceNote(recordId: string, note: string) { setIntelligenceNotes((current) => ({ ...current, [recordId]: [...(current[recordId] ?? []), note] })); setActionNotice("Note added to this Intelligence record."); }
 
+  function setLensScope(patch: Partial<DrawerQueryState>) {
+    setDrawerQueries((current) => ({
+      ...current,
+      [lens]: { ...createDefaultDrawerQuery(), sort: current[lens].sort, ...patch },
+    }));
+  }
+
+  function applyLensControl(action: LensAction) {
+    if (action.id === "show-mine") { setLensScope({ ownership: "mine" }); return true; }
+    if (action.id === "show-saved") { setLensScope({ savedOnly: true }); return true; }
+    if (action.id === "show-mapped") { setLensScope({ location: "mapped" }); return true; }
+    if (action.id === "show-off-map") { setLensScope({ location: "off-map" }); return true; }
+    if (action.id === "show-all") { setLensScope({}); return true; }
+    return false;
+  }
+
+  function activeLensControlIds(resolved: LensAction[]) {
+    const ids = new Set<string>();
+    if (drawerQuery.ownership === "mine") ids.add("show-mine");
+    if (drawerQuery.savedOnly) ids.add("show-saved");
+    if (drawerQuery.location === "mapped") ids.add("show-mapped");
+    if (drawerQuery.location === "off-map") ids.add("show-off-map");
+    if (drawerQuery.ownership === "all" && drawerQuery.location === "all" && !drawerQuery.savedOnly && !drawerQuery.featuredOnly) ids.add("show-all");
+    return resolved.filter((action) => ids.has(action.id)).map((action) => action.id);
+  }
+
   async function handleAction(action: LensAction, record?: ExchangeRecord) {
-    if (action.requiresRecord && !record) return;
-    if (lens === "rfx") {
-      if (action.id === "create-rfx") { beginCreateRfx(record); return; }
-      if (record && action.id === "manage-rfx") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "manage-rfx", recordId: record.id }); return; }
-      if (record && action.id === "invite-team") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "invite-team", recordId: record.id }); return; }
-      if (record && action.id === "respond") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "respond", recordId: record.id }); return; }
-      if (record && action.id === "team") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "team", recordId: record.id }); return; }
-      if (record && action.id === "view") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "view", recordId: record.id }); return; }
-      if (record && action.id === "watch") { await toggleRfxWatch(record); return; }
+    if (action.scope === "lens") {
+      if (applyLensControl(action)) return;
+      if (action.id === "create-rfx") { beginCreateRfx(); return; }
+      if (action.id === "offer-resource") { setResourceWorkflow({ mode: "offer" }); return; }
+      if (action.id === "add-insight") { setIntelligenceWorkflow({ mode: "add" }); return; }
+      if (action.id === "manage-capability-profile") {
+        const ownCapability = allRecords.find((item) => item.type === "capability" && item.ownedByViewer);
+        if (ownCapability) setCapabilityWorkflow({ mode: "manage-capabilities", recordId: ownCapability.id });
+        else setActionNotice("No organization capability profile is available to manage yet.");
+        return;
+      }
     }
-    if (lens === "resources") { if (action.id === "offer-resource") { setResourceWorkflow({ mode: "offer" }); return; } if (action.id === "edit-resource" && record) { setResourceWorkflow({ mode: "edit", recordId: record.id }); return; } if (action.id === "request-resource" && record) { setResourceWorkflow({ mode: "request", recordId: record.id }); return; } if (action.id === "archive-resource" && record) { setResourceWorkflow({ mode: "archive", recordId: record.id }); return; } }
-    if (lens === "intelligence") { if (action.id === "add-insight") { setIntelligenceWorkflow({ mode: "add" }); return; } if (action.id === "edit-insight" && record) { setIntelligenceWorkflow({ mode: "edit", recordId: record.id }); return; } if (action.id === "add-note" && record) { setIntelligenceWorkflow({ mode: "note", recordId: record.id }); return; } if (action.id === "compare" && record) { setIntelligenceWorkflow({ mode: "compare", recordId: record.id }); return; } }
+
+    if (action.requiresRecord && !record) return;
+    if (lens === "rfx" && record) {
+      if (action.id === "manage-rfx") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "manage-rfx", recordId: record.id }); return; }
+      if (action.id === "invite-team") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "invite-team", recordId: record.id }); return; }
+      if (action.id === "respond") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "respond", recordId: record.id }); return; }
+      if (action.id === "team") { setDetailRecordId(undefined); setRfxWorkflow({ entry: "team", recordId: record.id }); return; }
+    }
+    if (lens === "resources") { if (action.id === "edit-resource" && record) { setResourceWorkflow({ mode: "edit", recordId: record.id }); return; } if (action.id === "request-resource" && record) { setResourceWorkflow({ mode: "request", recordId: record.id }); return; } if (action.id === "archive-resource" && record) { setResourceWorkflow({ mode: "archive", recordId: record.id }); return; } }
+    if (lens === "intelligence") { if (action.id === "edit-insight" && record) { setIntelligenceWorkflow({ mode: "edit", recordId: record.id }); return; } if (action.id === "add-note" && record) { setIntelligenceWorkflow({ mode: "note", recordId: record.id }); return; } if (action.id === "compare" && record) { setIntelligenceWorkflow({ mode: "compare", recordId: record.id }); return; } }
     if (lens === "capabilities" && record && isCapabilityWorkflowMode(action.id)) { setCapabilityWorkflow({ mode: action.id, recordId: record.id }); return; }
-    if (lens === "capabilities" && record && action.id === "follow") { toggleSaved(record.id); setActionNotice(`${savedRecordIds.has(record.id) ? "Removed from saved" : "Saved / following"}: ${record.organization}`); return; }
-    if (action.trigger === "detail" && record) { openDetail(record.id); return; }
-    if (action.id === "share" && record) { const url = `${location.origin}/exchange/${lens}/${record.id}`; try { if (navigator.share) await navigator.share({ title: record.title, text: record.summary, url }); else { await navigator.clipboard.writeText(url); setActionNotice("Record link copied."); } } catch (error) { if (error instanceof DOMException && error.name === "AbortError") return; setActionNotice("Unable to share this record right now."); } return; }
-    if (action.toggle && record) { if (action.toggle === "save") toggleSaved(record.id); else { const key = actionKey(record, action); const next = !actionIsActive(record, action); setActionState((current) => ({ ...current, [key]: next })); } setActionNotice(`${action.label}: ${record.title}`); }
+    if (action.id === "share" && record) { const url = `${location.origin}/exchange/${lens}/${record.id}`; try { if (navigator.share) await navigator.share({ title: record.title, text: record.summary, url }); else { await navigator.clipboard.writeText(url); setActionNotice("Record link copied."); } } catch (error) { if (error instanceof DOMException && error.name === "AbortError") return; setActionNotice("Unable to share this record right now."); } }
   }
 
   function resetMapView() {
@@ -210,15 +252,15 @@ export function ExchangeShell({ initialLens = "rfx", initialRecordId }: { initia
   }
 
   const visibleRecords = records.filter((record) => record.resource?.status !== "archived"); const lensRecent = recentSearches.filter((item) => item.lens === lens); const lensSaved = savedSearches.filter((item) => item.lens === lens); const mapped = visibleRecords.filter((record) => record.location).length; const offMap = visibleRecords.length - mapped;
-  const drawerActiveActionIds = activeActionIds(actionRecord, actions); const detailActions = detailRecord ? definition.actions(detailRecord) : []; const detailActiveActionIds = activeActionIds(detailRecord, detailActions);
+  const drawerActiveActionIds = activeLensControlIds(actions); const detailActions = detailRecord ? definition.recordActions(detailRecord, resolvedViewerContext) : [];
 
   return <main className="exchange-shell">
     <PersistentMap lens={lens} records={visibleRecords} selectedRecordId={selectedRecordId} drawerState={drawer} view={mapView} viewerLocation={viewerLocation} onViewChange={handleMapViewChange} onViewportInteraction={() => setViewportDirty(true)} onSelect={selectRecord} />
     <SearchControls state={searchState} placeholder={definition.searchPlaceholder} lensLabel={definition.label} suggestions={suggestions} recentSearches={lensRecent} savedSearches={lensSaved} onStateChange={updateSearchState} onCommit={commitSearch} onRunState={(next) => { updateSearchState(next); commitSearch(next); }} onSave={saveCurrentSearch} />
     <FloatingControls lens={lens} records={lensRecords.filter((record) => record.resource?.status !== "archived")} search={searchState.query} filters={floatingFilters} onFiltersChange={(next) => setFiltersByLens((current) => ({ ...current, [lens]: next }))} mapView={mapView} mapGeographies={mapGeographies} onMapViewChange={changeMapViewFromControls} onSelectGeography={selectGeography} geolocationStatus={geolocationStatus} onLocate={locateViewer} onResetView={resetMapView} searchAreaAvailable={viewportDirty} onSearchArea={searchCurrentArea} />
-    <ResultsDrawer state={drawer} onStateChange={setDrawer} lens={lens} lensLabel={definition.label} records={visibleRecords} totalAvailableCount={viewportRecords.length} selectedRecordId={selectedRecordId} actions={actions} activeActionIds={drawerActiveActionIds} onAction={(action) => { void handleAction(action, actionRecord); }} emptyMessage={definition.emptyMessage} resultContext={`${mapped} mapped · ${offMap} off-map${mapView.queriedBounds ? " · map area applied" : ""}`} query={drawerQuery} onQueryChange={(next) => setDrawerQueries((current) => ({ ...current, [lens]: next }))} onSelect={selectRecord} onOpen={openDetail} onToggleSave={handleCardSave} />
+    <ResultsDrawer state={drawer} onStateChange={setDrawer} lens={lens} lensLabel={definition.label} records={visibleRecords} totalAvailableCount={viewportRecords.length} selectedRecordId={selectedRecordId} actions={actions} activeActionIds={drawerActiveActionIds} getRecordActions={(record) => definition.recordActions(record, resolvedViewerContext)} onAction={(action, record) => { void handleAction(action, record); }} emptyMessage={definition.emptyMessage} resultContext={`${mapped} mapped · ${offMap} off-map${mapView.queriedBounds ? " · map area applied" : ""}`} query={drawerQuery} onQueryChange={(next) => setDrawerQueries((current) => ({ ...current, [lens]: next }))} onSelect={selectRecord} onOpen={openDetail} onToggleSave={handleCardSave} />
     <BottomNav activeLens={lens} onLensChange={changeLens} onMenu={() => setMenuOpen(true)} />
-    {detailRecord ? <DetailSurface record={detailRecord} actions={detailActions} activeActionIds={detailActiveActionIds} notes={intelligenceNotes[detailRecord.id] ?? []} onAction={(action) => { void handleAction(action, detailRecord); }} onClose={closeDetail} /> : null}
+    {detailRecord ? <DetailSurface record={detailRecord} actions={detailActions} notes={intelligenceNotes[detailRecord.id] ?? []} onAction={(action) => { void handleAction(action, detailRecord); }} onClose={closeDetail} /> : null}
     {menuOpen ? <MenuSurface onClose={() => setMenuOpen(false)} /> : null}
     {rfxWorkflow && rfxWorkflowRecord ? <RfxWorkflowSurface record={rfxWorkflowRecord} entry={rfxWorkflow.entry} onClose={() => setRfxWorkflow(undefined)} onOpenDetail={() => { setRfxWorkflow(undefined); openDetail(rfxWorkflowRecord.id); }} onToggleWatch={() => { void toggleRfxWatch(rfxWorkflowRecord); }} onLensHandoff={(next) => { setRfxWorkflow(undefined); changeLens(next); }} onOpenMenu={() => { setRfxWorkflow(undefined); setMenuOpen(true); }} /> : null}
     {resourceWorkflow ? <ResourceWorkflowSurface workflow={resourceWorkflow} record={resourceWorkflowRecord} onClose={() => setResourceWorkflow(undefined)} onCreate={createResource} onUpdate={updateResource} onRequest={requestResource} onArchive={archiveResource} /> : null}
