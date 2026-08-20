@@ -1,0 +1,87 @@
+name: Reconcile PR 50 with main
+
+on:
+  push:
+    branches:
+      - agent/exchange-ready-completion-deep-workflows
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile-and-validate:
+    if: ${{ !contains(github.event.head_commit.message, 'Reconcile PR 50 with main') && !contains(github.event.head_commit.message, 'PR 50 reconciliation failed') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Reconcile, validate, and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-ff -X theirs origin/main -m "Reconcile PR 50 with main"
+          merge_status=$?
+          set -e
+          if [ "$merge_status" -ne 0 ]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            if [ "${#conflicts[@]}" -eq 0 ]; then exit "$merge_status"; fi
+            for path in "${conflicts[@]}"; do
+              if git cat-file -e "origin/main:${path}" 2>/dev/null; then
+                git checkout --theirs -- "$path"
+                git add -- "$path"
+              else
+                git rm -f -- "$path"
+              fi
+            done
+            git commit -m "Reconcile PR 50 with main"
+          fi
+
+          for path in .github/workflows/pages-preview.yml .github/workflows/pages-preview-publish.yml; do
+            if git cat-file -e "origin/main:${path}" 2>/dev/null; then
+              git checkout origin/main -- "$path"
+              git add -- "$path"
+            fi
+          done
+
+          set +e
+          {
+            echo '=== npm install ==='
+            npm install
+            s1=$?
+            echo '=== typecheck ==='
+            if [ "$s1" -eq 0 ]; then npm run typecheck; else false; fi
+            s2=$?
+            echo '=== build ==='
+            if [ "$s1" -eq 0 ] && [ "$s2" -eq 0 ]; then npm run build; else false; fi
+            s3=$?
+            if [ "$s1" -ne 0 ] || [ "$s2" -ne 0 ] || [ "$s3" -ne 0 ]; then exit 1; fi
+            exit 0
+          } 2>&1 | tee /tmp/pr50-validation.log
+          validation_status=${PIPESTATUS[0]}
+          set -e
+
+          git rm -f .github/workflows/reconcile-pr-50.yml
+          if [ "$validation_status" -eq 0 ]; then
+            rm -f .github/PR50_RECONCILIATION_FAILURE.txt
+            git add -u
+            if ! git diff --cached --quiet; then git commit -m "Validate reconciled PR 50"; fi
+          else
+            {
+              echo 'PR 50 reconciliation validation failed.'
+              echo
+              tail -n 220 /tmp/pr50-validation.log
+            } > .github/PR50_RECONCILIATION_FAILURE.txt
+            git add .github/PR50_RECONCILIATION_FAILURE.txt
+            git commit -m "PR 50 reconciliation failed"
+          fi
+          git push origin "HEAD:${GITHUB_REF_NAME}"
