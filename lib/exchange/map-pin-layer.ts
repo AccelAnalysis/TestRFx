@@ -9,16 +9,14 @@ export interface ExchangeMapPinRenderState {
   recordId: string;
   location: Coordinates;
   kind: ExchangeMapPinKind;
-  altitude: number;
+  /** Kept for shell compatibility. Geographic anchoring never uses altitude. */
+  altitude?: number;
   scale: number;
   opacity: number;
 }
 
-export interface MercatorCoordinateFactory {
-  fromLngLat(lngLat: [number, number], altitude?: number): { x: number; y: number; z: number };
-}
-
 type GLContext = WebGLRenderingContext | WebGL2RenderingContext;
+
 type PinHitBox = {
   recordId: string;
   priority: number;
@@ -37,12 +35,19 @@ type PinPalette = {
   specular: string;
 };
 
+type ShaderSources = {
+  vertex: string;
+  fragment: string;
+};
+
+const RECORD_LAYER_ID = "exchange-record-points";
+const SELECTED_LAYER_ID = "exchange-selected-point";
 const PIN_BASE_WIDTH = 52;
 const PIN_BASE_HEIGHT = 72;
 const PIN_TEXTURE_WIDTH = 192;
 const PIN_TEXTURE_HEIGHT = 256;
-const SPRITE_FLOATS_PER_VERTEX = 8;
-const TETHER_FLOATS_PER_VERTEX = 7;
+const PIN_TEXTURE_TIP_Y = 236;
+const SPRITE_FLOATS_PER_VERTEX = 5;
 
 const palettes: Record<ExchangeMapPinKind, PinPalette> = {
   highlight: {
@@ -68,10 +73,73 @@ function finiteCoordinate(location: Coordinates) {
 }
 
 function isWebGL2(gl: GLContext): gl is WebGL2RenderingContext {
-  return typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+  return typeof (gl as WebGL2RenderingContext).createVertexArray === "function";
 }
 
-function createShader(gl: WebGL2RenderingContext, type: number, source: string) {
+function shaderSources(gl: GLContext): ShaderSources {
+  if (isWebGL2(gl)) {
+    return {
+      vertex: `#version 300 es
+        precision highp float;
+        in vec2 a_position;
+        in vec2 a_uv;
+        in float a_opacity;
+        out vec2 v_uv;
+        out float v_opacity;
+        void main() {
+          gl_Position = vec4(a_position, 0.0, 1.0);
+          v_uv = a_uv;
+          v_opacity = a_opacity;
+        }
+      `,
+      fragment: `#version 300 es
+        precision mediump float;
+        in vec2 v_uv;
+        in float v_opacity;
+        uniform sampler2D u_texture;
+        out vec4 outColor;
+        void main() {
+          vec4 color = texture(u_texture, v_uv);
+          color.a *= v_opacity;
+          if (color.a < 0.01) discard;
+          color.rgb *= color.a;
+          outColor = color;
+        }
+      `,
+    };
+  }
+
+  return {
+    vertex: `
+      precision highp float;
+      attribute vec2 a_position;
+      attribute vec2 a_uv;
+      attribute float a_opacity;
+      varying vec2 v_uv;
+      varying float v_opacity;
+      void main() {
+        gl_Position = vec4(a_position, 0.0, 1.0);
+        v_uv = a_uv;
+        v_opacity = a_opacity;
+      }
+    `,
+    fragment: `
+      precision mediump float;
+      varying vec2 v_uv;
+      varying float v_opacity;
+      uniform sampler2D u_texture;
+      void main() {
+        vec4 color = texture2D(u_texture, v_uv);
+        color.a *= v_opacity;
+        if (color.a < 0.01) discard;
+        color.rgb *= color.a;
+        gl_FragColor = color;
+      }
+    `,
+  };
+}
+
+function createShader(gl: GLContext, type: number, source: string) {
   const shader = gl.createShader(type);
   if (!shader) throw new Error("Unable to create 2.5D marker shader.");
   gl.shaderSource(shader, source);
@@ -84,16 +152,18 @@ function createShader(gl: WebGL2RenderingContext, type: number, source: string) 
   return shader;
 }
 
-function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string) {
+function createProgram(gl: GLContext, vertexSource: string, fragmentSource: string) {
   const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource);
   const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
   const program = gl.createProgram();
   if (!program) throw new Error("Unable to create 2.5D marker program.");
+
   gl.attachShader(program, vertexShader);
   gl.attachShader(program, fragmentShader);
   gl.linkProgram(program);
   gl.deleteShader(vertexShader);
   gl.deleteShader(fragmentShader);
+
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
     const message = gl.getProgramInfoLog(program) || "Unknown marker program link error.";
     gl.deleteProgram(program);
@@ -104,11 +174,11 @@ function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmen
 
 function pinPath(dx = 0, dy = 0) {
   const path = new Path2D();
-  path.moveTo(96 + dx, 236 + dy);
+  path.moveTo(96 + dx, PIN_TEXTURE_TIP_Y + dy);
   path.bezierCurveTo(80 + dx, 210 + dy, 34 + dx, 158 + dy, 26 + dx, 106 + dy);
   path.bezierCurveTo(18 + dx, 50 + dy, 49 + dx, 18 + dy, 94 + dx, 16 + dy);
   path.bezierCurveTo(140 + dx, 14 + dy, 171 + dx, 49 + dy, 166 + dx, 103 + dy);
-  path.bezierCurveTo(161 + dx, 153 + dy, 113 + dx, 210 + dy, 96 + dx, 236 + dy);
+  path.bezierCurveTo(161 + dx, 153 + dy, 113 + dx, 210 + dy, 96 + dx, PIN_TEXTURE_TIP_Y + dy);
   path.closePath();
   path.ellipse(96 + dx, 84 + dy, 32, 30, 0, 0, Math.PI * 2);
   return path;
@@ -122,7 +192,12 @@ function createPinCanvas(kind: ExchangeMapPinKind) {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Unable to create 2.5D pin texture canvas.");
 
-  const side = pinPath(8, 7);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Faux thickness stays horizontal so the front and side silhouettes share
+  // one geographic tip. The marker reads as dimensional without creating a
+  // second visual anchor below the record coordinate.
+  const side = pinPath(8, 0);
   const sideGradient = ctx.createLinearGradient(42, 28, 162, 220);
   sideGradient.addColorStop(0, palette.dark);
   sideGradient.addColorStop(0.55, palette.edge);
@@ -181,9 +256,10 @@ function createPinCanvas(kind: ExchangeMapPinKind) {
   return canvas;
 }
 
-function createTexture(gl: WebGL2RenderingContext, kind: ExchangeMapPinKind) {
+function createTexture(gl: GLContext, kind: ExchangeMapPinKind) {
   const texture = gl.createTexture();
   if (!texture) throw new Error("Unable to create 2.5D marker texture.");
+
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -196,45 +272,35 @@ function createTexture(gl: WebGL2RenderingContext, kind: ExchangeMapPinKind) {
   return texture;
 }
 
-function projectMercator(
-  matrix: ArrayLike<number>,
-  coordinate: { x: number; y: number; z: number },
-  width: number,
-  height: number,
-) {
-  const { x, y, z } = coordinate;
-  const clipX = matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12];
-  const clipY = matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13];
-  const clipW = matrix[3] * x + matrix[7] * y + matrix[11] * z + matrix[15];
-  if (!Number.isFinite(clipW) || clipW <= 0.000001) return undefined;
-  const ndcX = clipX / clipW;
-  const ndcY = clipY / clipW;
-  return {
-    x: (ndcX * 0.5 + 0.5) * width,
-    y: (1 - (ndcY * 0.5 + 0.5)) * height,
-  };
+function clipX(pixelX: number, viewportWidth: number) {
+  return pixelX / viewportWidth * 2 - 1;
+}
+
+function clipY(pixelY: number, viewportHeight: number) {
+  return 1 - pixelY / viewportHeight * 2;
 }
 
 export class ExchangePinLayer implements CustomLayerInterface {
   readonly id = EXCHANGE_PIN_LAYER_ID;
   readonly type = "custom" as const;
-  readonly renderingMode = "3d" as const;
+  readonly renderingMode = "2d" as const;
 
   private map?: MapLibreMap;
   private visible = true;
   private pins: ExchangeMapPinRenderState[] = [];
   private hitBoxes: PinHitBox[] = [];
   private spriteProgram?: WebGLProgram;
-  private tetherProgram?: WebGLProgram;
   private spriteBuffer?: WebGLBuffer;
-  private tetherBuffer?: WebGLBuffer;
   private focusTexture?: WebGLTexture;
   private highlightTexture?: WebGLTexture;
 
-  constructor(private readonly mercatorCoordinate: MercatorCoordinateFactory) {}
+  // Accept the previous Mercator factory argument so the shell does not need a
+  // coordinated API change. Projection now intentionally uses map.project().
+  constructor(_legacyMercatorCoordinate?: unknown) {}
 
   setPins(pins: ExchangeMapPinRenderState[]) {
     this.pins = pins.filter((pin) => finiteCoordinate(pin.location) && pin.opacity > 0.001 && pin.scale > 0.001);
+    this.syncMarkerOwnership();
     this.map?.triggerRepaint();
   }
 
@@ -250,187 +316,131 @@ export class ExchangePinLayer implements CustomLayerInterface {
       .sort((a, b) => b.priority - a.priority)[0]?.recordId;
   }
 
+  private syncMarkerOwnership() {
+    if (!this.map) return;
+
+    const pinIds = [...new Set(this.pins.map((pin) => pin.recordId))];
+    const focusIds = [...new Set(this.pins.filter((pin) => pin.kind === "focus").map((pin) => pin.recordId))];
+
+    if (this.map.getLayer(RECORD_LAYER_ID)) {
+      const recordFilter = pinIds.length
+        ? ["all", ["!", ["has", "point_count"]], ["!", ["in", ["get", "recordId"], ["literal", pinIds]]]]
+        : ["!", ["has", "point_count"]];
+      this.map.setFilter(RECORD_LAYER_ID, recordFilter as never);
+    }
+
+    if (this.map.getLayer(SELECTED_LAYER_ID)) {
+      const selectedFilter = focusIds.length
+        ? ["!", ["in", ["get", "recordId"], ["literal", focusIds]]]
+        : ["has", "recordId"];
+      this.map.setFilter(SELECTED_LAYER_ID, selectedFilter as never);
+    }
+  }
+
   onAdd(map: MapLibreMap, gl: GLContext) {
     this.map = map;
-    if (!isWebGL2(gl)) return;
-
-    const spriteVertex = `#version 300 es
-      precision highp float;
-      in vec3 a_anchor;
-      in vec2 a_offset;
-      in vec2 a_uv;
-      in float a_opacity;
-      uniform mat4 u_matrix;
-      uniform vec2 u_viewport;
-      out vec2 v_uv;
-      out float v_opacity;
-      void main() {
-        vec4 clip = u_matrix * vec4(a_anchor, 1.0);
-        vec2 offsetNdc = vec2((a_offset.x * 2.0) / u_viewport.x, (a_offset.y * 2.0) / u_viewport.y);
-        clip.xy += offsetNdc * clip.w;
-        gl_Position = clip;
-        v_uv = a_uv;
-        v_opacity = a_opacity;
-      }
-    `;
-    const spriteFragment = `#version 300 es
-      precision mediump float;
-      in vec2 v_uv;
-      in float v_opacity;
-      uniform sampler2D u_texture;
-      out vec4 outColor;
-      void main() {
-        vec4 color = texture(u_texture, v_uv);
-        color.a *= v_opacity;
-        if (color.a < 0.01) discard;
-        color.rgb *= color.a;
-        outColor = color;
-      }
-    `;
-    const tetherVertex = `#version 300 es
-      precision highp float;
-      in vec3 a_position;
-      in vec4 a_color;
-      uniform mat4 u_matrix;
-      out vec4 v_color;
-      void main() {
-        gl_Position = u_matrix * vec4(a_position, 1.0);
-        v_color = a_color;
-      }
-    `;
-    const tetherFragment = `#version 300 es
-      precision mediump float;
-      in vec4 v_color;
-      out vec4 outColor;
-      void main() { outColor = vec4(v_color.rgb * v_color.a, v_color.a); }
-    `;
-
-    this.spriteProgram = createProgram(gl, spriteVertex, spriteFragment);
-    this.tetherProgram = createProgram(gl, tetherVertex, tetherFragment);
+    const sources = shaderSources(gl);
+    this.spriteProgram = createProgram(gl, sources.vertex, sources.fragment);
     this.spriteBuffer = gl.createBuffer() || undefined;
-    this.tetherBuffer = gl.createBuffer() || undefined;
     this.highlightTexture = createTexture(gl, "highlight");
     this.focusTexture = createTexture(gl, "focus");
+    this.syncMarkerOwnership();
   }
 
   onRemove(_map: MapLibreMap, gl: GLContext) {
     if (this.spriteBuffer) gl.deleteBuffer(this.spriteBuffer);
-    if (this.tetherBuffer) gl.deleteBuffer(this.tetherBuffer);
     if (this.spriteProgram) gl.deleteProgram(this.spriteProgram);
-    if (this.tetherProgram) gl.deleteProgram(this.tetherProgram);
     if (this.focusTexture) gl.deleteTexture(this.focusTexture);
     if (this.highlightTexture) gl.deleteTexture(this.highlightTexture);
+
     this.spriteBuffer = undefined;
-    this.tetherBuffer = undefined;
     this.spriteProgram = undefined;
-    this.tetherProgram = undefined;
     this.focusTexture = undefined;
     this.highlightTexture = undefined;
     this.hitBoxes = [];
   }
 
-  private drawTethers(gl: WebGL2RenderingContext, matrix: Float32Array) {
-    if (!this.tetherProgram || !this.tetherBuffer) return;
-    const vertices: number[] = [];
-    for (const pin of this.pins) {
-      if (pin.altitude <= 0.5) continue;
-      const ground = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], 0);
-      const lifted = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], pin.altitude);
-      const color = pin.kind === "focus"
-        ? [0.839, 0.635, 0.227, 0.56 * pin.opacity]
-        : [0.541, 0.392, 0.094, 0.34 * pin.opacity];
-      vertices.push(ground.x, ground.y, ground.z, ...color, lifted.x, lifted.y, lifted.z, ...color);
-    }
-    if (!vertices.length) return;
-
-    gl.useProgram(this.tetherProgram);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.tetherBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.DYNAMIC_DRAW);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.tetherProgram, "u_matrix"), false, matrix);
-    const stride = TETHER_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
-    const positionLocation = gl.getAttribLocation(this.tetherProgram, "a_position");
-    const colorLocation = gl.getAttribLocation(this.tetherProgram, "a_color");
-    gl.enableVertexAttribArray(positionLocation);
-    gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, stride, 0);
-    gl.enableVertexAttribArray(colorLocation);
-    gl.vertexAttribPointer(colorLocation, 4, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
-    gl.lineWidth(1);
-    gl.drawArrays(gl.LINES, 0, vertices.length / TETHER_FLOATS_PER_VERTEX);
-    gl.disableVertexAttribArray(positionLocation);
-    gl.disableVertexAttribArray(colorLocation);
-  }
-
-  private drawSprites(
-    gl: WebGL2RenderingContext,
-    matrix: Float32Array,
-    kind: ExchangeMapPinKind,
-    viewportWidth: number,
-    viewportHeight: number,
-  ) {
-    if (!this.spriteProgram || !this.spriteBuffer) return;
+  private drawSprites(gl: GLContext, kind: ExchangeMapPinKind, viewportWidth: number, viewportHeight: number) {
+    if (!this.map || !this.spriteProgram || !this.spriteBuffer) return;
     const texture = kind === "focus" ? this.focusTexture : this.highlightTexture;
     if (!texture) return;
-    const vertices: number[] = [];
 
-    const addVertex = (
-      anchor: { x: number; y: number; z: number },
-      offsetX: number,
-      offsetY: number,
-      u: number,
-      v: number,
-      opacity: number,
-    ) => vertices.push(anchor.x, anchor.y, anchor.z, offsetX, offsetY, u, v, opacity);
+    const vertices: number[] = [];
+    const nextHitBoxes: PinHitBox[] = [];
+
+    const addVertex = (x: number, y: number, u: number, v: number, opacity: number) => {
+      vertices.push(clipX(x, viewportWidth), clipY(y, viewportHeight), u, v, opacity);
+    };
 
     for (const pin of this.pins) {
       if (pin.kind !== kind) continue;
-      const anchor = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], pin.altitude);
+
+      // MapLibre performs geographic projection in JavaScript double precision.
+      // The GPU only receives normalized screen coordinates near [-1, 1], which
+      // removes Mercator Float32 precision jitter during pan and zoom.
+      const point = this.map.project([pin.location.lng, pin.location.lat]);
+      if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
+
       const width = PIN_BASE_WIDTH * pin.scale;
       const height = PIN_BASE_HEIGHT * pin.scale;
-      const left = -width / 2;
-      const right = width / 2;
-      const bottom = 0;
-      const top = height;
-      addVertex(anchor, left, bottom, 0, 0, pin.opacity);
-      addVertex(anchor, right, bottom, 1, 0, pin.opacity);
-      addVertex(anchor, right, top, 1, 1, pin.opacity);
-      addVertex(anchor, left, bottom, 0, 0, pin.opacity);
-      addVertex(anchor, right, top, 1, 1, pin.opacity);
-      addVertex(anchor, left, top, 0, 1, pin.opacity);
+      const left = point.x - width / 2;
+      const right = point.x + width / 2;
+
+      // The texture has transparent pixels below the painted teardrop tip.
+      // Extend the quad below the coordinate just enough that the actual tip,
+      // not the texture rectangle, lands on the exact projected map point.
+      const tailPadding = (PIN_TEXTURE_HEIGHT - PIN_TEXTURE_TIP_Y) / PIN_TEXTURE_HEIGHT * height;
+      const bottom = point.y + tailPadding;
+      const top = bottom - height;
+
+      addVertex(left, bottom, 0, 0, pin.opacity);
+      addVertex(right, bottom, 1, 0, pin.opacity);
+      addVertex(right, top, 1, 1, pin.opacity);
+      addVertex(left, bottom, 0, 0, pin.opacity);
+      addVertex(right, top, 1, 1, pin.opacity);
+      addVertex(left, top, 0, 1, pin.opacity);
+
+      nextHitBoxes.push({
+        recordId: pin.recordId,
+        priority: pin.kind === "focus" ? 2 : 1,
+        left,
+        right,
+        top,
+        bottom: point.y + 4,
+      });
     }
 
-    if (!vertices.length) return;
-    gl.useProgram(this.spriteProgram);
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.DYNAMIC_DRAW);
-    gl.uniformMatrix4fv(gl.getUniformLocation(this.spriteProgram, "u_matrix"), false, matrix);
-    gl.uniform2f(gl.getUniformLocation(this.spriteProgram, "u_viewport"), viewportWidth, viewportHeight);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.uniform1i(gl.getUniformLocation(this.spriteProgram, "u_texture"), 0);
+    if (vertices.length) {
+      gl.useProgram(this.spriteProgram);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.spriteBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.DYNAMIC_DRAW);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.uniform1i(gl.getUniformLocation(this.spriteProgram, "u_texture"), 0);
 
-    const stride = SPRITE_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
-    const anchorLocation = gl.getAttribLocation(this.spriteProgram, "a_anchor");
-    const offsetLocation = gl.getAttribLocation(this.spriteProgram, "a_offset");
-    const uvLocation = gl.getAttribLocation(this.spriteProgram, "a_uv");
-    const opacityLocation = gl.getAttribLocation(this.spriteProgram, "a_opacity");
-    gl.enableVertexAttribArray(anchorLocation);
-    gl.vertexAttribPointer(anchorLocation, 3, gl.FLOAT, false, stride, 0);
-    gl.enableVertexAttribArray(offsetLocation);
-    gl.vertexAttribPointer(offsetLocation, 2, gl.FLOAT, false, stride, 3 * Float32Array.BYTES_PER_ELEMENT);
-    gl.enableVertexAttribArray(uvLocation);
-    gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, stride, 5 * Float32Array.BYTES_PER_ELEMENT);
-    gl.enableVertexAttribArray(opacityLocation);
-    gl.vertexAttribPointer(opacityLocation, 1, gl.FLOAT, false, stride, 7 * Float32Array.BYTES_PER_ELEMENT);
-    gl.drawArrays(gl.TRIANGLES, 0, vertices.length / SPRITE_FLOATS_PER_VERTEX);
-    gl.disableVertexAttribArray(anchorLocation);
-    gl.disableVertexAttribArray(offsetLocation);
-    gl.disableVertexAttribArray(uvLocation);
-    gl.disableVertexAttribArray(opacityLocation);
-    gl.bindTexture(gl.TEXTURE_2D, null);
+      const stride = SPRITE_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
+      const positionLocation = gl.getAttribLocation(this.spriteProgram, "a_position");
+      const uvLocation = gl.getAttribLocation(this.spriteProgram, "a_uv");
+      const opacityLocation = gl.getAttribLocation(this.spriteProgram, "a_opacity");
+
+      gl.enableVertexAttribArray(positionLocation);
+      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, stride, 0);
+      gl.enableVertexAttribArray(uvLocation);
+      gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, stride, 2 * Float32Array.BYTES_PER_ELEMENT);
+      gl.enableVertexAttribArray(opacityLocation);
+      gl.vertexAttribPointer(opacityLocation, 1, gl.FLOAT, false, stride, 4 * Float32Array.BYTES_PER_ELEMENT);
+      gl.drawArrays(gl.TRIANGLES, 0, vertices.length / SPRITE_FLOATS_PER_VERTEX);
+      gl.disableVertexAttribArray(positionLocation);
+      gl.disableVertexAttribArray(uvLocation);
+      gl.disableVertexAttribArray(opacityLocation);
+      gl.bindTexture(gl.TEXTURE_2D, null);
+    }
+
+    this.hitBoxes.push(...nextHitBoxes);
   }
 
-  render(gl: GLContext, { modelViewProjectionMatrix }: CustomRenderMethodInput) {
-    if (!this.visible || !this.pins.length || !this.map || !isWebGL2(gl)) {
+  render(gl: GLContext, _args: CustomRenderMethodInput) {
+    if (!this.visible || !this.pins.length || !this.map || !this.spriteProgram) {
       this.hitBoxes = [];
       return;
     }
@@ -438,30 +448,25 @@ export class ExchangePinLayer implements CustomLayerInterface {
     const canvas = this.map.getCanvas();
     const width = Math.max(1, canvas.clientWidth);
     const height = Math.max(1, canvas.clientHeight);
-    const matrix = modelViewProjectionMatrix as Float32Array;
 
+    const depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST);
+    const cullWasEnabled = gl.isEnabled(gl.CULL_FACE);
+    const blendWasEnabled = gl.isEnabled(gl.BLEND);
+    const depthWriteWasEnabled = Boolean(gl.getParameter(gl.DEPTH_WRITEMASK));
+
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
-    this.drawTethers(gl, matrix);
-    this.drawSprites(gl, matrix, "highlight", width, height);
-    this.drawSprites(gl, matrix, "focus", width, height);
-    gl.depthMask(true);
 
-    this.hitBoxes = this.pins.flatMap((pin) => {
-      const anchor = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], pin.altitude);
-      const point = projectMercator(matrix, anchor, width, height);
-      if (!point) return [];
-      const pinWidth = PIN_BASE_WIDTH * pin.scale;
-      const pinHeight = PIN_BASE_HEIGHT * pin.scale;
-      return [{
-        recordId: pin.recordId,
-        priority: pin.kind === "focus" ? 2 : 1,
-        left: point.x - pinWidth / 2,
-        right: point.x + pinWidth / 2,
-        top: point.y - pinHeight,
-        bottom: point.y + 4,
-      }];
-    });
+    this.hitBoxes = [];
+    this.drawSprites(gl, "highlight", width, height);
+    this.drawSprites(gl, "focus", width, height);
+
+    gl.depthMask(depthWriteWasEnabled);
+    if (depthWasEnabled) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
+    if (cullWasEnabled) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+    if (blendWasEnabled) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
   }
 }
