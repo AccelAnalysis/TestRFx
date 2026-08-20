@@ -10,7 +10,8 @@ export type SearchLocationMode = "all" | "mapped" | "off-map";
 export type SearchOwnership = "all" | "mine" | "others";
 export type SearchSuggestionKind = "record" | "organization" | "geography" | "metadata";
 export type MapDisplayMode = "2d" | "3d";
-export type MapControlRoute = "root" | "view" | "layers" | "geography";
+export type MapStyleId = "standard" | "bright" | "light" | "dark" | "muted";
+export type MapControlRoute = "root" | "view" | "basemap" | "layers" | "geography";
 export type GeolocationStatus = "idle" | "requesting" | "located" | "denied" | "unavailable";
 export type RecordRelationshipFilter = "all" | "mine" | "others";
 export type ExchangeCardPlacement = "organic" | "featured" | "sponsored";
@@ -30,7 +31,7 @@ export interface MapBounds { north: number; south: number; east: number; west: n
 export interface MapGeographyContext { id: string; label: string; scope: "authorized" | "selected" | "reference"; }
 export interface MapLayerVisibility { records: boolean; lensOverlay: boolean; }
 export interface MapGeographyOption { id: string; label: string; center?: Coordinates; bounds?: MapBounds; recordCount: number; }
-export interface MapViewState { camera: MapCamera; geography: MapGeographyContext; layers: MapLayerVisibility; currentBounds?: MapBounds; queriedBounds?: MapBounds; }
+export interface MapViewState { camera: MapCamera; geography: MapGeographyContext; style: MapStyleId; layers: MapLayerVisibility; currentBounds?: MapBounds; queriedBounds?: MapBounds; }
 export interface DrawerQueryState { sort: DrawerSort; location: DrawerLocationFilter; ownership: DrawerOwnershipFilter; savedOnly: boolean; featuredOnly: boolean; }
 export interface ExchangeCardMedia { kind: ExchangeCardMediaKind; label: string; src?: string; alt?: string; }
 export interface ExchangeCardStatus { label: string; tone?: ExchangeStatusTone; }

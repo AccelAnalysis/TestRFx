@@ -26,6 +26,7 @@ export const DEFAULT_MAP_VIEW: MapViewState = {
     label: "Hampton Roads, VA",
     scope: "reference",
   },
+  style: "standard",
   layers: { records: true, lensOverlay: true },
 };
 
@@ -55,6 +56,7 @@ export function createDefaultMapView(): MapViewState {
   return {
     camera: { ...DEFAULT_MAP_VIEW.camera, center: { ...DEFAULT_MAP_VIEW.camera.center } },
     geography: { ...DEFAULT_MAP_VIEW.geography },
+    style: DEFAULT_MAP_VIEW.style,
     layers: { ...DEFAULT_MAP_VIEW.layers },
   };
 }
