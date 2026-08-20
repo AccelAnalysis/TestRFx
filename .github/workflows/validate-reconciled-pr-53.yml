@@ -1,0 +1,63 @@
+name: Validate reconciled PR 53
+
+on:
+  push:
+    branches:
+      - agent/public-auth-entry-hierarchy-services
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: ${{ !contains(github.event.head_commit.message, 'Validate reconciled PR 53') && !contains(github.event.head_commit.message, 'Record PR 53 validation failure') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Validate and record result
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== npm install ==='
+            npm install
+            s1=$?
+            echo '=== typecheck ==='
+            if [ "$s1" -eq 0 ]; then npm run typecheck; else false; fi
+            s2=$?
+            echo '=== build ==='
+            if [ "$s1" -eq 0 ] && [ "$s2" -eq 0 ]; then npm run build; else false; fi
+            s3=$?
+            if [ "$s1" -ne 0 ] || [ "$s2" -ne 0 ] || [ "$s3" -ne 0 ]; then
+              exit 1
+            fi
+            exit 0
+          } 2>&1 | tee /tmp/pr53-validation.log
+          pipe_status=${PIPESTATUS[0]}
+          set -e
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/validate-reconciled-pr-53.yml
+
+          if [ "$pipe_status" -eq 0 ]; then
+            rm -f .github/PR53_VALIDATION_FAILURE.txt
+            git add -u
+            git commit -m "Validate reconciled PR 53"
+          else
+            {
+              echo "PR 53 reconciliation validation failed."
+              echo
+              echo "Tail of validation output:"
+              tail -n 200 /tmp/pr53-validation.log
+            } > .github/PR53_VALIDATION_FAILURE.txt
+            git add .github/PR53_VALIDATION_FAILURE.txt
+            git commit -m "Record PR 53 validation failure"
+          fi
+          git push origin "HEAD:${GITHUB_REF_NAME}"

@@ -6,20 +6,25 @@ import type { LoginApiError, MagicLinkChallengeAccepted } from "@/lib/identity/c
 import { maskEmail } from "@/lib/identity/login";
 import styles from "./login.module.css";
 
-type FlowState = "idle" | "submitting" | "sent" | "error";
+type FlowState = "idle" | "submitting" | "sent" | "error" | "not_found" | "restricted";
 
 interface LoginFlowProps {
   initialReturnTo: string;
+  registrationHref?: string;
 }
 
-export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
+export function LoginFlow({ initialReturnTo, registrationHref = "/register" }: LoginFlowProps) {
   const [email, setEmail] = useState("");
   const [flowState, setFlowState] = useState<FlowState>("idle");
   const [message, setMessage] = useState("");
-  const [delivery, setDelivery] = useState<MagicLinkChallengeAccepted["delivery"]>("reference");
   const [expiresInSeconds, setExpiresInSeconds] = useState(15 * 60);
 
   const maskedEmail = useMemo(() => maskEmail(email), [email]);
+
+  function resetEmail() {
+    setFlowState("idle");
+    setMessage("");
+  }
 
   async function requestMagicLink() {
     setFlowState("submitting");
@@ -34,10 +39,20 @@ export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
 
       const payload = (await response.json()) as MagicLinkChallengeAccepted | LoginApiError;
       if (!response.ok || !("status" in payload)) {
-        throw new Error("error" in payload ? payload.error : "Unable to start secure sign-in.");
+        const errorPayload = "code" in payload ? payload : undefined;
+        setMessage("error" in payload ? payload.error : "Unable to start secure sign-in.");
+        if (errorPayload?.code === "account_not_found") {
+          setFlowState("not_found");
+          return;
+        }
+        if (errorPayload?.code === "account_restricted") {
+          setFlowState("restricted");
+          return;
+        }
+        setFlowState("error");
+        return;
       }
 
-      setDelivery(payload.delivery);
       setExpiresInSeconds(payload.expiresInSeconds);
       setFlowState("sent");
     } catch (error) {
@@ -51,30 +66,50 @@ export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
     await requestMagicLink();
   }
 
+  if (flowState === "not_found") {
+    return (
+      <section className={styles.statusPanel} aria-live="polite">
+        <div className={styles.statusIcon} aria-hidden="true">?</div>
+        <h2>Email not found</h2>
+        <p>{message || "No RFxchange account was found for that email."}</p>
+        <Link className={styles.primaryButton} href={registrationHref}>
+          Create an account
+        </Link>
+        <button className={styles.textButton} type="button" onClick={resetEmail}>
+          Try a different email
+        </button>
+        <p className={styles.registerPrompt}><Link href="/">Return to RFxchange</Link></p>
+      </section>
+    );
+  }
+
+  if (flowState === "restricted") {
+    return (
+      <section className={styles.statusPanel} aria-live="polite">
+        <div className={styles.statusIcon} aria-hidden="true">!</div>
+        <h2>Account unavailable</h2>
+        <p>{message || "This RFxchange account cannot sign in right now."}</p>
+        <button className={styles.primaryButton} type="button" onClick={resetEmail}>
+          Use a different email
+        </button>
+        <p className={styles.registerPrompt}><Link href="/">Return to RFxchange</Link></p>
+      </section>
+    );
+  }
+
   if (flowState === "sent") {
     const minutes = Math.max(1, Math.round(expiresInSeconds / 60));
 
     return (
       <section className={styles.statusPanel} aria-live="polite">
         <div className={styles.statusIcon} aria-hidden="true">✉</div>
-        <h2>{delivery === "provider" ? "Check your email" : "Sign-in request accepted"}</h2>
-        <p>
-          {delivery === "provider"
-            ? <>We sent a one-time sign-in link to <strong>{maskedEmail}</strong>.</>
-            : <>The chassis validated the request for <strong>{maskedEmail}</strong>. Email delivery is intentionally reference-only until a production identity provider is connected.</>}
-        </p>
+        <h2>Check your email</h2>
+        <p>We sent a one-time sign-in link to <strong>{maskedEmail}</strong>.</p>
         <p className={styles.statusNote}>Magic links expire after about {minutes} minutes and should be single-use.</p>
         <button className={styles.primaryButton} type="button" onClick={requestMagicLink}>
           Resend sign-in link
         </button>
-        <button
-          className={styles.textButton}
-          type="button"
-          onClick={() => {
-            setFlowState("idle");
-            setMessage("");
-          }}
-        >
+        <button className={styles.textButton} type="button" onClick={resetEmail}>
           Use a different email
         </button>
       </section>
@@ -110,10 +145,10 @@ export function LoginFlow({ initialReturnTo }: LoginFlowProps) {
 
       <div className={styles.formDivider}><span>Passwordless sign-in</span></div>
       <p className={styles.securityNote}>
-        RFxchange uses a one-time sign-in challenge at this boundary. MFA, device trust, and session policy plug into the same identity gateway when configured.
+        RFxchange uses a one-time sign-in challenge at this boundary. MFA, device trust, token validation, and session policy remain Identity-service responsibilities and are never simulated by this form.
       </p>
       <p className={styles.registerPrompt}>
-        New to RFxchange? <Link href="/register">Create an account</Link>
+        New to RFxchange? <Link href={registrationHref}>Create an account</Link>
       </p>
     </form>
   );

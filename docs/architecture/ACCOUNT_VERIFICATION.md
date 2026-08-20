@@ -100,13 +100,7 @@ The runtime now generates a cryptographically random 32-byte token using Node's 
 
 Challenge state remains:
 
-```text
-issued
-consumed
-expired
-revoked
-superseded
-```
+## No reference-token fallback
 
 The server:
 
