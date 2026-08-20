@@ -4,7 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { Coordinates, DrawerState, ExchangeLens, ExchangeRecord, MapBounds, MapViewState } from "@/lib/exchange/contracts";
 import { summarizeMapRecords } from "@/lib/exchange/map-model";
-import { toExchangeMapFeatureCollection } from "@/lib/exchange/map-service";
+import {
+  MAP_BEACON_HEIGHTS,
+  mapHighlightForRecord,
+  selectMapHighlightRecords,
+  toExchangeMapBeaconFeatureCollection,
+  toExchangeMapFeatureCollection,
+} from "@/lib/exchange/map-service";
 import { mapStyleUrl } from "@/lib/exchange/map-styles";
 import styles from "./persistent-map.module.css";
 
@@ -12,16 +18,23 @@ const RECORD_SOURCE = "exchange-records";
 const SELECTED_SOURCE = "exchange-selected";
 const OVERLAY_SOURCE = "exchange-overlay";
 const LOCATION_SOURCE = "viewer-location";
+const BEACON_SOURCE = "exchange-3d-beacons";
 const CLUSTER_LAYER = "exchange-clusters";
 const CLUSTER_COUNT_LAYER = "exchange-cluster-count";
 const RECORD_LAYER = "exchange-record-points";
 const SELECTED_LAYER = "exchange-selected-point";
 const OVERLAY_LAYER = "exchange-lens-overlay";
 const LOCATION_LAYER = "viewer-location-point";
+const BEACON_MAST_LAYER = "exchange-3d-beacon-masts";
+const BEACON_CROWN_LAYER = "exchange-3d-beacon-crowns";
 
 const EMPTY_GEOJSON = { type: "FeatureCollection" as const, features: [] };
+const FOCUS_TRANSITION_MS = 420;
 
 function layerVisibility(visible: boolean) { return visible ? "visible" : "none"; }
+function easeOutCubic(progress: number) { return 1 - Math.pow(1 - progress, 3); }
+function interpolate(start: number, end: number, progress: number) { return start + (end - start) * progress; }
+function reducedMotionRequested() { return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches; }
 
 function currentBounds(map: MapLibreMap): MapBounds {
   const bounds = map.getBounds();
@@ -58,6 +71,36 @@ function installExchangeLayers(map: MapLibreMap) {
   if (!map.getLayer(CLUSTER_COUNT_LAYER)) map.addLayer({ id: CLUSTER_COUNT_LAYER, type: "symbol", source: RECORD_SOURCE, filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 11 }, paint: { "text-color": "#ffffff" } });
   if (!map.getLayer(RECORD_LAYER)) map.addLayer({ id: RECORD_LAYER, type: "circle", source: RECORD_SOURCE, filter: ["!", ["has", "point_count"]], paint: { "circle-color": ["get", "color"], "circle-radius": ["case", ["==", ["get", "sponsored"], true], 9, 8], "circle-stroke-color": ["case", ["==", ["get", "sponsored"], true], "#b86b18", "#ffffff"], "circle-stroke-width": ["case", ["==", ["get", "sponsored"], true], 3.5, 2.5], "circle-opacity": 0.95 } });
 
+  if (!map.getSource(BEACON_SOURCE)) map.addSource(BEACON_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
+  if (!map.getLayer(BEACON_MAST_LAYER)) {
+    map.addLayer({
+      id: BEACON_MAST_LAYER,
+      type: "fill-extrusion",
+      source: BEACON_SOURCE,
+      filter: ["==", ["get", "part"], "mast"],
+      paint: {
+        "fill-extrusion-color": ["get", "color"] as never,
+        "fill-extrusion-height": ["get", "height"] as never,
+        "fill-extrusion-base": ["get", "base"] as never,
+        "fill-extrusion-opacity": 0.78,
+      },
+    });
+  }
+  if (!map.getLayer(BEACON_CROWN_LAYER)) {
+    map.addLayer({
+      id: BEACON_CROWN_LAYER,
+      type: "fill-extrusion",
+      source: BEACON_SOURCE,
+      filter: ["==", ["get", "part"], "crown"],
+      paint: {
+        "fill-extrusion-color": ["get", "color"] as never,
+        "fill-extrusion-height": ["get", "height"] as never,
+        "fill-extrusion-base": ["get", "base"] as never,
+        "fill-extrusion-opacity": 0.94,
+      },
+    });
+  }
+
   if (!map.getSource(SELECTED_SOURCE)) map.addSource(SELECTED_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
   if (!map.getLayer(SELECTED_LAYER)) map.addLayer({ id: SELECTED_LAYER, type: "circle", source: SELECTED_SOURCE, paint: { "circle-color": "#d6a23a", "circle-radius": 11, "circle-stroke-color": "#ffffff", "circle-stroke-width": 3.5, "circle-opacity": 1 } });
 
@@ -83,6 +126,9 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
   const selectRef = useRef(onSelect);
   const viewChangeRef = useRef(onViewChange);
   const viewportInteractionRef = useRef(onViewportInteraction);
+  const focusedRecordRef = useRef<ExchangeRecord | undefined>(undefined);
+  const beaconHeightsRef = useRef<Map<string, number>>(new Map());
+  const beaconAnimationFrameRef = useRef<number | undefined>(undefined);
   const [styleReady, setStyleReady] = useState(false);
   const [loadError, setLoadError] = useState<string>();
   const summary = useMemo(() => summarizeMapRecords(records), [records]);
@@ -145,15 +191,15 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
           if (zoom !== undefined && coordinates && map) map.easeTo({ center: coordinates as [number, number], zoom });
         });
 
-        map.on("click", RECORD_LAYER, (event) => {
+        const selectFeature = (event: { features?: Array<{ properties?: Record<string, unknown> | null }> }) => {
           const id = event.features?.[0]?.properties?.recordId;
           if (typeof id === "string") selectRef.current(id);
-        });
-        map.on("click", SELECTED_LAYER, (event) => {
-          const id = event.features?.[0]?.properties?.recordId;
-          if (typeof id === "string") selectRef.current(id);
-        });
-        for (const layer of [CLUSTER_LAYER, RECORD_LAYER, SELECTED_LAYER]) {
+        };
+        map.on("click", RECORD_LAYER, selectFeature);
+        map.on("click", SELECTED_LAYER, selectFeature);
+        map.on("click", BEACON_MAST_LAYER, selectFeature);
+        map.on("click", BEACON_CROWN_LAYER, selectFeature);
+        for (const layer of [CLUSTER_LAYER, RECORD_LAYER, SELECTED_LAYER, BEACON_MAST_LAYER, BEACON_CROWN_LAYER]) {
           map.on("mouseenter", layer, () => { if (map) map.getCanvas().style.cursor = "pointer"; });
           map.on("mouseleave", layer, () => { if (map) map.getCanvas().style.cursor = ""; });
         }
@@ -178,6 +224,7 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
     start().catch(() => setLoadError("The live map service could not initialize. Exchange results remain available in the drawer."));
     return () => {
       cancelled = true;
+      if (beaconAnimationFrameRef.current !== undefined) cancelAnimationFrame(beaconAnimationFrameRef.current);
       setStyleReady(false);
       mapRef.current?.remove();
       mapRef.current = null;
@@ -223,10 +270,94 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
     map.setLayoutProperty(CLUSTER_COUNT_LAYER, "visibility", layerVisibility(view.layers.records));
     map.setLayoutProperty(RECORD_LAYER, "visibility", layerVisibility(view.layers.records));
     map.setLayoutProperty(SELECTED_LAYER, "visibility", layerVisibility(view.layers.records));
+    map.setLayoutProperty(BEACON_MAST_LAYER, "visibility", layerVisibility(view.layers.records));
+    map.setLayoutProperty(BEACON_CROWN_LAYER, "visibility", layerVisibility(view.layers.records));
     const supportsOverlay = lens === "intelligence" || lens === "capabilities";
     map.setLayoutProperty(OVERLAY_LAYER, "visibility", layerVisibility(supportsOverlay && view.layers.lensOverlay));
     if (supportsOverlay) map.setPaintProperty(OVERLAY_LAYER, "heatmap-color", overlayHeatColor(lens) as never);
   }, [lens, records, selectedRecordId, styleReady, view.layers.lensOverlay, view.layers.records]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleReady) return;
+    const source = map.getSource(BEACON_SOURCE) as GeoJSONSource;
+    const next = records.find((record) => record.id === selectedRecordId);
+    const previous = focusedRecordRef.current;
+    const nextBase = next && mapHighlightForRecord(next) ? MAP_BEACON_HEIGHTS.highlight : 0;
+    const previousStillVisible = previous ? records.find((record) => record.id === previous.id) : undefined;
+    const previousBase = previousStillVisible && mapHighlightForRecord(previousStillVisible) ? MAP_BEACON_HEIGHTS.highlight : 0;
+
+    const publish = (transient: Array<{ record: ExchangeRecord; kind: "focus"; height: number }>) => {
+      const transientIds = new Set(transient.map((entry) => entry.record.id));
+      const highlights = selectMapHighlightRecords(records.filter((record) => !transientIds.has(record.id)));
+      const beacons = [
+        ...highlights.map((record) => ({ record, kind: "highlight" as const, height: MAP_BEACON_HEIGHTS.highlight })),
+        ...transient,
+      ];
+      void source.setData(toExchangeMapBeaconFeatureCollection(beacons) as unknown as Parameters<GeoJSONSource["setData"]>[0]);
+    };
+
+    if (beaconAnimationFrameRef.current !== undefined) {
+      cancelAnimationFrame(beaconAnimationFrameRef.current);
+      beaconAnimationFrameRef.current = undefined;
+    }
+
+    if (previous?.id === next?.id) {
+      focusedRecordRef.current = next;
+      if (next) beaconHeightsRef.current.set(next.id, MAP_BEACON_HEIGHTS.focus);
+      publish(next ? [{ record: next, kind: "focus", height: MAP_BEACON_HEIGHTS.focus }] : []);
+      return;
+    }
+
+    const previousStart = previous ? (beaconHeightsRef.current.get(previous.id) ?? MAP_BEACON_HEIGHTS.focus) : 0;
+    const nextStart = next ? (beaconHeightsRef.current.get(next.id) ?? nextBase) : 0;
+    focusedRecordRef.current = next;
+
+    if (reducedMotionRequested()) {
+      beaconHeightsRef.current.clear();
+      if (next) beaconHeightsRef.current.set(next.id, MAP_BEACON_HEIGHTS.focus);
+      publish(next ? [{ record: next, kind: "focus", height: MAP_BEACON_HEIGHTS.focus }] : []);
+      return;
+    }
+
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / FOCUS_TRANSITION_MS);
+      const eased = easeOutCubic(progress);
+      const transient: Array<{ record: ExchangeRecord; kind: "focus"; height: number }> = [];
+
+      if (previous && previous.id !== next?.id) {
+        const height = interpolate(previousStart, previousBase, eased);
+        beaconHeightsRef.current.set(previous.id, height);
+        if (height > 0.5) transient.push({ record: previousStillVisible ?? previous, kind: "focus", height });
+      }
+      if (next) {
+        const height = interpolate(nextStart, MAP_BEACON_HEIGHTS.focus, eased);
+        beaconHeightsRef.current.set(next.id, height);
+        transient.push({ record: next, kind: "focus", height });
+      }
+
+      publish(transient);
+
+      if (progress < 1) {
+        beaconAnimationFrameRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      if (previous) beaconHeightsRef.current.delete(previous.id);
+      if (next) beaconHeightsRef.current.set(next.id, MAP_BEACON_HEIGHTS.focus);
+      publish(next ? [{ record: next, kind: "focus", height: MAP_BEACON_HEIGHTS.focus }] : []);
+      beaconAnimationFrameRef.current = undefined;
+    };
+
+    beaconAnimationFrameRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (beaconAnimationFrameRef.current !== undefined) {
+        cancelAnimationFrame(beaconAnimationFrameRef.current);
+        beaconAnimationFrameRef.current = undefined;
+      }
+    };
+  }, [lens, records, selectedRecordId, styleReady]);
 
   useEffect(() => {
     const map = mapRef.current;
