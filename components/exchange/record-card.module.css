@@ -254,6 +254,12 @@
   content: "·";
 }
 
+.actionDock {
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(37, 41, 50, 0.08);
+  background: rgba(247, 243, 234, 0.28);
+}
+
 .favorite {
   position: absolute;
   z-index: 2;
@@ -288,6 +294,10 @@
 
   .content {
     padding-left: 12px;
+  }
+
+  .actionDock {
+    padding-inline: 10px;
   }
 }
 
