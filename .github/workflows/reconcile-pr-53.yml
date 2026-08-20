@@ -1,0 +1,64 @@
+name: Reconcile PR 53 with main
+
+on:
+  push:
+    branches:
+      - agent/public-auth-entry-hierarchy-services
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: ${{ !contains(github.event.head_commit.message, 'Reconcile PR 53 with main') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Merge current main and preserve newer canonical changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-ff -X theirs origin/main -m "Reconcile PR 53 with main"
+          merge_status=$?
+          set -e
+
+          if [ "$merge_status" -ne 0 ]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            if [ "${#conflicts[@]}" -eq 0 ]; then
+              echo "Merge failed without resolvable conflict paths."
+              exit "$merge_status"
+            fi
+            printf 'Resolving remaining conflicts in favor of current main:\n%s\n' "${conflicts[*]}"
+            for path in "${conflicts[@]}"; do
+              if git cat-file -e "origin/main:${path}" 2>/dev/null; then
+                git checkout --theirs -- "$path"
+                git add -- "$path"
+              else
+                git rm -f -- "$path"
+              fi
+            done
+            git commit -m "Reconcile PR 53 with main"
+          fi
+
+          for path in .github/workflows/pages-preview.yml .github/workflows/pages-preview-publish.yml; do
+            if git cat-file -e "origin/main:${path}" 2>/dev/null; then
+              git checkout origin/main -- "$path"
+              git add -- "$path"
+            fi
+          done
+
+          git rm -f .github/workflows/reconcile-pr-53.yml
+          if ! git diff --cached --quiet; then
+            git commit -m "Remove temporary PR 53 reconciler"
+          fi
+
+          git push origin "HEAD:${GITHUB_REF_NAME}"
