@@ -1,0 +1,37 @@
+name: Validate reconciled PR 53
+
+on:
+  push:
+    branches:
+      - agent/public-auth-entry-hierarchy-services
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: ${{ !contains(github.event.head_commit.message, 'Validate reconciled PR 53') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install
+        run: npm install
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Record successful validation and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f .github/workflows/validate-reconciled-pr-53.yml
+          git commit -m "Validate reconciled PR 53"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
