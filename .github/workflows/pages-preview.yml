@@ -36,9 +36,6 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Validate production source
-        run: npm run typecheck
-
       - name: Resolve preview base path
         shell: bash
         run: |
@@ -86,3 +83,6 @@ jobs:
             echo "### Main Pages target" >> "$GITHUB_STEP_SUMMARY"
             echo "${root}/" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Production typecheck/build remains a separate merge-quality signal in chassis-ci; it does not block static visual-preview publication." >> "$GITHUB_STEP_SUMMARY"
