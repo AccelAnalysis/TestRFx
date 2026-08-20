@@ -18,6 +18,7 @@ export interface MercatorCoordinateFactory {
   fromLngLat(lngLat: [number, number], altitude?: number): { x: number; y: number; z: number };
 }
 
+type GLContext = WebGLRenderingContext | WebGL2RenderingContext;
 type PinHitBox = {
   recordId: string;
   priority: number;
@@ -64,6 +65,10 @@ const palettes: Record<ExchangeMapPinKind, PinPalette> = {
 
 function finiteCoordinate(location: Coordinates) {
   return Number.isFinite(location.lat) && Number.isFinite(location.lng);
+}
+
+function isWebGL2(gl: GLContext): gl is WebGL2RenderingContext {
+  return typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
 }
 
 function createShader(gl: WebGL2RenderingContext, type: number, source: string) {
@@ -116,8 +121,6 @@ function createPinCanvas(kind: ExchangeMapPinKind) {
   canvas.height = PIN_TEXTURE_HEIGHT;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Unable to create 2.5D pin texture canvas.");
-
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const side = pinPath(8, 7);
   const sideGradient = ctx.createLinearGradient(42, 28, 162, 220);
@@ -247,8 +250,10 @@ export class ExchangePinLayer implements CustomLayerInterface {
       .sort((a, b) => b.priority - a.priority)[0]?.recordId;
   }
 
-  onAdd(map: MapLibreMap, gl: WebGL2RenderingContext) {
+  onAdd(map: MapLibreMap, gl: GLContext) {
     this.map = map;
+    if (!isWebGL2(gl)) return;
+
     const spriteVertex = `#version 300 es
       precision highp float;
       in vec3 a_anchor;
@@ -261,10 +266,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
       out float v_opacity;
       void main() {
         vec4 clip = u_matrix * vec4(a_anchor, 1.0);
-        vec2 offsetNdc = vec2(
-          (a_offset.x * 2.0) / u_viewport.x,
-          (a_offset.y * 2.0) / u_viewport.y
-        );
+        vec2 offsetNdc = vec2((a_offset.x * 2.0) / u_viewport.x, (a_offset.y * 2.0) / u_viewport.y);
         clip.xy += offsetNdc * clip.w;
         gl_Position = clip;
         v_uv = a_uv;
@@ -300,9 +302,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
       precision mediump float;
       in vec4 v_color;
       out vec4 outColor;
-      void main() {
-        outColor = vec4(v_color.rgb * v_color.a, v_color.a);
-      }
+      void main() { outColor = vec4(v_color.rgb * v_color.a, v_color.a); }
     `;
 
     this.spriteProgram = createProgram(gl, spriteVertex, spriteFragment);
@@ -313,7 +313,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
     this.focusTexture = createTexture(gl, "focus");
   }
 
-  onRemove(_map: MapLibreMap, gl: WebGL2RenderingContext) {
+  onRemove(_map: MapLibreMap, gl: GLContext) {
     if (this.spriteBuffer) gl.deleteBuffer(this.spriteBuffer);
     if (this.tetherBuffer) gl.deleteBuffer(this.tetherBuffer);
     if (this.spriteProgram) gl.deleteProgram(this.spriteProgram);
@@ -346,8 +346,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
     gl.useProgram(this.tetherProgram);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.tetherBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.DYNAMIC_DRAW);
-    const matrixLocation = gl.getUniformLocation(this.tetherProgram, "u_matrix");
-    gl.uniformMatrix4fv(matrixLocation, false, matrix);
+    gl.uniformMatrix4fv(gl.getUniformLocation(this.tetherProgram, "u_matrix"), false, matrix);
     const stride = TETHER_FLOATS_PER_VERTEX * Float32Array.BYTES_PER_ELEMENT;
     const positionLocation = gl.getAttribLocation(this.tetherProgram, "a_position");
     const colorLocation = gl.getAttribLocation(this.tetherProgram, "a_color");
@@ -380,9 +379,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
       u: number,
       v: number,
       opacity: number,
-    ) => {
-      vertices.push(anchor.x, anchor.y, anchor.z, offsetX, offsetY, u, v, opacity);
-    };
+    ) => vertices.push(anchor.x, anchor.y, anchor.z, offsetX, offsetY, u, v, opacity);
 
     for (const pin of this.pins) {
       if (pin.kind !== kind) continue;
@@ -432,19 +429,24 @@ export class ExchangePinLayer implements CustomLayerInterface {
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
 
-  render({ gl, modelViewProjectionMatrix }: CustomRenderMethodInput) {
-    if (!this.visible || !this.pins.length || !this.map) {
+  render(gl: GLContext, { modelViewProjectionMatrix }: CustomRenderMethodInput) {
+    if (!this.visible || !this.pins.length || !this.map || !isWebGL2(gl)) {
       this.hitBoxes = [];
       return;
     }
+
     const canvas = this.map.getCanvas();
     const width = Math.max(1, canvas.clientWidth);
     const height = Math.max(1, canvas.clientHeight);
     const matrix = modelViewProjectionMatrix as Float32Array;
 
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
     this.drawTethers(gl, matrix);
     this.drawSprites(gl, matrix, "highlight", width, height);
     this.drawSprites(gl, matrix, "focus", width, height);
+    gl.depthMask(true);
 
     this.hitBoxes = this.pins.flatMap((pin) => {
       const anchor = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], pin.altitude);
