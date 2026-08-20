@@ -78,7 +78,7 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const activeStyleUrlRef = useRef<string>();
+  const activeStyleUrlRef = useRef<string | undefined>(undefined);
   const viewRef = useRef(view);
   const selectRef = useRef(onSelect);
   const viewChangeRef = useRef(onViewChange);
