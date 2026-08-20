@@ -5,6 +5,7 @@ import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { Coordinates, DrawerState, ExchangeLens, ExchangeRecord, MapBounds, MapViewState } from "@/lib/exchange/contracts";
 import { summarizeMapRecords } from "@/lib/exchange/map-model";
 import { toExchangeMapFeatureCollection } from "@/lib/exchange/map-service";
+import { mapStyleUrl } from "@/lib/exchange/map-styles";
 import styles from "./persistent-map.module.css";
 
 const RECORD_SOURCE = "exchange-records";
@@ -19,7 +20,6 @@ const OVERLAY_LAYER = "exchange-lens-overlay";
 const LOCATION_LAYER = "viewer-location-point";
 
 const EMPTY_GEOJSON = { type: "FeatureCollection" as const, features: [] };
-const DEFAULT_STYLE = "https://demotiles.maplibre.org/style.json";
 
 function layerVisibility(visible: boolean) { return visible ? "visible" : "none"; }
 
@@ -35,6 +35,36 @@ function overlayHeatColor(lens: ExchangeLens) {
   return ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(214,162,58,0)", 0.25, "rgba(214,162,58,.22)", 0.55, "rgba(214,162,58,.5)", 0.8, "rgba(138,100,24,.7)", 1, "rgba(83,61,18,.86)"];
 }
 
+function installExchangeLayers(map: MapLibreMap) {
+  if (!map.getSource(OVERLAY_SOURCE)) map.addSource(OVERLAY_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
+  if (!map.getLayer(OVERLAY_LAYER)) {
+    map.addLayer({
+      id: OVERLAY_LAYER,
+      type: "heatmap",
+      source: OVERLAY_SOURCE,
+      maxzoom: 15,
+      paint: {
+        "heatmap-weight": 1,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 7, 0.7, 13, 1.8],
+        "heatmap-color": overlayHeatColor("intelligence") as never,
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 7, 18, 13, 44],
+        "heatmap-opacity": 0.82,
+      },
+    });
+  }
+
+  if (!map.getSource(RECORD_SOURCE)) map.addSource(RECORD_SOURCE, { type: "geojson", data: EMPTY_GEOJSON, cluster: true, clusterMaxZoom: 12, clusterRadius: 46 });
+  if (!map.getLayer(CLUSTER_LAYER)) map.addLayer({ id: CLUSTER_LAYER, type: "circle", source: RECORD_SOURCE, filter: ["has", "point_count"], paint: { "circle-color": "#252932", "circle-radius": ["step", ["get", "point_count"], 18, 10, 23, 30, 28], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.5, "circle-opacity": 0.94 } });
+  if (!map.getLayer(CLUSTER_COUNT_LAYER)) map.addLayer({ id: CLUSTER_COUNT_LAYER, type: "symbol", source: RECORD_SOURCE, filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 11 }, paint: { "text-color": "#ffffff" } });
+  if (!map.getLayer(RECORD_LAYER)) map.addLayer({ id: RECORD_LAYER, type: "circle", source: RECORD_SOURCE, filter: ["!", ["has", "point_count"]], paint: { "circle-color": ["get", "color"], "circle-radius": ["case", ["==", ["get", "sponsored"], true], 9, 8], "circle-stroke-color": ["case", ["==", ["get", "sponsored"], true], "#b86b18", "#ffffff"], "circle-stroke-width": ["case", ["==", ["get", "sponsored"], true], 3.5, 2.5], "circle-opacity": 0.95 } });
+
+  if (!map.getSource(SELECTED_SOURCE)) map.addSource(SELECTED_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
+  if (!map.getLayer(SELECTED_LAYER)) map.addLayer({ id: SELECTED_LAYER, type: "circle", source: SELECTED_SOURCE, paint: { "circle-color": "#d6a23a", "circle-radius": 11, "circle-stroke-color": "#ffffff", "circle-stroke-width": 3.5, "circle-opacity": 1 } });
+
+  if (!map.getSource(LOCATION_SOURCE)) map.addSource(LOCATION_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
+  if (!map.getLayer(LOCATION_LAYER)) map.addLayer({ id: LOCATION_LAYER, type: "circle", source: LOCATION_SOURCE, paint: { "circle-color": "#2e5eaa", "circle-radius": 7, "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
+}
+
 export function PersistentMap({ lens, records, selectedRecordId, drawerState, view, viewerLocation, onViewChange, onSelect, onViewportInteraction }: {
   lens: ExchangeLens;
   records: ExchangeRecord[];
@@ -48,6 +78,7 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
 }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const activeStyleUrlRef = useRef<string>();
   const viewRef = useRef(view);
   const selectRef = useRef(onSelect);
   const viewChangeRef = useRef(onViewChange);
@@ -69,9 +100,11 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
       const maplibregl = await import("maplibre-gl");
       if (cancelled || !hostRef.current) return;
       const initial = viewRef.current;
+      const initialStyleUrl = mapStyleUrl(initial.style);
+      activeStyleUrlRef.current = initialStyleUrl;
       map = new maplibregl.Map({
         container: hostRef.current,
-        style: process.env.NEXT_PUBLIC_RFX_MAP_STYLE_URL || DEFAULT_STYLE,
+        style: initialStyleUrl,
         center: [initial.camera.center.lng, initial.camera.center.lat],
         zoom: initial.camera.zoom,
         bearing: initial.camera.bearing,
@@ -87,30 +120,19 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
         if (event.error && !map?.isStyleLoaded()) setLoadError("The live map provider could not load its style or tiles. Exchange results remain available in the drawer.");
       });
 
+      const markStyleReady = () => {
+        if (!map) return;
+        installExchangeLayers(map);
+        setLoadError(undefined);
+        setStyleReady(true);
+        const current = viewRef.current;
+        viewChangeRef.current({ ...current, currentBounds: currentBounds(map) });
+      };
+
+      map.on("style.load", markStyleReady);
       map.on("load", () => {
         if (!map) return;
-        map.addSource(OVERLAY_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
-        map.addLayer({
-          id: OVERLAY_LAYER,
-          type: "heatmap",
-          source: OVERLAY_SOURCE,
-          maxzoom: 15,
-          paint: {
-            "heatmap-weight": 1,
-            "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 7, 0.7, 13, 1.8],
-            "heatmap-color": overlayHeatColor("intelligence") as never,
-            "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 7, 18, 13, 44],
-            "heatmap-opacity": 0.82,
-          },
-        });
-        map.addSource(RECORD_SOURCE, { type: "geojson", data: EMPTY_GEOJSON, cluster: true, clusterMaxZoom: 12, clusterRadius: 46 });
-        map.addLayer({ id: CLUSTER_LAYER, type: "circle", source: RECORD_SOURCE, filter: ["has", "point_count"], paint: { "circle-color": "#252932", "circle-radius": ["step", ["get", "point_count"], 18, 10, 23, 30, 28], "circle-stroke-color": "#ffffff", "circle-stroke-width": 2.5, "circle-opacity": 0.94 } });
-        map.addLayer({ id: CLUSTER_COUNT_LAYER, type: "symbol", source: RECORD_SOURCE, filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 11 }, paint: { "text-color": "#ffffff" } });
-        map.addLayer({ id: RECORD_LAYER, type: "circle", source: RECORD_SOURCE, filter: ["!", ["has", "point_count"]], paint: { "circle-color": ["get", "color"], "circle-radius": ["case", ["==", ["get", "sponsored"], true], 9, 8], "circle-stroke-color": ["case", ["==", ["get", "sponsored"], true], "#b86b18", "#ffffff"], "circle-stroke-width": ["case", ["==", ["get", "sponsored"], true], 3.5, 2.5], "circle-opacity": 0.95 } });
-        map.addSource(SELECTED_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
-        map.addLayer({ id: SELECTED_LAYER, type: "circle", source: SELECTED_SOURCE, paint: { "circle-color": "#d6a23a", "circle-radius": 11, "circle-stroke-color": "#ffffff", "circle-stroke-width": 3.5, "circle-opacity": 1 } });
-        map.addSource(LOCATION_SOURCE, { type: "geojson", data: EMPTY_GEOJSON });
-        map.addLayer({ id: LOCATION_LAYER, type: "circle", source: LOCATION_SOURCE, paint: { "circle-color": "#2e5eaa", "circle-radius": 7, "circle-stroke-color": "#ffffff", "circle-stroke-width": 3 } });
+        installExchangeLayers(map);
 
         map.on("click", CLUSTER_LAYER, async (event) => {
           const feature = event.features?.[0];
@@ -149,10 +171,7 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
           });
         });
 
-        setLoadError(undefined);
-        setStyleReady(true);
-        const current = viewRef.current;
-        viewChangeRef.current({ ...current, currentBounds: currentBounds(map) });
+        markStyleReady();
       });
     }
 
@@ -164,6 +183,17 @@ export function PersistentMap({ lens, records, selectedRecordId, drawerState, vi
       mapRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const nextStyleUrl = mapStyleUrl(view.style);
+    if (activeStyleUrlRef.current === nextStyleUrl) return;
+    activeStyleUrlRef.current = nextStyleUrl;
+    setLoadError(undefined);
+    setStyleReady(false);
+    map.setStyle(nextStyleUrl);
+  }, [view.style]);
 
   useEffect(() => {
     const map = mapRef.current;
