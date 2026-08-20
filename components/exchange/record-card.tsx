@@ -1,6 +1,7 @@
 "use client";
 
-import type { ExchangeRecord, ExchangeRelationshipState, ExchangeStatusTone } from "@/lib/exchange/contracts";
+import type { ExchangeRecord, ExchangeRelationshipState, ExchangeStatusTone, LensAction } from "@/lib/exchange/contracts";
+import { RecordActionRow } from "./record-actions";
 import styles from "./record-card.module.css";
 
 const mediaLabels: Record<ExchangeRecord["type"], string> = {
@@ -40,15 +41,19 @@ const mediaClass: Record<ExchangeRecord["type"], string> = {
 export function RecordCard({
   record,
   selected,
+  actions,
   onSelect,
   onOpen,
   onToggleSave,
+  onAction,
 }: {
   record: ExchangeRecord;
   selected: boolean;
+  actions: LensAction[];
   onSelect: () => void;
   onOpen: () => void;
   onToggleSave: () => void;
+  onAction: (action: LensAction) => void;
 }) {
   const placement = record.card?.placement ?? (record.featured ? "featured" : "organic");
   const status = record.card?.status;
@@ -104,21 +109,33 @@ export function RecordCard({
 
           {record.card?.classifications?.length ? (
             <div className={styles.classifications} aria-label="Classifications">
-              {record.card.classifications.slice(0, 3).map((item) => <span key={item}>{item}</span>)}
+              {record.card.classifications.slice(0, 2).map((item) => <span key={item}>{item}</span>)}
             </div>
           ) : null}
 
           <div className={styles.metadata} aria-label="Record metadata">
-            {record.metadata.slice(0, 3).map((item) => <span key={item}>{item}</span>)}
+            {record.metadata.slice(0, 2).map((item) => <span key={item}>{item}</span>)}
           </div>
 
           {relationships.size ? (
             <div className={styles.relationships} aria-label="Relationship state">
-              {[...relationships].map((relationship) => <span key={relationship}>{relationshipLabels[relationship]}</span>)}
+              {[...relationships].slice(0, 2).map((relationship) => <span key={relationship}>{relationshipLabels[relationship]}</span>)}
             </div>
           ) : null}
         </div>
       </button>
+
+      <div className={styles.actionDock}>
+        <RecordActionRow
+          actions={actions}
+          maxVisible={3}
+          label={`Actions for ${record.title}`}
+          onAction={(action) => {
+            onSelect();
+            onAction(action);
+          }}
+        />
+      </div>
 
       <button
         type="button"
