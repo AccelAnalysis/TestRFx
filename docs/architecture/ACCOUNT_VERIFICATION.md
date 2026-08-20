@@ -2,35 +2,29 @@
 
 ## Purpose
 
-Account Verification is the trust gate between creating RFxchange credentials and assigning those credentials organizational meaning. It proves that the person controlling an onboarding session also controls the account email address.
+Account Verification is the trust gate between RFxchange Registration and organization onboarding. It proves control of the account email address and consumes a server-side, single-use verification challenge.
 
-It does **not** establish organization ownership or membership, geography, map placement, capabilities, AMACS mappings, membership/payment status, or Exchange readiness.
-
-The governing flow is:
+It does **not** establish organization ownership or membership, geography, map placement, capabilities, AMACS mappings, commercial membership/payment status, or Exchange readiness.
 
 ```text
 Registration
     ↓
-Pending account
+Durable pending user + registration
     ↓
 Account Verification
     ↓
-Verified account identity
+Verified account email
     ↓
-Onboarding router
-    ↓
-Organization selection / creation
+Organization Selection / Creation
     ↓
 Geography
     ↓
-Organization profile
+Organization Profile
     ↓
-Capability enrichment
+Capability Enrichment
     ↓
-Exchange-ready completion
+Exchange-ready Completion
 ```
-
-This preserves the RFxchange operating-chassis dependency direction: Identity & Onboarding establishes the authenticated participant and organization context; the Authenticated Exchange consumes that context later.
 
 ## Route contract
 
@@ -40,162 +34,184 @@ The account-verification surface lives at:
 /onboarding/account-verification
 ```
 
-Supported context query parameters are intentionally bounded hints, not authorization truth:
+Registration supplies a durable `registration` identifier and preserves bounded downstream context. The concrete workflow modes are:
 
 ```text
-email
-source=registration|email_change|resend|invitation|referral|campaign
-invitation
-referral
-campaign
-returnTo
+?registration={id}
+?registration={id}&mode=resend
+?registration={id}&mode=change-email
+?token={single-use-token}&registration={id}
 ```
 
-`returnTo` is accepted only for internal onboarding/Exchange paths and is preserved for later onboarding. Verification itself still routes a newly verified participant to the organization stage.
-
-A Registration or invitation implementation should hand off to this route after a real pending account exists. The verification module must not create an organization or grant an invited role itself.
+A participant cannot start an arbitrary standalone verification by entering an email address. A durable Registration transaction must exist first.
 
 ## UI states
 
-The shared Identity & Onboarding shell renders these governed states:
-
 ```text
-idle
-  ↓
-requesting
-  ↓
-pending ── resend / change email ──┐
-  │                                │
-  └──── verification link ─────────┘
-             ↓
-         verifying
-        /    |     \
-   verified expired invalid
-       │        │      │
-       ▼        └── request replacement
+registration status load
+        ↓
+     pending
+     /     \
+ resend   change email
+    │          │
+    └────┬─────┘
+         ↓
+ delivered email
+         ↓
+ verification link
+         ↓
+      verifying
+      /   |    \
+verified expired invalid
+   │        │      │
+   ▼        └── resend replacement
 organization
 onboarding
 ```
 
-The page also has an explicit `configuration_error` state. A missing production provider is shown as unavailable; the application does not create a local verification success path.
+The surface also distinguishes `rate_limited`, `delivery_error`, and `configuration_error`. It never displays a development-only verification URL or reports an email as sent merely because a token was generated.
 
 ## API boundary
-
-The application boundary is:
 
 ```text
 POST /api/identity/account-verification
 ```
 
-Request actions:
+Actions:
 
-- `request` — request a verification challenge for a pending account email.
-- `resend` — request a replacement challenge.
-- `change_email` — request against a corrected/replacement account email.
-- `verify` — validate the provider token and return the next onboarding path.
+- `request` — issue a challenge for an existing pending Registration transaction.
+- `resend` — apply cooldown policy, supersede the prior live challenge, and deliver a new link.
+- `change_email` — re-run normalized-email uniqueness, update the pending identity, supersede prior challenges, and deliver a new link.
+- `verify` — hash the presented token, resolve the issued database challenge, enforce expiry/state, consume it transactionally, and mark the account email verified.
 
-The route delegates challenge creation, delivery, validation, expiration, and consumption to the configured Identity verification provider.
-
-Environment contract:
+Registration also exposes:
 
 ```text
-RFXCHANGE_IDENTITY_VERIFICATION_ENDPOINT
-RFXCHANGE_IDENTITY_VERIFICATION_TOKEN        optional provider credential
+GET /api/identity/registration/{registrationId}
 ```
 
-Provider endpoints must use HTTPS in production.
+so the Account Verification surface can resolve the durable pending state without putting the raw email in the browser URL.
+
+## Token and challenge contract
+
+The previous signed reference-token adapter and development fallback secret have been removed.
+
+The runtime now generates a cryptographically random 32-byte token using Node's `crypto.randomBytes()`. Only `SHA-256(token)` is stored in `email_verification_challenges`. The raw token exists only long enough to construct the delivered verification URL.
+
+Challenge state remains:
 
 ## No reference-token fallback
 
-The former non-production HMAC reference token and exposed reference verification URL have been removed.
+The server:
 
-TestRFx therefore does not claim:
+1. marks stale issued challenges expired;
+2. enforces a resend cooldown;
+3. supersedes prior live challenges before issuing a replacement;
+4. stores the challenge hash, expiry, registration/user association, request metadata, and bounded onboarding context;
+5. revokes the newly issued challenge if transactional email delivery fails;
+6. consumes a valid issued challenge under a database transaction;
+7. rejects consumed, superseded, revoked, expired, missing, or unknown tokens.
 
-- that an email was delivered when no provider accepted the request;
-- that a challenge was consumed when no provider validated it;
-- that a locally generated token is equivalent to production verification persistence.
+## Email delivery
 
-If the verification provider is not configured, the API returns `configuration_error` and the UI keeps the participant outside the verified state.
+Verification delivery uses the configured transactional identity-email transport:
 
-## Provider expectations
+- `IDENTITY_EMAIL_DELIVERY_URL`
+- `IDENTITY_EMAIL_FROM`
+- optional `IDENTITY_EMAIL_DELIVERY_TOKEN`
+- `RFXCHANGE_APP_URL` for the public verification-link origin
 
-The provider behind `RFXCHANGE_IDENTITY_VERIFICATION_ENDPOINT` is expected to enforce the security properties represented by the chassis contract:
+RFxchange POSTs `{ messageType, from, to, subject, text, html }` to that transport. Delivery is recorded as `sent` only when the transport returns a successful HTTP response. Failed transport attempts are recorded and the corresponding challenge is revoked.
 
-- single-purpose verification challenges;
-- bounded expiration;
-- one-time consumption;
-- resend throttling;
-- supersession/revocation when email changes;
-- secure token storage/validation;
-- account-state checks;
-- audit/security events;
-- no sensitive token logging.
+This keeps email infrastructure replaceable without retaining a mocked “reference delivery” path.
 
-`db/identity-verification.sql` remains the canonical relational model if RFxchange owns that persistence directly; an external Identity provider may instead own equivalent durable state. The API contract is intentionally provider-neutral.
+## Persistence
 
-## Duplicate-account boundary
-
-The Registration source establishes one account per user email. Account Verification reinforces that contract but does not decide account-merge behavior.
-
-Expected upstream behavior remains:
+Apply:
 
 ```text
-email submitted
-    ↓
-normalized account lookup
-    ├── none → create pending account → verification
-    ├── pending → resume verification
-    ├── verified → sign in
-    └── restricted → safe account-state response
+db/schema.sql
+db/identity-verification.sql
+db/registration-runtime.sql
 ```
 
-The registration provider, not this UI, is responsible for durable duplicate-account enforcement.
-
-## Invitation, referral, and campaign context
-
-Verification preserves acquisition/onboarding context but treats it as untrusted until the responsible downstream service validates it again.
-
-For example:
+The combined model provides:
 
 ```text
-Partner invitation
-    ↓
-Register
-    ↓
-Verify email
-    ↓
-Restore invitation identifier
-    ↓
-Organization onboarding validates invitation
-    ↓
-Role/membership may be established
+users.email_verified_at
+users.account_status
+normalized unique email index
+registration_transactions
+email_verification_challenges
+identity_email_deliveries
+activity_events
 ```
 
-Controlling an email address is never sufficient to grant an organization role.
+Verification completion updates both the canonical user account and the Registration transaction in the same server-side flow.
 
-The supplied Onboarding source explicitly defines `Validate Invitation → Accept / Join Organization → Set Role / Confirm Access`. Those states are represented in the public Login/Register hierarchy, but no dedicated invitation service exists in TestRFx yet; the application does not simulate successful invitation acceptance.
+## Duplicate-account and change-email boundary
 
-## On success
+Registration enforces one normalized email identity. Account Verification repeats that protection when a participant changes the pending email:
 
-Account Verification is complete only when the configured verification provider returns a verified state and the onboarding router can continue safely.
+```text
+new email
+   ↓
+normalized lookup
+   ├── belongs to another identity → reject
+   └── available → update pending identity → issue replacement challenge
+```
 
-The default continuation in the current platform structure is **Organization selection / creation**. A returning participant should resume the actual incomplete onboarding stage rather than repeat completed work.
+Organization invitation or referral context never bypasses this identity rule.
 
-## Security and operational integration points
+## Invitation, referral, campaign, and downstream context
 
-The verification provider/API boundary owns or integrates:
+Verification preserves:
 
-- pending account / identity repository;
-- challenge persistence and transactional consumption;
-- email delivery provider and templates;
-- resend rate limiting and abuse protection;
-- account status;
-- security/audit events;
-- onboarding-state service;
-- delivery telemetry.
+```text
+source
+campaign
+invitation
+referral
+organization intent
+membership intent
+geography intent
+requested record
+returnTo
+```
 
-Invitation/referral validation remains downstream. MFA remains a separate Login authentication concern. Email verification answers “does this participant control this account email?”; MFA answers “can this authenticated participant satisfy an additional factor?”
+These remain hints/continuity state. Controlling an email is not sufficient to grant an organization role, establish geography, activate a paid membership, or authorize a record.
+
+On successful verification the server builds the canonical handoff to `/onboarding/organization`, where Organization Selection / Creation validates its own authority and membership inputs.
+
+## Security and operational behavior
+
+- raw verification tokens are never persisted;
+- tokens are single-use and time bounded;
+- resend requests are rate limited;
+- prior live tokens are superseded on replacement;
+- failed email sends revoke the generated challenge;
+- normalized email uniqueness is enforced server-side;
+- request IP/user-agent may be recorded for security/audit use;
+- verification state is never trusted from client-side UI;
+- external auth-entry return URLs are not accepted;
+- sensitive token values must never be written to analytics or activity payloads.
+
+Production deployments should additionally apply network-layer abuse controls, monitoring, database backups, email-provider telemetry, secret management, and authenticated session establishment after verification. Those are infrastructure concerns, not reasons to reintroduce a simulated verification path.
+
+## Events
+
+The connected implementation emits registration/identity activity events including:
+
+```text
+RegistrationCreated
+RegistrationResumed
+RegistrationExistingIdentityDetected
+RegistrationVerificationSent
+RegistrationEmailVerified
+```
+
+Additional provider-level delivery/bounce events can be joined through the transactional email transport without changing the Registration or Account Verification UI contracts.
 
 ## Chassis rule
 
-Account Verification is part of the **Identity & Onboarding Shell**, not an Exchange lens. It must not render the persistent map, result drawer, lens action rail, record cards, or bottom lens navigation. Its output is a verified identity state that later onboarding stages can safely attach to organization context before the user reaches the authenticated RFxchange Exchange.
+Account Verification remains part of the **Identity & Onboarding Shell**. It never mounts the persistent Exchange map, drawer, action rail, cards, or bottom lens navigation. Its output is a verified person identity that later onboarding modules can attach to organization and participation context.

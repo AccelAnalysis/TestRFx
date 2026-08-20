@@ -2,170 +2,192 @@
 
 ## Purpose
 
-Public Resources / Content is the RFxchange public knowledge, education, and discovery layer. It belongs to the **Public / Acquisition Shell** and must not become a public clone of the authenticated **Resources** lens.
+Public Resources / Content is the RFxchange public knowledge, education, and preparation layer inside the **Public / Acquisition Shell**. It is not a public clone of the authenticated **Resources** lens.
 
-The public surface helps visitors learn, research, prepare, and understand RFxchange. Operational Exchange records and actions remain in the authenticated operating chassis.
+The source architecture keeps operational Resource actions inside the Exchange: own-organization Offer / Edit / Share / Save-Archive, other-organization Request / View Detail / Share / Save-Follow, mapped/off-map/sponsored result treatment, and the cross-lens Referral workflow. Public Resources may explain and prepare for those behaviors, but it does not execute them.
 
-## Governing boundary
+## Public-to-authenticated boundary
 
 ```text
 PUBLIC RESOURCES / CONTENT
 Learn
 Research
 Prepare
+Download worksheets
 Understand terminology
-Preview Exchange value
         |
         v
 LOGIN / REGISTER
+(returnTo preserved)
+        |
+        v
+IDENTITY & ONBOARDING
         |
         v
 AUTHENTICATED EXCHANGE
-Discover live records
-Save / watch
-Offer / request
-Respond / team
-Refer / connect
-Manage organization state
+RFx | Resources | Intelligence | Capabilities
 ```
 
-Two different domain concepts intentionally exist:
+`PublicContentItem` and an Exchange `resource` record remain separate domain objects.
 
-- `PublicContentItem` — article, guide, template, insight, case study, reference, or learning event.
-- `ExchangeRecord` of type `resource` — operational resource offer/request/provider record rendered through the Exchange chassis.
+## True hierarchy
 
-They should not share one generic `Resource` model.
-
-## Routes
+The first build exposed the hierarchy as visual cards but only implemented `/resources` and flat `/resources/[slug]` detail routes. The deeper navigation is now canonical URL state.
 
 ```text
 /resources
-/resources/[slug]
-/api/public-content
+├── learn
+│   ├── rfx-procurement
+│   ├── finding-opportunities
+│   ├── responding-to-rfx
+│   ├── teaming-collaboration
+│   ├── referrals
+│   ├── capabilities
+│   │   └── amacs
+│   ├── resource-exchange
+│   ├── market-intelligence
+│   └── rfxchange-how-to
+├── templates
+│   ├── rfx-readiness
+│   ├── capability-statement
+│   ├── capability-discovery
+│   ├── teaming-partner
+│   ├── referral-preparation
+│   ├── resource-offer-request
+│   └── downloads
+├── insights
+│   ├── market-briefs
+│   ├── regional-briefs
+│   ├── industry-briefs
+│   ├── procurement-insights
+│   ├── capability-supply-demand
+│   ├── rfx-trends
+│   └── selected-public-intelligence
+├── stories
+│   ├── business-success
+│   ├── buyer-use-cases
+│   ├── resource-provider-use-cases
+│   ├── teaming-examples
+│   └── referral-connection-examples
+├── reference
+│   ├── rfxchange-glossary
+│   ├── rfx-terminology
+│   ├── amacs-overview
+│   ├── capability-terminology
+│   ├── resource-categories
+│   └── faq-help
+├── events
+│   ├── webinars
+│   ├── workshops
+│   ├── recorded-sessions
+│   ├── community-education
+│   └── detail-registration
+└── audiences
+    ├── businesses
+    ├── buyers
+    └── resource-providers
 ```
 
-`/resources` is the public library hub. `/resources/[slug]` is the shared public content detail surface. `/api/public-content` is a normalized application boundary for future CMS/search persistence and currently serves the deterministic reference catalog.
+The audience branch is source-supported by the Marketing flow, which explicitly names Businesses, Buyers, and Resource Providers.
 
-The authenticated Resources lens remains:
+Each node has a concrete URL, breadcrumb lineage, recursive active-branch navigation, and child cards. Browser Back/Forward therefore restores nested navigation depth without a separate client-only navigation stack.
+
+## Published-content service
+
+`lib/public-content/service.ts` is the read application service for committed published public content. It provides:
+
+- published-content listing
+- featured-content selection
+- validated server query behavior
+- facets derived from actual published items
+- collection membership
+- related-content ranking
+- identity handoff URLs with `returnTo`
+
+The server API `/api/public-content` delegates to the same service instead of reimplementing catalog filtering. The current source-controlled catalog is valid storage for a small read-only public library; a CMS can later replace that storage adapter without changing the page or API contracts.
+
+The browser library explorer projects the same committed published catalog and stores filters in the URL. This keeps the public search shareable and Back/Forward-restorable while also remaining compatible with the static GitHub Pages preview, where runtime API routes do not execute.
+
+## Search and nested state
+
+Public search uses ordinary URL query parameters:
 
 ```text
-/exchange/resources
+/resources?q=capability&topic=Capabilities&audience=Buyers&type=guide
 ```
 
-## Information architecture
+That gives search a concrete, shareable, browser-restorable state. It remains separate from Universal Exchange Search.
 
-The public library is organized by two parallel dimensions.
+## Real downloadable tools
 
-### Exchange concepts
+The original structure included downloadable worksheets/templates. The implementation now ships real source-controlled files for:
 
-- RFx
-- Capabilities
-- Resources
-- Intelligence
-- Teaming & Referrals
+- RFx readiness
+- capability statement preparation
+- capability discovery
+- teaming / partner preparation
+- referral preparation
+- Resource offer / request preparation
 
-The first four mirror the Exchange mental model. Teaming & Referrals remains cross-lens, consistent with the operating chassis.
+The aggregate `/resources/templates/downloads` route exposes all of those files. These assets prepare work only; they do not fake authenticated saves, submissions, referrals, or Resource mutations.
 
-### Audiences
+## Empty collections are truthful
 
-- Businesses
-- Buyers
-- Resource Providers
+Some source-defined collections do not yet have a real RFxchange publication, customer story, event, or governed dataset. Those routes remain valid but show an explicit empty published-content state.
 
-A content item can target multiple audiences without creating separate copies of the same material.
+The implementation does **not** invent:
 
-## Content types
+- customer success stories
+- buyer/provider case studies
+- webinars or workshops
+- event registrations
+- industry briefs
+- RFx trend claims
+- popularity metrics
 
-The reference implementation supports:
+When a real item is published, it can be added to the catalog and assigned to the existing node without redesigning navigation.
 
-- guide
-- template
-- insight
-- case study
-- reference
-- event
+## Source-specific Resource workflow boundary
 
-The data contract also contains summary, topic, audiences, reading time, publication date, body content, practical takeaways, featured state, and a contextual Exchange CTA.
-
-## Search boundary
-
-Public library search only searches public publishing content. It does not masquerade as Universal Exchange Search.
-
-The reference explorer supports:
-
-- keyword search
-- topic filtering
-- audience filtering
-- content-type filtering
-
-A production implementation can replace the deterministic catalog with CMS and/or search infrastructure behind `/api/public-content` without changing the page composition.
-
-## Public-to-Exchange handoff
-
-Every content detail can point to the appropriate existing lens route:
+The authenticated Resources source defines:
 
 ```text
-RFx content            -> /exchange/rfx
-Resource content       -> /exchange/resources
-Intelligence content   -> /exchange/intelligence
-Capability / AMACS     -> /exchange/capabilities
-Teaming / referral     -> originating relevant lens
+OWN VIEW
+Offer Resource -> Offer Resource modal
+Edit Resource -> Manage / Edit Resource
+Share -> Share menu / send resource
+Save / Archive -> Save or Archive action
+
+OTHERS VIEW
+Request Resource -> Request Resource modal
+View Resource Detail -> Resource detail view
+Share -> Share menu / send to another organization
+Save -> Save / follow action
+
+CROSS-LENS REFERRAL
+Refer from result/detail
+-> Referral modal
+-> recipient referral policy / fee
+-> Menu -> Referrals Management
 ```
 
-The current chassis does not yet accept an initial public search query as part of that handoff, so this implementation does not pretend to preserve unsupported search state. When the Exchange search contract gains an initial-query/deep-link input, contextual public CTAs can carry intent through authentication and onboarding.
+Public Resources does not duplicate these workflows. Its Resource-exchange guide and Resource offer/request worksheet terminate in Login/Register handoffs that preserve `/exchange/resources` as the intended destination.
 
-## Shell integration
+## Identity handoff
 
-The public module reuses the existing Public / Acquisition visual primitives and design tokens:
+Public Exchange CTAs no longer jump directly into an unauthenticated reference Exchange. They use:
 
-- RFxchange public navigation
-- Warm Ivory, Exchange Black, RF Gold, Signal Blue, and Growth Green
-- existing button treatments
-- public-shell responsive behavior
-- Login and Register entry points
+```text
+/login?returnTo=/exchange/{lens}
+/register?source=resources&returnTo=/exchange/{lens}
+```
 
-It does **not** import or recreate:
+The merged Identity flow accepts and sanitizes internal `returnTo` destinations. This keeps Public Resources inside the three-shell operating model.
 
-- persistent Exchange map
-- bottom lens navigation
-- sliding results drawer
-- four-slot lens action rail
-- Exchange record cards
-- Exchange detail controller
+## GitHub Pages preview
 
-Those remain exclusive to the authenticated operating chassis.
-
-## Current implementation versus production target
-
-### Implemented
-
-- public library hub
-- topic and audience learning paths
-- featured content
-- client-side public content search/filtering
-- shared public content cards
-- shared public content detail route
-- related-content recommendations
-- contextual Exchange lens CTAs
-- public/API publishing contract
-- responsive mobile/desktop composition
-- deterministic reference catalog
-
-### Future integration points
-
-- CMS/editorial workflow
-- publication states and versioning
-- author and organization attribution
-- SEO/structured-data enhancements
-- asset/media storage
-- campaign attribution
-- public analytics
-- server-backed search/indexing
-- event registration
-- downloadable file assets
-- authentication-aware return-to-intent
-- initial Exchange search/filter deep links
+Production source keeps `/api/public-content`, while the GitHub Pages preview removes runtime API routes in its temporary build projection. Public Resources remains previewable because its pages render from the same source-controlled read service at build time and its search projection operates in the browser against that same published catalog.
 
 ## Rule for future work
 
-Public content should make RFxchange easier to understand and enter. It should not duplicate the transactional Exchange. If a feature changes live organization state, creates an Exchange record, saves/watches an Exchange record, responds, offers, requests, refers, connects, or otherwise performs authenticated Exchange work, it belongs behind the operating chassis rather than in Public Resources / Content.
+Public content may educate, explain, publish research, provide downloadable preparation tools, and preserve intent into Identity/Onboarding. If an action changes organization state, creates or updates an Exchange record, saves/follows/watches a record, responds, offers, requests, refers, connects, or otherwise performs authenticated Exchange work, it belongs to the authenticated chassis or shared workflow services rather than Public Resources / Content.

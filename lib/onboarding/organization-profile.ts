@@ -1,5 +1,19 @@
 export type OrganizationClaimMode = "claimed" | "created" | "selected";
-export type LocationVisibility = "exact" | "approximate" | "locality";
+
+export const ORGANIZATION_TYPE_OPTIONS = [
+  "Business",
+  "Supplier",
+  "Buyer / Issuer",
+  "Government",
+  "Economic Development Organization",
+  "Resource Provider",
+  "Chamber / Association",
+  "Lender / Capital Provider",
+  "University / Education",
+  "Nonprofit",
+  "Other",
+] as const;
+export type OrganizationType = (typeof ORGANIZATION_TYPE_OPTIONS)[number];
 
 export type OrganizationRole =
   | "business"
@@ -37,8 +51,10 @@ export type OrganizationProfileSubmission = {
   context: OrganizationProfileContext;
   displayName: string;
   legalName: string;
+  organizationType: OrganizationType | "";
   description: string;
   website: string;
+  primaryDomain: string;
   industry: string;
   naics: string;
   roles: OrganizationRole[];
@@ -46,69 +62,108 @@ export type OrganizationProfileSubmission = {
   contactTitle: string;
   contactEmail: string;
   contactPhone: string;
-  addressLine1: string;
-  addressLine2: string;
-  city: string;
-  region: string;
-  postalCode: string;
-  country: string;
-  serviceGeographies: string;
-  locationVisibility: LocationVisibility;
+  brandName: string;
+  logoUrl: string;
   searchable: boolean;
   mapVisible: boolean;
   publicContact: boolean;
   goals: OrganizationGoal[];
-  capabilitySeed: string;
 };
 
 export type OrganizationProfileField =
+  | "organization"
   | "displayName"
+  | "organizationType"
   | "description"
+  | "website"
+  | "primaryDomain"
   | "roles"
   | "contactName"
   | "contactEmail"
-  | "addressLine1"
-  | "city"
-  | "region"
-  | "postalCode"
-  | "country"
-  | "serviceGeographies"
+  | "logoUrl"
   | "goals"
-  | "capabilitySeed"
   | "form";
 
 export type OrganizationProfileFieldErrors = Partial<Record<OrganizationProfileField, string>>;
 
+export type OrganizationProfileCompletion = {
+  identity: boolean;
+  contact: boolean;
+  role: boolean;
+  visibility: boolean;
+  goals: boolean;
+};
+
 export type OrganizationProfileAccepted = {
-  status: "profile_complete";
+  status: "profile_saved" | "profile_complete";
   organizationId: string;
   organizationName: string;
   nextStep: "capability_enrichment";
   handoffHref: string;
-  completion: {
-    identity: true;
-    contact: true;
-    location: true;
-    serviceGeography: true;
-    role: true;
-    visibility: true;
-    capabilitySeed: true;
-  };
+  completion: OrganizationProfileCompletion;
   context: OrganizationProfileContext;
-  adapter: "reference";
+  service: "postgres";
+};
+
+export type OrganizationGeographySummary = {
+  label: string;
+  locality?: string;
+  region?: string;
+  visibility?: string;
+  mapReady: boolean;
+  serviceGeographies: string[];
+} | null;
+
+export type OrganizationTeamMember = {
+  userId: string;
+  displayName: string;
+  email: string;
+  role: string;
+  permissions: string[];
+  isViewer: boolean;
+};
+
+export type OrganizationInvitation = {
+  id: string;
+  email: string;
+  role: string;
+  permissions: string[];
+  status: string;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export type OrganizationVerification = {
+  id: string;
+  fieldKey: string;
+  fieldLabel: string;
+  value: string;
+  status: string;
+  source?: string;
+  verifiedAt?: string;
+  expiresAt?: string;
+};
+
+export type OrganizationProfileSnapshot = {
+  organizationId: string;
+  organizationName: string;
+  viewerRole: string;
+  profileStatus: "in_progress" | "complete" | "enriched";
+  profile: Omit<OrganizationProfileSubmission, "context">;
+  geography: OrganizationGeographySummary;
+  team: OrganizationTeamMember[];
+  invitations: OrganizationInvitation[];
+  verifications: OrganizationVerification[];
+  service: "postgres";
 };
 
 export type OrganizationProfileValidationResult =
-  | { ok: true; submission: OrganizationProfileSubmission }
+  | { ok: true; submission: OrganizationProfileSubmission; completion: OrganizationProfileCompletion }
   | { ok: false; errors: OrganizationProfileFieldErrors };
 
 type SearchParamsLike = Record<string, string | string[] | undefined>;
 
-export const ORGANIZATION_ROLE_OPTIONS: ReadonlyArray<{
-  id: OrganizationRole;
-  label: string;
-  description: string;
-}> = [
+export const ORGANIZATION_ROLE_OPTIONS: ReadonlyArray<{ id: OrganizationRole; label: string; description: string }> = [
   { id: "business", label: "Business", description: "Operate, sell, contract, or deliver services." },
   { id: "supplier", label: "Supplier", description: "Supply products, materials, or services." },
   { id: "buyer", label: "Buyer", description: "Source products, services, or partners." },
@@ -123,10 +178,7 @@ export const ORGANIZATION_ROLE_OPTIONS: ReadonlyArray<{
   { id: "other", label: "Other", description: "Another organization role not listed here." },
 ];
 
-export const ORGANIZATION_GOAL_OPTIONS: ReadonlyArray<{
-  id: OrganizationGoal;
-  label: string;
-}> = [
+export const ORGANIZATION_GOAL_OPTIONS: ReadonlyArray<{ id: OrganizationGoal; label: string }> = [
   { id: "find_opportunities", label: "Find RFx and opportunities" },
   { id: "issue_opportunities", label: "Issue RFx and opportunities" },
   { id: "find_customers", label: "Find customers and buyers" },
@@ -139,8 +191,8 @@ export const ORGANIZATION_GOAL_OPTIONS: ReadonlyArray<{
 
 const roleIds = new Set<OrganizationRole>(ORGANIZATION_ROLE_OPTIONS.map((option) => option.id));
 const goalIds = new Set<OrganizationGoal>(ORGANIZATION_GOAL_OPTIONS.map((option) => option.id));
+const organizationTypeIds = new Set<string>(ORGANIZATION_TYPE_OPTIONS);
 const claimModes = new Set<OrganizationClaimMode>(["claimed", "created", "selected"]);
-const visibilityModes = new Set<LocationVisibility>(["exact", "approximate", "locality"]);
 
 function single(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -159,6 +211,20 @@ function safeReturnTo(value: unknown) {
   return candidate.startsWith("/") && !candidate.startsWith("//") ? candidate : undefined;
 }
 
+function validHttpUrl(value: string) {
+  if (!value) return true;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
+
+function normalizeDomain(value: string) {
+  return value.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0].trim();
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -174,7 +240,6 @@ function sanitizeContext(value: unknown): OrganizationProfileContext {
   const organizationName = clean(value.organizationName, 180);
   const geography = clean(value.geography, 180);
   const returnTo = safeReturnTo(value.returnTo);
-
   return {
     claimMode: sanitizeClaimMode(value.claimMode),
     ...(organizationId ? { organizationId } : {}),
@@ -194,7 +259,6 @@ export function organizationProfileContextFromSearchParams(params: SearchParamsL
   const organizationName = clean(single(params.name));
   const geography = clean(single(params.geography));
   const returnTo = safeReturnTo(single(params.returnTo));
-
   return {
     claimMode: sanitizeClaimMode(single(params.claim)),
     ...(organizationId ? { organizationId } : {}),
@@ -204,14 +268,17 @@ export function organizationProfileContextFromSearchParams(params: SearchParamsL
   };
 }
 
-export function validateOrganizationProfilePayload(value: unknown): OrganizationProfileValidationResult {
+export function validateOrganizationProfilePayload(value: unknown, requireComplete = true): OrganizationProfileValidationResult {
   if (!isRecord(value)) return { ok: false, errors: { form: "Organization profile details are required." } };
 
   const context = sanitizeContext(value.context);
   const displayName = clean(value.displayName, 180);
   const legalName = clean(value.legalName, 180);
+  const organizationTypeCandidate = clean(value.organizationType, 120);
+  const organizationType = organizationTypeIds.has(organizationTypeCandidate) ? organizationTypeCandidate as OrganizationType : "";
   const description = cleanLong(value.description, 1200);
   const website = clean(value.website, 300);
+  const primaryDomain = normalizeDomain(clean(value.primaryDomain, 180));
   const industry = clean(value.industry, 180);
   const naics = clean(value.naics, 80);
   const roles = sanitizedArray(value.roles, roleIds);
@@ -219,46 +286,50 @@ export function validateOrganizationProfilePayload(value: unknown): Organization
   const contactTitle = clean(value.contactTitle, 160);
   const contactEmail = clean(value.contactEmail, 254).toLowerCase();
   const contactPhone = clean(value.contactPhone, 60);
-  const addressLine1 = clean(value.addressLine1, 220);
-  const addressLine2 = clean(value.addressLine2, 220);
-  const city = clean(value.city, 120);
-  const region = clean(value.region, 120);
-  const postalCode = clean(value.postalCode, 32);
-  const country = clean(value.country, 80);
-  const serviceGeographies = cleanLong(value.serviceGeographies, 800);
-  const locationVisibilityCandidate = clean(value.locationVisibility, 32) as LocationVisibility;
-  const locationVisibility = visibilityModes.has(locationVisibilityCandidate) ? locationVisibilityCandidate : "locality";
+  const brandName = clean(value.brandName, 180);
+  const logoUrl = clean(value.logoUrl, 500);
   const searchable = value.searchable !== false;
   const mapVisible = value.mapVisible !== false;
   const publicContact = value.publicContact === true;
   const goals = sanitizedArray(value.goals, goalIds);
-  const capabilitySeed = cleanLong(value.capabilitySeed, 1200);
-  const errors: OrganizationProfileFieldErrors = {};
 
-  if (!displayName) errors.displayName = "Enter the organization name used in RFxchange.";
-  if (!description || description.length < 40) errors.description = "Describe the organization in at least 40 characters.";
-  if (roles.length === 0) errors.roles = "Select at least one way the organization participates.";
-  if (!contactName) errors.contactName = "Enter a primary organization contact.";
-  if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) errors.contactEmail = "Enter a valid business email address.";
-  if (!addressLine1) errors.addressLine1 = "Enter the primary operating address.";
-  if (!city) errors.city = "Enter a city or locality.";
-  if (!region) errors.region = "Enter a state or region.";
-  if (!postalCode) errors.postalCode = "Enter a postal code.";
-  if (!country) errors.country = "Enter a country.";
-  if (!serviceGeographies) errors.serviceGeographies = "Describe where the organization can provide service.";
-  if (goals.length === 0) errors.goals = "Select at least one goal so RFxchange can configure the first-value pathway.";
-  if (!capabilitySeed || capabilitySeed.length < 10) errors.capabilitySeed = "Add at least one plain-language capability before enrichment.";
+  const completion: OrganizationProfileCompletion = {
+    identity: Boolean(displayName && organizationType && description.length >= 40),
+    contact: Boolean(contactName && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)),
+    role: roles.length > 0,
+    visibility: typeof searchable === "boolean" && typeof mapVisible === "boolean" && typeof publicContact === "boolean",
+    goals: goals.length > 0,
+  };
+
+  const errors: OrganizationProfileFieldErrors = {};
+  if (!context.organizationId) errors.organization = "A resolved organization is required before the profile can be saved.";
+  if (website && !validHttpUrl(website)) errors.website = "Enter a valid http or https website URL.";
+  if (logoUrl && !validHttpUrl(logoUrl)) errors.logoUrl = "Enter a valid http or https logo URL.";
+  if (primaryDomain && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(primaryDomain)) errors.primaryDomain = "Enter a valid organization domain.";
+
+  if (requireComplete) {
+    if (!displayName) errors.displayName = "Enter the organization name used in RFxchange.";
+    if (!organizationType) errors.organizationType = "Select the organization type established during organization setup.";
+    if (!description || description.length < 40) errors.description = "Describe the organization in at least 40 characters.";
+    if (roles.length === 0) errors.roles = "Select at least one way the organization participates.";
+    if (!contactName) errors.contactName = "Enter a primary organization contact.";
+    if (!contactEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) errors.contactEmail = "Enter a valid business email address.";
+    if (goals.length === 0) errors.goals = "Select at least one first-value goal.";
+  }
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   return {
     ok: true,
+    completion,
     submission: {
       context,
       displayName,
       legalName,
+      organizationType,
       description,
       website,
+      primaryDomain,
       industry,
       naics,
       roles,
@@ -266,25 +337,18 @@ export function validateOrganizationProfilePayload(value: unknown): Organization
       contactTitle,
       contactEmail,
       contactPhone,
-      addressLine1,
-      addressLine2,
-      city,
-      region,
-      postalCode,
-      country,
-      serviceGeographies,
-      locationVisibility,
+      brandName,
+      logoUrl,
       searchable,
       mapVisible,
       publicContact,
       goals,
-      capabilitySeed,
     },
   };
 }
 
 export function organizationProfileHandoffHref(organizationId: string, context: OrganizationProfileContext) {
-  const params = new URLSearchParams({ step: "capability-enrichment", organization: organizationId });
+  const params = new URLSearchParams({ organization: organizationId });
   if (context.returnTo) params.set("returnTo", context.returnTo);
-  return `/onboarding?${params.toString()}`;
+  return `/onboarding/capabilities?${params.toString()}`;
 }

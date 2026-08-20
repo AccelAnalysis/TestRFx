@@ -5,15 +5,18 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 ## What is implemented
 
 - Public/acquisition Marketing shell with campaign bar, narrative journey, shared public chrome, audience pages, Founding Membership, footer, and public bottom-matter destinations
-- Acquisition-context capture and query carryover into `/join` and `/signin`
-- Source-backed recursive Login / Register Entry hierarchy under `/auth/...` with breadcrumbs, parent navigation, browser history, and concrete downstream workflow handoffs
-- Identity Login with configured provider-backed magic-link request, callback verification, optional MFA state, HttpOnly session handoff, source-defined recovery outcomes, and readiness routing
-- Provider-backed Registration boundary that requires a real provider registration ID before Account Verification handoff
-- Provider-backed Account Verification request/resend/change-email/verify boundary with no local reference verification links
-- Identity & Onboarding modules for account verification, organization selection/creation, geography, organization profile, capability enrichment, membership, and Exchange-ready completion
-- Stripe-hosted Founding Membership subscription checkout with server-side Price validation, organization/session checks, atomic 250-organization capacity reservation, Checkout confirmation, signed webhook verification, and membership-entitlement event handoff
+- Acquisition-context capture and query carryover into `/join` and `/signin`, which hand off to the existing Registration/Login shell
+- Identity shell with Login and Registration
+- Guided Onboarding shell boundary
+- Source-exact Capability Enrichment hierarchy with addressable child/grandchild workflow routes
+- PostgreSQL-backed capability claims, solutions, evidence, discoverability terms, and onboarding progress
+- Immutable AMACS release projection/import path plus canonical AMACS search and provider-neutral interpretation integration
 - Persistent authenticated Exchange composition
-- Provider-neutral full-screen reference map canvas
+- Live MapLibre GL JS Persistent Map with provider clustering, real camera/bounds state, 2D/3D, current location, and graceful map-failure fallback
+- Hierarchical Map controls: View → 2D/3D/zoom/reset; Layers → records plus supported lens overlay; Geography → source-backed geography/current location/search-this-area
+- Concrete viewport querying that scopes mapped records while preserving off-map results
+- Intelligence heat and Capabilities density layers rendered by the live map provider
+- Mapped / off-map / owned / external / sponsored map classification
 - Translucent universal search and floating controls
 - Three-state bottom result drawer with pointer drag and non-gesture controls
 - Four governed lens action positions with progressive availability
@@ -23,8 +26,8 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 - Deep-linkable lens and record routes
 - Persistent RFx / Resources / Intelligence / Capabilities / Menu bottom navigation
 - Cross-lens Menu utility surface
-- Seeded records including owned, external, located, and off-map examples
-- Normalized Exchange API boundary
+- Seeded Exchange records including owned, external, located, and off-map examples
+- Normalized Exchange API boundary, including optional viewport bounds
 - PostgreSQL/PostGIS reference schema
 - Responsive desktop composition and mobile safe-area support
 - Reduced-motion and keyboard-accessible control paths
@@ -34,13 +37,9 @@ Reference implementation of the shared RFxchange platform shell. The purpose of 
 RFxchange is organized as three shells: Public / Acquisition, Identity & Onboarding, and the Authenticated Exchange. RFx, Resources, Intelligence, and Capabilities are **lenses over one Exchange**, not separate applications. Menu is a utility surface.
 
 - [`docs/architecture/PLATFORM_SHELL.md`](docs/architecture/PLATFORM_SHELL.md) — authenticated operating chassis
+- [`docs/architecture/PERSISTENT_MAP.md`](docs/architecture/PERSISTENT_MAP.md) — live Persistent Map, hierarchy, viewport service, and remaining production boundaries
 - [`docs/architecture/MARKETING_SHELL.md`](docs/architecture/MARKETING_SHELL.md) — Public / Acquisition → Marketing structure and handoff contract
-- [`docs/architecture/AUTH_ENTRY.md`](docs/architecture/AUTH_ENTRY.md) — Public / Acquisition → Login / Register Entry hierarchy and service boundaries
-- [`docs/architecture/ACCOUNT_VERIFICATION.md`](docs/architecture/ACCOUNT_VERIFICATION.md) — Account Verification workflow
-- [`docs/architecture/ORGANIZATION_SELECTION_CREATION.md`](docs/architecture/ORGANIZATION_SELECTION_CREATION.md) — canonical organization resolution
-- [`docs/architecture/GEOGRAPHY_ONBOARDING.md`](docs/architecture/GEOGRAPHY_ONBOARDING.md) — onboarding geography and map placement
-- [`docs/architecture/CAPABILITY_ENRICHMENT.md`](docs/architecture/CAPABILITY_ENRICHMENT.md) — AMACS-aligned enrichment boundary
-- [`docs/architecture/EXCHANGE_READY_COMPLETION.md`](docs/architecture/EXCHANGE_READY_COMPLETION.md) — readiness and final Exchange handoff
+- [`docs/architecture/CAPABILITY_ENRICHMENT.md`](docs/architecture/CAPABILITY_ENRICHMENT.md) — Identity & Onboarding → Capability Enrichment hierarchy, persistence, AMACS, and service boundaries
 
 ## Run locally
 
@@ -49,42 +48,15 @@ npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000` for Marketing, `http://localhost:3000/auth` for the Login / Register hierarchy, or `http://localhost:3000/exchange/rfx` for the Exchange chassis.
+Then open `http://localhost:3000` for Marketing or jump directly to `http://localhost:3000/exchange/rfx` for the Exchange.
 
-## Runtime service configuration
+The map uses MapLibre's public demo style by default. Set `NEXT_PUBLIC_RFX_MAP_STYLE_URL` to the production-approved style service when one is available.
 
-The application no longer simulates successful Login, Registration, Account Verification, or Founding Membership payment. Those boundaries fail closed until their real provider endpoints/credentials are configured.
+Capability Enrichment's canonical service requires the database migrations and `DATABASE_URL`. Import a governed AMACS release with:
 
-Identity:
-
-```text
-RFXCHANGE_PUBLIC_ORIGIN
-RFXCHANGE_IDENTITY_MAGIC_LINK_ENDPOINT
-RFXCHANGE_IDENTITY_MAGIC_LINK_VERIFY_ENDPOINT
-RFXCHANGE_IDENTITY_MAGIC_LINK_TOKEN          optional
-RFXCHANGE_IDENTITY_SESSION_ENDPOINT
-RFXCHANGE_IDENTITY_SESSION_TOKEN             optional
-RFXCHANGE_IDENTITY_REGISTRATION_ENDPOINT
-RFXCHANGE_IDENTITY_REGISTRATION_TOKEN        optional
-RFXCHANGE_IDENTITY_VERIFICATION_ENDPOINT
-RFXCHANGE_IDENTITY_VERIFICATION_TOKEN        optional
+```bash
+npm run amacs:import -- /absolute/path/to/amacs-release/<version>
 ```
-
-Founding Membership / Stripe:
-
-```text
-RFXCHANGE_STRIPE_RESTRICTED_KEY               preferred
-STRIPE_SECRET_KEY                             fallback
-RFXCHANGE_STRIPE_FOUNDING_PRICE_ID            optional explicit environment Price
-RFXCHANGE_STRIPE_FOUNDING_LOOKUP_KEY           optional; defaults to rfxchange_founding_monthly
-RFXCHANGE_STRIPE_WEBHOOK_SECRET
-RFXCHANGE_MEMBERSHIP_CAPACITY_ENDPOINT        atomic reserve/release/finalize service
-RFXCHANGE_MEMBERSHIP_CAPACITY_TOKEN           optional
-RFXCHANGE_MEMBERSHIP_EVENT_ENDPOINT           entitlement event service
-RFXCHANGE_MEMBERSHIP_EVENT_TOKEN              optional
-```
-
-The capacity service must reserve against the source-defined 250-organization limit atomically and process signed Stripe lifecycle events idempotently so concurrent checkouts cannot oversubscribe Founding Membership. The entitlement service must also treat Stripe event IDs idempotently because Stripe retries webhook delivery.
 
 ## Validation
 
@@ -97,6 +69,4 @@ GitHub Actions runs both commands on pull requests and pushes to `main` and `age
 
 ## Intentional boundaries
 
-The chassis still does **not** claim production completion for provider infrastructure that is not configured, invitation validation/acceptance/role assignment, durable acquisition analytics, final legal-policy content, RFx response/team workflows, AMACS evidence services, resource transactions, Intelligence datasets, cross-lens referral commerce, notification delivery, or real map tiles.
-
-Where an external production service is required, the code now exposes an explicit provider contract and unavailable state instead of a mocked success. The supplied Login/Register hierarchy is source-bounded: unsupported child workflows are not invented.
+This chassis does **not** claim production completion for authentication, durable acquisition analytics, legal policy content, RFx response/team workflows, external capability verification, durable resource transactions, production intelligence datasets, referrals/payments, notifications, server-authorized geographies, PostGIS-backed viewport queries, production geocoding, or a production map tile/style SLA. Capability Enrichment no longer uses mock persistence or mock AMACS/evidence actions: when its required database, identity, or interpretation service is not connected, it reports that service boundary instead of fabricating success.

@@ -1,0 +1,296 @@
+name: pages-preview-publish
+
+on:
+  workflow_run:
+    workflows:
+      - pages-preview
+    types:
+      - completed
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+permissions:
+  actions: read
+  contents: write
+  pages: write
+  id-token: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pages-preview-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      (
+        (github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') ||
+        (github.event.workflow_run.event == 'workflow_dispatch' && github.event.workflow_run.head_branch == 'main') ||
+        (
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Resolve publish target
+        id: target
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const root = `https://${context.repo.owner}.github.io/${context.repo.repo}`;
+
+            if (run.event === 'pull_request') {
+              const pull = run.pull_requests?.[0];
+              if (!pull?.number) {
+                core.setFailed('The successful preview build did not include a pull request number.');
+                return;
+              }
+
+              const current = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pull.number,
+              });
+
+              if (current.data.state !== 'open') {
+                core.info(`PR #${pull.number} is no longer open; skipping preview publication.`);
+                core.setOutput('publish', 'false');
+                return;
+              }
+
+              core.setOutput('publish', 'true');
+              core.setOutput('directory', `pr-${pull.number}`);
+              core.setOutput('pr-number', String(pull.number));
+              core.setOutput('url', `${root}/pr-${pull.number}/exchange/rfx/`);
+              return;
+            }
+
+            core.setOutput('publish', 'true');
+            core.setOutput('directory', '');
+            core.setOutput('pr-number', '');
+            core.setOutput('url', `${root}/`);
+
+      - name: Download built preview
+        if: steps.target.outputs.publish == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: pages-preview-site
+          path: incoming
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare Pages publication branch
+        if: steps.target.outputs.publish == 'true'
+        id: prepare
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TARGET_DIRECTORY: ${{ steps.target.outputs.directory }}
+        run: |
+          set -euo pipefail
+
+          mkdir site
+          cd site
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch --depth=1 origin gh-pages
+            git checkout -B gh-pages FETCH_HEAD
+          else
+            git checkout --orphan gh-pages
+            git rm -rf . >/dev/null 2>&1 || true
+          fi
+
+          cd ..
+
+          if [[ -n "${TARGET_DIRECTORY}" ]]; then
+            rm -rf "site/${TARGET_DIRECTORY}"
+            mkdir -p "site/${TARGET_DIRECTORY}"
+            cp -a incoming/. "site/${TARGET_DIRECTORY}/"
+          else
+            find site -mindepth 1 -maxdepth 1 \
+              ! -name '.git' \
+              ! -name '.nojekyll' \
+              ! -name 'pr-*' \
+              -exec rm -rf {} +
+            cp -a incoming/. site/
+          fi
+
+          touch site/.nojekyll
+
+          cd site
+          git add --all
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "Publish RFxchange Pages preview"
+            git push origin gh-pages
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Remove Git metadata from deploy artifact
+        if: steps.target.outputs.publish == 'true'
+        run: rm -rf site/.git
+
+      - name: Configure GitHub Pages
+        if: steps.target.outputs.publish == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload combined Pages artifact
+        if: steps.target.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./site
+
+      - name: Deploy combined Pages site
+        if: steps.target.outputs.publish == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Post or update PR preview link
+        if: steps.target.outputs.publish == 'true' && steps.target.outputs.pr-number != ''
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.target.outputs.url }}
+          PR_NUMBER: ${{ steps.target.outputs.pr-number }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+        with:
+          script: |
+            const marker = '<!-- rfxchange-pr-preview -->';
+            const prNumber = Number(process.env.PR_NUMBER);
+            const previewUrl = process.env.PREVIEW_URL;
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${process.env.SOURCE_RUN_ID}`;
+            const body = `${marker}\n## RFxchange PR Preview\n\n✅ **Preview ready:** [Open PR #${prNumber} preview](${previewUrl})\n\nUse this URL for visual acceptance on iPhone, iPad, and desktop before merging map, animation, responsive, or other UI work.\n\nThis is the repository's static visual-review projection. Server-backed authentication, database, Stripe, and other runtime-only workflows continue to fail closed here rather than being mocked.\n\n[Preview build run](${runUrl})`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
+      - name: Publish summary
+        if: steps.target.outputs.publish == 'true'
+        shell: bash
+        env:
+          PREVIEW_URL: ${{ steps.target.outputs.url }}
+        run: |
+          echo "### Published visual preview" >> "$GITHUB_STEP_SUMMARY"
+          echo "${PREVIEW_URL}" >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Remove closed PR preview from publication branch
+        id: cleanup
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          mkdir site
+          cd site
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if ! git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git fetch --depth=1 origin gh-pages
+          git checkout -B gh-pages FETCH_HEAD
+          rm -rf "pr-${PR_NUMBER}"
+          git add --all
+
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git commit -m "Remove preview for PR #${PR_NUMBER}"
+          git push origin gh-pages
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Remove Git metadata from deploy artifact
+        if: steps.cleanup.outputs.changed == 'true'
+        run: rm -rf site/.git
+
+      - name: Configure GitHub Pages
+        if: steps.cleanup.outputs.changed == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload combined Pages artifact
+        if: steps.cleanup.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: ./site
+
+      - name: Deploy cleaned Pages site
+        if: steps.cleanup.outputs.changed == 'true'
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Mark preview as removed
+        if: steps.cleanup.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const marker = '<!-- rfxchange-pr-preview -->';
+            const prNumber = Number(process.env.PR_NUMBER);
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (!existing) return;
+
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existing.id,
+              body: `${marker}\n## RFxchange PR Preview\n\nPreview removed because PR #${prNumber} is closed.`,
+            });
