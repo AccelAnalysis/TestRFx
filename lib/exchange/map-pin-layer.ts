@@ -37,6 +37,13 @@ type PinPalette = {
   specular: string;
 };
 
+type ProgramSources = {
+  spriteVertex: string;
+  spriteFragment: string;
+  tetherVertex: string;
+  tetherFragment: string;
+};
+
 const PIN_BASE_WIDTH = 52;
 const PIN_BASE_HEIGHT = 72;
 const PIN_TEXTURE_WIDTH = 192;
@@ -68,10 +75,118 @@ function finiteCoordinate(location: Coordinates) {
 }
 
 function isWebGL2(gl: GLContext): gl is WebGL2RenderingContext {
-  return typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+  return typeof (gl as WebGL2RenderingContext).createVertexArray === "function";
 }
 
-function createShader(gl: WebGL2RenderingContext, type: number, source: string) {
+function shaderSources(gl: GLContext): ProgramSources {
+  if (isWebGL2(gl)) {
+    return {
+      spriteVertex: `#version 300 es
+        precision highp float;
+        in vec3 a_anchor;
+        in vec2 a_offset;
+        in vec2 a_uv;
+        in float a_opacity;
+        uniform mat4 u_matrix;
+        uniform vec2 u_viewport;
+        out vec2 v_uv;
+        out float v_opacity;
+        void main() {
+          vec4 clip = u_matrix * vec4(a_anchor, 1.0);
+          vec2 offsetNdc = vec2((a_offset.x * 2.0) / u_viewport.x, (a_offset.y * 2.0) / u_viewport.y);
+          clip.xy += offsetNdc * clip.w;
+          gl_Position = clip;
+          v_uv = a_uv;
+          v_opacity = a_opacity;
+        }
+      `,
+      spriteFragment: `#version 300 es
+        precision mediump float;
+        in vec2 v_uv;
+        in float v_opacity;
+        uniform sampler2D u_texture;
+        out vec4 outColor;
+        void main() {
+          vec4 color = texture(u_texture, v_uv);
+          color.a *= v_opacity;
+          if (color.a < 0.01) discard;
+          color.rgb *= color.a;
+          outColor = color;
+        }
+      `,
+      tetherVertex: `#version 300 es
+        precision highp float;
+        in vec3 a_position;
+        in vec4 a_color;
+        uniform mat4 u_matrix;
+        out vec4 v_color;
+        void main() {
+          gl_Position = u_matrix * vec4(a_position, 1.0);
+          v_color = a_color;
+        }
+      `,
+      tetherFragment: `#version 300 es
+        precision mediump float;
+        in vec4 v_color;
+        out vec4 outColor;
+        void main() { outColor = vec4(v_color.rgb * v_color.a, v_color.a); }
+      `,
+    };
+  }
+
+  return {
+    spriteVertex: `
+      precision highp float;
+      attribute vec3 a_anchor;
+      attribute vec2 a_offset;
+      attribute vec2 a_uv;
+      attribute float a_opacity;
+      uniform mat4 u_matrix;
+      uniform vec2 u_viewport;
+      varying vec2 v_uv;
+      varying float v_opacity;
+      void main() {
+        vec4 clip = u_matrix * vec4(a_anchor, 1.0);
+        vec2 offsetNdc = vec2((a_offset.x * 2.0) / u_viewport.x, (a_offset.y * 2.0) / u_viewport.y);
+        clip.xy += offsetNdc * clip.w;
+        gl_Position = clip;
+        v_uv = a_uv;
+        v_opacity = a_opacity;
+      }
+    `,
+    spriteFragment: `
+      precision mediump float;
+      varying vec2 v_uv;
+      varying float v_opacity;
+      uniform sampler2D u_texture;
+      void main() {
+        vec4 color = texture2D(u_texture, v_uv);
+        color.a *= v_opacity;
+        if (color.a < 0.01) discard;
+        color.rgb *= color.a;
+        gl_FragColor = color;
+      }
+    `,
+    tetherVertex: `
+      precision highp float;
+      attribute vec3 a_position;
+      attribute vec4 a_color;
+      uniform mat4 u_matrix;
+      varying vec4 v_color;
+      void main() {
+        gl_Position = u_matrix * vec4(a_position, 1.0);
+        v_color = a_color;
+      }
+    `,
+    tetherFragment: `
+      precision mediump float;
+      varying vec4 v_color;
+      void main() { gl_FragColor = vec4(v_color.rgb * v_color.a, v_color.a); }
+    `,
+  };
+}
+
+function createShader(gl: GLContext, type: number, source: string) {
   const shader = gl.createShader(type);
   if (!shader) throw new Error("Unable to create 2.5D marker shader.");
   gl.shaderSource(shader, source);
@@ -84,7 +199,7 @@ function createShader(gl: WebGL2RenderingContext, type: number, source: string) 
   return shader;
 }
 
-function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string) {
+function createProgram(gl: GLContext, vertexSource: string, fragmentSource: string) {
   const vertexShader = createShader(gl, gl.VERTEX_SHADER, vertexSource);
   const fragmentShader = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
   const program = gl.createProgram();
@@ -121,6 +236,8 @@ function createPinCanvas(kind: ExchangeMapPinKind) {
   canvas.height = PIN_TEXTURE_HEIGHT;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Unable to create 2.5D pin texture canvas.");
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const side = pinPath(8, 7);
   const sideGradient = ctx.createLinearGradient(42, 28, 162, 220);
@@ -181,7 +298,7 @@ function createPinCanvas(kind: ExchangeMapPinKind) {
   return canvas;
 }
 
-function createTexture(gl: WebGL2RenderingContext, kind: ExchangeMapPinKind) {
+function createTexture(gl: GLContext, kind: ExchangeMapPinKind) {
   const texture = gl.createTexture();
   if (!texture) throw new Error("Unable to create 2.5D marker texture.");
   gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -197,7 +314,7 @@ function createTexture(gl: WebGL2RenderingContext, kind: ExchangeMapPinKind) {
 }
 
 function projectMercator(
-  matrix: ArrayLike<number>,
+  matrix: Float32Array,
   coordinate: { x: number; y: number; z: number },
   width: number,
   height: number,
@@ -218,7 +335,7 @@ function projectMercator(
 export class ExchangePinLayer implements CustomLayerInterface {
   readonly id = EXCHANGE_PIN_LAYER_ID;
   readonly type = "custom" as const;
-  readonly renderingMode = "3d" as const;
+  readonly renderingMode = "2d" as const;
 
   private map?: MapLibreMap;
   private visible = true;
@@ -252,61 +369,9 @@ export class ExchangePinLayer implements CustomLayerInterface {
 
   onAdd(map: MapLibreMap, gl: GLContext) {
     this.map = map;
-    if (!isWebGL2(gl)) return;
-
-    const spriteVertex = `#version 300 es
-      precision highp float;
-      in vec3 a_anchor;
-      in vec2 a_offset;
-      in vec2 a_uv;
-      in float a_opacity;
-      uniform mat4 u_matrix;
-      uniform vec2 u_viewport;
-      out vec2 v_uv;
-      out float v_opacity;
-      void main() {
-        vec4 clip = u_matrix * vec4(a_anchor, 1.0);
-        vec2 offsetNdc = vec2((a_offset.x * 2.0) / u_viewport.x, (a_offset.y * 2.0) / u_viewport.y);
-        clip.xy += offsetNdc * clip.w;
-        gl_Position = clip;
-        v_uv = a_uv;
-        v_opacity = a_opacity;
-      }
-    `;
-    const spriteFragment = `#version 300 es
-      precision mediump float;
-      in vec2 v_uv;
-      in float v_opacity;
-      uniform sampler2D u_texture;
-      out vec4 outColor;
-      void main() {
-        vec4 color = texture(u_texture, v_uv);
-        color.a *= v_opacity;
-        if (color.a < 0.01) discard;
-        color.rgb *= color.a;
-        outColor = color;
-      }
-    `;
-    const tetherVertex = `#version 300 es
-      precision highp float;
-      in vec3 a_position;
-      in vec4 a_color;
-      uniform mat4 u_matrix;
-      out vec4 v_color;
-      void main() {
-        gl_Position = u_matrix * vec4(a_position, 1.0);
-        v_color = a_color;
-      }
-    `;
-    const tetherFragment = `#version 300 es
-      precision mediump float;
-      in vec4 v_color;
-      out vec4 outColor;
-      void main() { outColor = vec4(v_color.rgb * v_color.a, v_color.a); }
-    `;
-
-    this.spriteProgram = createProgram(gl, spriteVertex, spriteFragment);
-    this.tetherProgram = createProgram(gl, tetherVertex, tetherFragment);
+    const sources = shaderSources(gl);
+    this.spriteProgram = createProgram(gl, sources.spriteVertex, sources.spriteFragment);
+    this.tetherProgram = createProgram(gl, sources.tetherVertex, sources.tetherFragment);
     this.spriteBuffer = gl.createBuffer() || undefined;
     this.tetherBuffer = gl.createBuffer() || undefined;
     this.highlightTexture = createTexture(gl, "highlight");
@@ -329,7 +394,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
     this.hitBoxes = [];
   }
 
-  private drawTethers(gl: WebGL2RenderingContext, matrix: Float32Array) {
+  private drawTethers(gl: GLContext, matrix: Float32Array) {
     if (!this.tetherProgram || !this.tetherBuffer) return;
     const vertices: number[] = [];
     for (const pin of this.pins) {
@@ -337,8 +402,8 @@ export class ExchangePinLayer implements CustomLayerInterface {
       const ground = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], 0);
       const lifted = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], pin.altitude);
       const color = pin.kind === "focus"
-        ? [0.839, 0.635, 0.227, 0.56 * pin.opacity]
-        : [0.541, 0.392, 0.094, 0.34 * pin.opacity];
+        ? [0.839, 0.635, 0.227, 0.52 * pin.opacity]
+        : [0.541, 0.392, 0.094, 0.30 * pin.opacity];
       vertices.push(ground.x, ground.y, ground.z, ...color, lifted.x, lifted.y, lifted.z, ...color);
     }
     if (!vertices.length) return;
@@ -361,7 +426,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
   }
 
   private drawSprites(
-    gl: WebGL2RenderingContext,
+    gl: GLContext,
     matrix: Float32Array,
     kind: ExchangeMapPinKind,
     viewportWidth: number,
@@ -429,8 +494,8 @@ export class ExchangePinLayer implements CustomLayerInterface {
     gl.bindTexture(gl.TEXTURE_2D, null);
   }
 
-  render(gl: GLContext, { modelViewProjectionMatrix }: CustomRenderMethodInput) {
-    if (!this.visible || !this.pins.length || !this.map || !isWebGL2(gl)) {
+  render(gl: GLContext, args: CustomRenderMethodInput) {
+    if (!this.visible || !this.pins.length || !this.map || !this.spriteProgram || !this.tetherProgram) {
       this.hitBoxes = [];
       return;
     }
@@ -438,15 +503,27 @@ export class ExchangePinLayer implements CustomLayerInterface {
     const canvas = this.map.getCanvas();
     const width = Math.max(1, canvas.clientWidth);
     const height = Math.max(1, canvas.clientHeight);
-    const matrix = modelViewProjectionMatrix as Float32Array;
+    const matrix = new Float32Array(args.defaultProjectionData.mainMatrix as ArrayLike<number>);
 
+    const depthWasEnabled = gl.isEnabled(gl.DEPTH_TEST);
+    const cullWasEnabled = gl.isEnabled(gl.CULL_FACE);
+    const blendWasEnabled = gl.isEnabled(gl.BLEND);
+    const depthWriteWasEnabled = Boolean(gl.getParameter(gl.DEPTH_WRITEMASK));
+
+    gl.disable(gl.DEPTH_TEST);
+    gl.disable(gl.CULL_FACE);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     gl.depthMask(false);
+
     this.drawTethers(gl, matrix);
     this.drawSprites(gl, matrix, "highlight", width, height);
     this.drawSprites(gl, matrix, "focus", width, height);
-    gl.depthMask(true);
+
+    gl.depthMask(depthWriteWasEnabled);
+    if (depthWasEnabled) gl.enable(gl.DEPTH_TEST); else gl.disable(gl.DEPTH_TEST);
+    if (cullWasEnabled) gl.enable(gl.CULL_FACE); else gl.disable(gl.CULL_FACE);
+    if (blendWasEnabled) gl.enable(gl.BLEND); else gl.disable(gl.BLEND);
 
     this.hitBoxes = this.pins.flatMap((pin) => {
       const anchor = this.mercatorCoordinate.fromLngLat([pin.location.lng, pin.location.lat], pin.altitude);
