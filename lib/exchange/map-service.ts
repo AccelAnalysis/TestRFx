@@ -29,6 +29,8 @@ export interface ExchangeMapFeatureCollection {
   features: ExchangeMapFeature[];
 }
 
+/** Compatibility-only transition values; the stable 2.5D renderer never moves the geographic anchor by altitude. */
+export const MAP_PIN_ALTITUDES = { highlight: 280, focus: 760 } as const;
 export const MAP_PIN_SCALES = { transition: 0.68, highlight: 0.9, focus: 1.22 } as const;
 export const MAP_PIN_MAX_HIGHLIGHTS = 8;
 
