@@ -1,7 +1,11 @@
-import type { ExchangeRecord, LensAction } from "@/lib/exchange/contracts";
-import { resolveLensActions } from "@/lib/exchange/action-registry";
+import type { ExchangeRecord, ExchangeViewerContext, LensAction } from "@/lib/exchange/contracts";
+import { resolveLensActions, resolveRecordActions } from "@/lib/exchange/action-registry";
 
-/** RFx domain adapter into the chassis-governed four-slot action registry. */
-export function resolveRfxActions(record?: ExchangeRecord): LensAction[] {
-  return resolveLensActions("rfx", record);
+/** RFx domain adapters into the chassis-governed lens and record action contracts. */
+export function resolveRfxLensActions(viewer: ExchangeViewerContext): LensAction[] {
+  return resolveLensActions("rfx", viewer);
+}
+
+export function resolveRfxRecordActions(record: ExchangeRecord, viewer: ExchangeViewerContext): LensAction[] {
+  return resolveRecordActions("rfx", record, viewer);
 }
