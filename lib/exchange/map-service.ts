@@ -4,6 +4,7 @@ import type {
   ExchangeRecord,
   MapBounds,
   MapGeographyOption,
+  MapHighlight,
   MapViewState,
 } from "./contracts";
 import { MAP_ZOOM_LIMITS } from "./map-model";
@@ -28,6 +29,25 @@ export interface ExchangeMapFeatureCollection {
   features: ExchangeMapFeature[];
 }
 
+export type ExchangeMapBeaconKind = "highlight" | "focus";
+export interface ExchangeMapBeaconInput { record: ExchangeRecord; kind: ExchangeMapBeaconKind; height: number; }
+export interface ExchangeMapBeaconFeature {
+  type: "Feature";
+  geometry: { type: "Polygon"; coordinates: [number, number][][] };
+  properties: {
+    recordId: string;
+    part: "mast" | "crown";
+    kind: ExchangeMapBeaconKind;
+    height: number;
+    base: number;
+    color: string;
+  };
+}
+export interface ExchangeMapBeaconFeatureCollection { type: "FeatureCollection"; features: ExchangeMapBeaconFeature[]; }
+
+export const MAP_BEACON_HEIGHTS = { highlight: 360, focus: 900 } as const;
+export const MAP_BEACON_MAX_HIGHLIGHTS = 8;
+
 const lensColors: Record<ExchangeLens, string> = {
   rfx: "#2e5eaa",
   resources: "#3b7b57",
@@ -47,6 +67,71 @@ function recordColor(record: ExchangeRecord, lens: ExchangeLens) {
   if (record.ownedByViewer) return "#d6a23a";
   if (recordIsSponsored(record)) return "#b86b18";
   return lensColors[lens];
+}
+
+export function mapHighlightForRecord(record: ExchangeRecord): MapHighlight | undefined {
+  if (record.mapHighlight?.active === false) return undefined;
+  if (record.mapHighlight) return record.mapHighlight;
+  if (recordIsSponsored(record)) return { reason: "sponsored", priority: 80 };
+  if (record.featured) return { reason: "featured", priority: 60 };
+  return undefined;
+}
+
+export function selectMapHighlightRecords(records: ExchangeRecord[], excludedRecordId?: string, limit = MAP_BEACON_MAX_HIGHLIGHTS) {
+  return records
+    .filter((record) => record.id !== excludedRecordId && finiteCoordinate(record.location) && Boolean(mapHighlightForRecord(record)))
+    .sort((a, b) => {
+      const priorityDelta = (mapHighlightForRecord(b)?.priority ?? 0) - (mapHighlightForRecord(a)?.priority ?? 0);
+      return priorityDelta || a.id.localeCompare(b.id);
+    })
+    .slice(0, limit);
+}
+
+function circlePolygon(location: Coordinates, radiusMeters: number, segments = 14): [number, number][] {
+  const latitudeRadians = location.lat * Math.PI / 180;
+  const latitudeDegreesPerMeter = 1 / 111_320;
+  const longitudeDegreesPerMeter = 1 / (111_320 * Math.max(0.2, Math.abs(Math.cos(latitudeRadians))));
+  const ring: [number, number][] = [];
+  for (let index = 0; index < segments; index += 1) {
+    const angle = index / segments * Math.PI * 2;
+    ring.push([
+      location.lng + Math.cos(angle) * radiusMeters * longitudeDegreesPerMeter,
+      location.lat + Math.sin(angle) * radiusMeters * latitudeDegreesPerMeter,
+    ]);
+  }
+  ring.push(ring[0]);
+  return ring;
+}
+
+function beaconColor(kind: ExchangeMapBeaconKind) {
+  return kind === "focus" ? "#d6a23a" : "#8a6418";
+}
+
+export function toExchangeMapBeaconFeatureCollection(beacons: ExchangeMapBeaconInput[]): ExchangeMapBeaconFeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: beacons.flatMap((beacon) => {
+      const location = beacon.record.location;
+      if (!finiteCoordinate(location) || beacon.height <= 0.5) return [];
+      const focusProgress = Math.min(1, Math.max(0, beacon.height / MAP_BEACON_HEIGHTS.focus));
+      const mastRadius = 5 + 4 * focusProgress;
+      const crownRadius = 18 + 20 * focusProgress;
+      const crownDepth = Math.min(110, Math.max(36, beacon.height * 0.12));
+      const color = beaconColor(beacon.kind);
+      return [
+        {
+          type: "Feature" as const,
+          geometry: { type: "Polygon" as const, coordinates: [circlePolygon(location, mastRadius)] },
+          properties: { recordId: beacon.record.id, part: "mast" as const, kind: beacon.kind, height: beacon.height, base: 0, color },
+        },
+        {
+          type: "Feature" as const,
+          geometry: { type: "Polygon" as const, coordinates: [circlePolygon(location, crownRadius)] },
+          properties: { recordId: beacon.record.id, part: "crown" as const, kind: beacon.kind, height: beacon.height + 22, base: Math.max(0, beacon.height - crownDepth), color },
+        },
+      ];
+    }),
+  };
 }
 
 export function toExchangeMapFeatureCollection(records: ExchangeRecord[], lens: ExchangeLens): ExchangeMapFeatureCollection {
