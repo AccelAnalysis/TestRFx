@@ -9,6 +9,8 @@ export interface ExchangeMapPinRenderState {
   recordId: string;
   location: Coordinates;
   kind: ExchangeMapPinKind;
+  /** Kept for shell compatibility. Geographic anchoring never uses altitude. */
+  altitude?: number;
   scale: number;
   opacity: number;
 }
@@ -292,6 +294,10 @@ export class ExchangePinLayer implements CustomLayerInterface {
   private focusTexture?: WebGLTexture;
   private highlightTexture?: WebGLTexture;
 
+  // Accept the previous Mercator factory argument so the shell does not need a
+  // coordinated API change. Projection now intentionally uses map.project().
+  constructor(_legacyMercatorCoordinate?: unknown) {}
+
   setPins(pins: ExchangeMapPinRenderState[]) {
     this.pins = pins.filter((pin) => finiteCoordinate(pin.location) && pin.opacity > 0.001 && pin.scale > 0.001);
     this.syncMarkerOwnership();
@@ -369,9 +375,9 @@ export class ExchangePinLayer implements CustomLayerInterface {
     for (const pin of this.pins) {
       if (pin.kind !== kind) continue;
 
-      // MapLibre performs the geographic projection in JavaScript double
-      // precision. The GPU only receives normalized screen coordinates near
-      // [-1, 1], eliminating Mercator Float32 precision jitter during pan/zoom.
+      // MapLibre performs geographic projection in JavaScript double precision.
+      // The GPU only receives normalized screen coordinates near [-1, 1], which
+      // removes Mercator Float32 precision jitter during pan and zoom.
       const point = this.map.project([pin.location.lng, pin.location.lat]);
       if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
 
