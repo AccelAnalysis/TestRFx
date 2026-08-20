@@ -38,6 +38,8 @@ type ShaderSources = {
   fragment: string;
 };
 
+const RECORD_LAYER_ID = "exchange-record-points";
+const SELECTED_LAYER_ID = "exchange-selected-point";
 const PIN_BASE_WIDTH = 52;
 const PIN_BASE_HEIGHT = 72;
 const PIN_TEXTURE_WIDTH = 192;
@@ -191,8 +193,8 @@ function createPinCanvas(kind: ExchangeMapPinKind) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Faux thickness stays horizontal so the front and side silhouettes share
-  // one geographic tip. The marker therefore reads as dimensional without a
-  // second visual point beneath the record coordinate.
+  // one geographic tip. The marker reads as dimensional without creating a
+  // second visual anchor below the record coordinate.
   const side = pinPath(8, 0);
   const sideGradient = ctx.createLinearGradient(42, 28, 162, 220);
   sideGradient.addColorStop(0, palette.dark);
@@ -292,6 +294,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
 
   setPins(pins: ExchangeMapPinRenderState[]) {
     this.pins = pins.filter((pin) => finiteCoordinate(pin.location) && pin.opacity > 0.001 && pin.scale > 0.001);
+    this.syncMarkerOwnership();
     this.map?.triggerRepaint();
   }
 
@@ -307,6 +310,27 @@ export class ExchangePinLayer implements CustomLayerInterface {
       .sort((a, b) => b.priority - a.priority)[0]?.recordId;
   }
 
+  private syncMarkerOwnership() {
+    if (!this.map) return;
+
+    const pinIds = [...new Set(this.pins.map((pin) => pin.recordId))];
+    const focusIds = [...new Set(this.pins.filter((pin) => pin.kind === "focus").map((pin) => pin.recordId))];
+
+    if (this.map.getLayer(RECORD_LAYER_ID)) {
+      const recordFilter = pinIds.length
+        ? ["all", ["!", ["has", "point_count"]], ["!", ["in", ["get", "recordId"], ["literal", pinIds]]]]
+        : ["!", ["has", "point_count"]];
+      this.map.setFilter(RECORD_LAYER_ID, recordFilter as never);
+    }
+
+    if (this.map.getLayer(SELECTED_LAYER_ID)) {
+      const selectedFilter = focusIds.length
+        ? ["!", ["in", ["get", "recordId"], ["literal", focusIds]]]
+        : ["has", "recordId"];
+      this.map.setFilter(SELECTED_LAYER_ID, selectedFilter as never);
+    }
+  }
+
   onAdd(map: MapLibreMap, gl: GLContext) {
     this.map = map;
     const sources = shaderSources(gl);
@@ -314,6 +338,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
     this.spriteBuffer = gl.createBuffer() || undefined;
     this.highlightTexture = createTexture(gl, "highlight");
     this.focusTexture = createTexture(gl, "focus");
+    this.syncMarkerOwnership();
   }
 
   onRemove(_map: MapLibreMap, gl: GLContext) {
@@ -344,7 +369,7 @@ export class ExchangePinLayer implements CustomLayerInterface {
     for (const pin of this.pins) {
       if (pin.kind !== kind) continue;
 
-      // map.project() performs the geographic projection in JavaScript double
+      // MapLibre performs the geographic projection in JavaScript double
       // precision. The GPU only receives normalized screen coordinates near
       // [-1, 1], eliminating Mercator Float32 precision jitter during pan/zoom.
       const point = this.map.project([pin.location.lng, pin.location.lat]);
@@ -355,9 +380,9 @@ export class ExchangePinLayer implements CustomLayerInterface {
       const left = point.x - width / 2;
       const right = point.x + width / 2;
 
-      // The procedural texture has transparent pixels below its actual tip.
-      // Extend the quad slightly below the geographic point so the painted
-      // teardrop tip, not the texture rectangle, lands exactly on the record.
+      // The texture has transparent pixels below the painted teardrop tip.
+      // Extend the quad below the coordinate just enough that the actual tip,
+      // not the texture rectangle, lands on the exact projected map point.
       const tailPadding = (PIN_TEXTURE_HEIGHT - PIN_TEXTURE_TIP_Y) / PIN_TEXTURE_HEIGHT * height;
       const bottom = point.y + tailPadding;
       const top = bottom - height;
