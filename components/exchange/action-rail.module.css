@@ -1,58 +1,56 @@
 .railShell {
   flex: 0 0 auto;
-  padding: 0 12px 10px;
+  padding: 2px 16px 12px;
 }
 
 .rail {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  gap: 8px;
 }
 
 .action {
   position: relative;
   min-width: 0;
-  min-height: 58px;
+  min-height: 60px;
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 2px;
-  padding: 6px 4px;
-  border: 1px solid rgba(37, 41, 50, .14);
-  border-radius: 14px;
-  background: rgba(247, 243, 234, .78);
+  gap: 3px;
+  padding: 7px 5px;
+  border: 1px solid rgba(37, 41, 50, .12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .72);
   color: #252932;
   cursor: pointer;
-  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease;
 }
 
-.action:hover:not(:disabled),
-.action:focus-visible:not(:disabled) {
-  border-color: rgba(214, 162, 58, .72);
-  background: rgba(255, 255, 255, .96);
+.action:hover:not(:disabled) {
+  border-color: rgba(46, 94, 170, .32);
+  background: rgba(46, 94, 170, .045);
 }
 
 .action:focus-visible {
-  outline: 3px solid rgba(46, 94, 170, .18);
-  outline-offset: 1px;
-}
-
-.action:active:not(:disabled) {
-  transform: translateY(1px);
+  border-color: rgba(46, 94, 170, .42);
+  outline: 3px solid rgba(46, 94, 170, .16);
+  outline-offset: 2px;
 }
 
 .action:disabled {
-  opacity: .6;
+  opacity: .46;
   cursor: not-allowed;
 }
 
 .active {
-  border-color: rgba(214, 162, 58, .72);
-  background: rgba(214, 162, 58, .13);
+  border-color: rgba(46, 94, 170, .46);
+  background: rgba(46, 94, 170, .08);
+  color: #244f93;
 }
 
 .icon {
-  font-size: 18px;
+  font-size: 19px;
+  font-weight: 650;
   line-height: 1;
 }
 
@@ -62,35 +60,34 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  font-size: 10px;
-  font-weight: 780;
-  line-height: 1.1;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.15;
   text-align: center;
 }
 
 .state {
-  min-height: 10px;
+  min-height: 11px;
   color: #7a7e85;
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 1;
+  font-size: 9px;
+  font-weight: 550;
+  line-height: 1.05;
 }
 
 .active .state {
-  color: #745312;
+  color: #244f93;
 }
 
 .placeholder {
-  min-height: 58px;
-  border: 1px dashed rgba(37, 41, 50, .12);
-  border-radius: 14px;
-  background: rgba(247, 243, 234, .38);
+  min-height: 60px;
+  border: 1px dashed rgba(37, 41, 50, .1);
+  border-radius: 12px;
+  background: rgba(247, 243, 234, .24);
 }
 
 @media (min-width: 900px) {
-  .railShell { padding-inline: 16px; }
+  .railShell { padding-inline: 18px; }
   .action { min-height: 64px; }
-  .label { font-size: 11px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
