@@ -9,11 +9,13 @@ import type {
   MapViewState,
 } from "@/lib/exchange/contracts";
 import { zoomMapCamera } from "@/lib/exchange/map-model";
+import { mapStyleDefinitions, mapStyleOrder } from "@/lib/exchange/map-styles";
 import styles from "./map-control-menu.module.css";
 
 const routeTitle: Record<MapControlRoute, string> = {
   root: "Map",
   view: "View",
+  basemap: "Map type",
   layers: "Layers",
   geography: "Geography",
 };
@@ -54,6 +56,9 @@ export function MapControlMenu({
   if (!open) return null;
 
   const overlayLabel = lens === "intelligence" ? "Heat / concentration overlay" : lens === "capabilities" ? "Capability density overlay" : undefined;
+  const mapStyle = mapStyleDefinitions[view.style];
+  const parentRoute: MapControlRoute = route === "basemap" ? "view" : "root";
+  const breadcrumb = route === "root" ? "Map" : route === "basemap" ? "Map › View › Map type" : `Map › ${routeTitle[route]}`;
 
   function setMode(mode: "2d" | "3d") {
     onViewChange({ ...view, camera: { ...view.camera, mode, pitch: mode === "3d" ? 42 : 0 } });
@@ -63,17 +68,17 @@ export function MapControlMenu({
     <section className={styles.menu} role="dialog" aria-label="Map controls">
       <header className={styles.header}>
         <div>
-          <p className={styles.breadcrumb}>Map{route === "root" ? "" : ` › ${routeTitle[route]}`}</p>
+          <p className={styles.breadcrumb}>{breadcrumb}</p>
           <h2>{routeTitle[route]}</h2>
         </div>
         <button type="button" onClick={onClose} aria-label="Close map controls">×</button>
       </header>
 
-      {route !== "root" ? <button className={styles.back} type="button" onClick={() => setRoute("root")}>← Back to Map</button> : null}
+      {route !== "root" ? <button className={styles.back} type="button" onClick={() => setRoute(parentRoute)}>← Back to {route === "basemap" ? "View" : "Map"}</button> : null}
 
       {route === "root" ? (
         <nav className={styles.tree} aria-label="Map control sections">
-          <button type="button" onClick={() => setRoute("view")}><span><strong>View</strong><small>2D / 3D, zoom, reset</small></span><b>›</b></button>
+          <button type="button" onClick={() => setRoute("view")}><span><strong>View</strong><small>{mapStyle.label} · 2D / 3D, zoom, reset</small></span><b>›</b></button>
           <button type="button" onClick={() => setRoute("layers")}><span><strong>Layers</strong><small>Records{overlayLabel ? " and lens overlay" : " and clusters"}</small></span><b>›</b></button>
           <button type="button" onClick={() => setRoute("geography")}><span><strong>Geography</strong><small>{view.geography.label}</small></span><b>›</b></button>
         </nav>
@@ -81,11 +86,25 @@ export function MapControlMenu({
 
       {route === "view" ? (
         <div className={styles.list}>
+          <button type="button" onClick={() => setRoute("basemap")}><span><strong>Map type</strong><small>{mapStyle.label} · {mapStyle.provider}</small></span><b>›</b></button>
           <button type="button" className={view.camera.mode === "2d" ? styles.active : ""} onClick={() => setMode("2d")}><span>2D map</span><b>{view.camera.mode === "2d" ? "✓" : ""}</b></button>
           <button type="button" className={view.camera.mode === "3d" ? styles.active : ""} onClick={() => setMode("3d")}><span>3D map</span><b>{view.camera.mode === "3d" ? "✓" : ""}</b></button>
           <button type="button" onClick={() => onViewChange({ ...view, camera: zoomMapCamera(view.camera, 0.75) })}><span>Zoom in</span><b>+</b></button>
           <button type="button" onClick={() => onViewChange({ ...view, camera: zoomMapCamera(view.camera, -0.75) })}><span>Zoom out</span><b>−</b></button>
           <button type="button" onClick={onResetView}><span>Reset Exchange view</span><b>↥</b></button>
+        </div>
+      ) : null}
+
+      {route === "basemap" ? (
+        <div className={styles.list}>
+          {mapStyleOrder.map((styleId) => {
+            const option = mapStyleDefinitions[styleId];
+            return (
+              <button key={styleId} type="button" className={view.style === styleId ? styles.active : ""} onClick={() => onViewChange({ ...view, style: styleId })}>
+                <span><strong>{option.label}</strong><small>{option.description}<br />{option.provider}</small></span><b>{view.style === styleId ? "✓" : ""}</b>
+              </button>
+            );
+          })}
         </div>
       ) : null}
 
@@ -122,7 +141,7 @@ export function MapControlMenu({
         </div>
       ) : null}
 
-      <footer className={styles.footer}>Current map: {view.geography.label} · {view.camera.mode.toUpperCase()} · zoom {view.camera.zoom.toFixed(1)}</footer>
+      <footer className={styles.footer}>Current map: {view.geography.label} · {mapStyle.label} · {view.camera.mode.toUpperCase()} · zoom {view.camera.zoom.toFixed(1)}</footer>
     </section>
   );
 }
