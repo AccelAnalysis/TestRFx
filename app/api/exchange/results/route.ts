@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { ExchangeLens, MapBounds } from "@/lib/exchange/contracts";
 import { exchangeSeed } from "@/lib/exchange/seed";
+import { deriveReferenceViewerContext } from "@/lib/exchange/action-registry";
 import { lensDefinitions } from "@/lib/exchange/lenses";
 import { scopeMapRecordsToBounds } from "@/lib/exchange/map-service";
 import { searchExchangeRecords, searchStateFromParams } from "@/lib/exchange/search";
@@ -26,6 +27,7 @@ export async function GET(request: NextRequest) {
   const bounds = boundsFromRequest(request);
   const records = scopeMapRecordsToBounds(response.results.map((result) => result.record), bounds);
   const mapped = records.filter((record) => record.location).length;
+  const viewer = deriveReferenceViewerContext(exchangeSeed);
 
   return NextResponse.json({
     lens,
@@ -34,6 +36,6 @@ export async function GET(request: NextRequest) {
     records,
     matches: response.results.filter((result) => records.some((record) => record.id === result.record.id)).map((result) => ({ id: result.record.id, ...result.match })),
     summary: { total: records.length, mapped, offMap: records.length - mapped },
-    actions: lensDefinitions[lens].actions(records[0]),
+    actions: lensDefinitions[lens].actions(viewer),
   });
 }
