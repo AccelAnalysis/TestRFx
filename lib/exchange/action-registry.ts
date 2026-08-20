@@ -1,16 +1,15 @@
 import type { ExchangeLens, ExchangeRecord, LensAction, LensActionOwnership, LensActionToggle, LensActionTrigger } from "./contracts";
 type ActionSpec = { id: string; label: string; icon: string; trigger: LensActionTrigger; operational?: boolean; unavailableReason?: string; requiresRecord?: boolean; toggle?: LensActionToggle; };
-const unavailable = { rfxCreate: "RFx creation plugs into this governed action position.", rfxManage: "RFx management plugs into this governed action position.", rfxRespond: "Response/submission workflow plugs into this governed action position.", rfxTeam: "Teaming and collaboration plug into this governed action position." } as const;
 const registry: Record<ExchangeLens, { own: ActionSpec[]; other: ActionSpec[] }> = {
   rfx: { own: [
-    { id: "create-rfx", label: "Create RFx", icon: "+", trigger: "modal", operational: false, unavailableReason: unavailable.rfxCreate },
-    { id: "manage-rfx", label: "Manage", icon: "✎", trigger: "menu", operational: false, unavailableReason: unavailable.rfxManage, requiresRecord: true },
-    { id: "invite-team", label: "Invite Team", icon: "◎", trigger: "workflow", operational: false, unavailableReason: unavailable.rfxTeam, requiresRecord: true },
-    { id: "watch", label: "Watch", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
+    { id: "create-rfx", label: "Create RFx", icon: "+", trigger: "workflow" },
+    { id: "manage-rfx", label: "Manage RFx", icon: "✎", trigger: "workflow", requiresRecord: true },
+    { id: "invite-team", label: "Invite Team", icon: "◎", trigger: "workflow", requiresRecord: true },
+    { id: "watch", label: "Track", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
   ], other: [
     { id: "view", label: "View Detail", icon: "◉", trigger: "detail", requiresRecord: true },
-    { id: "respond", label: "Respond", icon: "↵", trigger: "modal", operational: false, unavailableReason: unavailable.rfxRespond, requiresRecord: true },
-    { id: "team", label: "Team", icon: "◎", trigger: "workflow", operational: false, unavailableReason: unavailable.rfxTeam, requiresRecord: true },
+    { id: "respond", label: "Respond", icon: "↵", trigger: "workflow", requiresRecord: true },
+    { id: "team", label: "Team", icon: "◎", trigger: "workflow", requiresRecord: true },
     { id: "watch", label: "Watch", icon: "☆", trigger: "direct", requiresRecord: true, toggle: "watch" },
   ]},
   resources: { own: [

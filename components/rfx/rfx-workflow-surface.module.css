@@ -1,0 +1,58 @@
+.backdrop { position: fixed; inset: 0; z-index: 72; display: grid; place-items: end center; background: rgba(11,11,13,.34); backdrop-filter: blur(5px); }
+.panel { width: min(100%, 980px); height: min(92dvh, 880px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,.72); border-radius: 28px 28px 0 0; background: rgba(255,255,255,.98); box-shadow: 0 -18px 60px rgba(11,11,13,.26); }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 20px 22px 14px; border-bottom: 1px solid rgba(37,41,50,.1); }
+.header h2 { margin: 0 0 5px; font-size: clamp(20px,4vw,28px); letter-spacing: -.03em; }
+.header span { color: #69707b; font-size: 12px; }
+.eyebrow { margin: 0 0 5px; color: #745312; font-size: 10px; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+.close { width: 42px; height: 42px; flex: 0 0 42px; border: 1px solid rgba(37,41,50,.13); border-radius: 50%; background: #f7f3ea; font-size: 23px; cursor: pointer; }
+.contextRail { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; padding: 10px 16px; border-bottom: 1px solid rgba(37,41,50,.08); background: #fbfaf7; }
+.contextRail button { min-height: 42px; border: 1px solid rgba(37,41,50,.12); border-radius: 12px; background: white; font-weight: 760; cursor: pointer; }
+.contextRail button.active { border-color: #d6a23a; background: #fff6df; }
+.contextPanel { padding: 14px 18px; border-bottom: 1px solid rgba(37,41,50,.1); background: #f7f3ea; }
+.contextPanel > strong { display: block; margin-bottom: 8px; }
+.contextPanel p { margin: 6px 0; line-height: 1.45; }
+.boundary { color: #626771; font-size: 12px; }
+.breadcrumbs { min-height: 48px; display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 6px 16px; border-bottom: 1px solid rgba(37,41,50,.08); scrollbar-width: none; }
+.breadcrumbs button { flex: 0 0 auto; min-height: 32px; padding: 0 9px; border: 0; border-radius: 9px; background: transparent; color: #666d78; font-size: 11px; font-weight: 720; cursor: pointer; }
+.breadcrumbs button:hover, .breadcrumbs .currentCrumb { background: #f1efe8; color: #0b0b0d; }
+.workspaceMeta { display: flex; gap: 7px; flex-wrap: wrap; padding: 8px 16px; border-bottom: 1px solid rgba(37,41,50,.07); }
+.workspaceMeta span { padding: 4px 7px; border-radius: 999px; background: #f2f1ed; color: #5b6068; font-size: 10px; font-weight: 720; }
+.body { min-height: 0; flex: 1; overflow-y: auto; padding: 20px 18px 30px; overscroll-behavior: contain; }
+.titleRow { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 18px; }
+.titleRow h3 { margin: 0 0 7px; font-size: clamp(24px,5vw,38px); letter-spacing: -.045em; }
+.titleRow p:not(.eyebrow) { max-width: 720px; margin: 0; color: #60656e; line-height: 1.55; }
+.complete { flex: 0 0 auto; padding: 6px 9px; border-radius: 999px; background: #e7f3ec; color: #285b40; font-size: 11px; font-weight: 800; }
+.childGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+.childCard { min-height: 110px; display: flex; justify-content: space-between; gap: 14px; padding: 16px; border: 1px solid rgba(37,41,50,.12); border-radius: 17px; background: white; text-align: left; cursor: pointer; box-shadow: 0 4px 15px rgba(11,11,13,.04); }
+.childCard strong { display: block; margin-bottom: 6px; font-size: 14px; }
+.childCard p { margin: 0; color: #686d75; font-size: 12px; line-height: 1.42; }
+.childCard > span { align-self: center; color: #777; font-size: 26px; }
+.form { display: grid; gap: 14px; }
+.field { display: grid; gap: 6px; font-size: 12px; font-weight: 760; }
+.field input, .field textarea, .field select { width: 100%; min-height: 46px; padding: 10px 12px; border: 1px solid rgba(37,41,50,.16); border-radius: 12px; background: white; color: #0b0b0d; outline: none; }
+.field textarea { min-height: 110px; resize: vertical; }
+.field input:focus, .field textarea:focus, .field select:focus { border-color: #2e5eaa; box-shadow: 0 0 0 3px rgba(46,94,170,.1); }
+.field small { color: #6e737c; font-weight: 500; }
+.checkField, .checklist label { display: flex; align-items: flex-start; gap: 10px; padding: 11px; border: 1px solid rgba(37,41,50,.1); border-radius: 12px; background: #fbfaf7; }
+.checklist { display: grid; gap: 8px; }
+.checklist input { width: 18px; height: 18px; margin-top: 1px; }
+.items { display: grid; gap: 7px; margin-top: 4px; }
+.items article { display: grid; gap: 4px; padding: 11px 12px; border-radius: 12px; background: #f7f3ea; }
+.items small { color: #656b74; }
+.review, .handoff { padding: 16px; border: 1px solid rgba(37,41,50,.11); border-radius: 16px; background: #fbfaf7; }
+.review > p, .handoff > p { color: #61666f; line-height: 1.5; }
+.reviewGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: 12px; }
+.reviewGrid span { padding: 9px; border-radius: 10px; background: white; font-size: 11px; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.badges span { padding: 5px 8px; border-radius: 999px; background: #e9eef8; color: #24477e; font-size: 10px; font-weight: 800; }
+.actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 15px; }
+.primary, .secondary, .actions button, .footer button { min-height: 43px; padding: 0 14px; border: 1px solid rgba(37,41,50,.14); border-radius: 12px; background: white; font-weight: 760; cursor: pointer; }
+.primary { background: #0b0b0d; color: #f7f3ea; }
+.secondary { margin-top: 13px; }
+.primary:disabled { opacity: .5; cursor: wait; }
+.footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(37,41,50,.1); background: rgba(247,243,234,.95); }
+.footer span { color: #60656e; font-size: 11px; line-height: 1.35; }
+.loading { padding: 48px 24px; color: #666d76; text-align: center; }
+@media (min-width: 900px) { .backdrop { place-items: center; padding: 24px; } .panel { border-radius: 28px; height: min(88vh,880px); } .body { padding: 24px 28px 36px; } }
+@media (max-width: 640px) { .panel { height: 96dvh; } .childGrid, .reviewGrid { grid-template-columns: 1fr; } .header { padding: 15px 16px 10px; } .contextRail { padding: 8px; gap: 5px; } .contextRail button { font-size: 11px; } .body { padding: 16px 12px 28px; } .footer { align-items: stretch; flex-direction: column; } .footer button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .panel, .childCard { scroll-behavior: auto; transition: none; } }

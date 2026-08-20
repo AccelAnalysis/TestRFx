@@ -2,124 +2,255 @@
 
 ## Purpose
 
-`Authenticated Exchange Shell → Bottom navigation → RFx` is the demand-and-transaction lens of the RFxchange operating chassis. It does not create a second application shell. RFx continues to use the persistent Exchange map, universal search, floating controls, three-state results drawer, four-slot action rail, shared cards, shared detail controller, bottom navigation, deep-link state, identity/organization context, and progressive-availability rules.
+`Authenticated Exchange Shell → Bottom navigation → RFx` is the demand-and-transaction lens of the RFxchange operating chassis. It remains inside the persistent Exchange map, universal search, floating controls, three-state results drawer, four-slot action rail, shared cards, shared detail controller, bottom navigation, and cross-lens utilities.
+
+The RFx lens now owns a real hierarchical transaction workspace rather than a set of disabled action placeholders. The workflow tree is derived from the RFx source flow and transaction-cycle source; it does not add product branches that are not represented there.
 
 ## Chassis boundary
 
-The chassis owns composition and interaction mechanics. The RFx domain supplies:
+The chassis continues to own composition and interaction mechanics. RFx supplies:
 
-- normalized RFx `ExchangeRecord` projections;
-- RFx search terms and filters;
-- map locations where a useful location exists;
-- RFx-specific detail data;
-- own-organization vs. other-organization action definitions;
-- RFx lifecycle, pursuit, response, teaming, watch, Q&A/addenda, evaluation, and outcome services as those services become operational.
+- RFx records and domain detail;
+- RFx search terms and map projection;
+- own-organization vs. other-organization actions;
+- the issuer and responder workflow trees;
+- workflow state and persistence;
+- pursuit and RFx lifecycle state;
+- RFx-specific handoffs into Capabilities, Resources, Referrals, external submission, and the shared detail surface.
 
-RFx records without useful coordinates remain valid results in the drawer and do not need map markers.
-
-## Current reference experience
-
-The branch adds a typed RFx catalog behind the existing chassis seed records. The shared detail controller now renders RFx-specific content including:
-
-- RFx/request type;
-- lifecycle status;
-- solicitation/reference number;
-- source (`external` or `rfxchange`);
-- close date and estimated value where available;
-- scope and performance geography;
-- capability-match context;
-- structured requirements;
-- deliverables;
-- response requirements;
-- evaluation context;
-- explicit external-submission boundary.
-
-Capability matching is presented as discovery context only. It must not be described as qualification, eligibility, endorsement, or probability of award.
+RFx records without useful coordinates remain valid drawer results and do not require map markers.
 
 ## Four governed action positions
 
 For another organization's RFx:
 
-1. **View RFx** — operational; opens the shared detail surface.
-2. **Respond** — reserved for go/no-go and structured response workflow.
-3. **Team** — reserved for capability-gap teaming workflow.
-4. **Watch** — operational in the reference client; toggles session-local watch state.
+1. **View Detail** → opens the responder understanding hierarchy.
+2. **Respond** → opens the complete responder transaction hierarchy.
+3. **Team** → opens the source-defined `Discover → Discuss → Invite → Agree externally → Participate in response` hierarchy.
+4. **Watch** → persists the watch relationship in the RFx workspace service.
 
 For an organization-owned RFx:
 
-1. **Create RFx** — reserved for guided issuer RFx creation.
-2. **Manage RFx** — reserved for issuer lifecycle, response review, Q&A/addenda, evaluation, and outcome management.
-3. **Invite Team** — reserved for issuer collaborators/invitations.
-4. **Track** — operational in the reference client; uses the same watch-state seam.
+1. **Create RFx** → creates a new owned draft and opens the issuer creation hierarchy.
+2. **Manage RFx** → opens the issuer lifecycle hierarchy.
+3. **Invite Team** → opens the issuer collaborator hierarchy.
+4. **Track** → persists the RFx tracking relationship in the same workspace service.
 
-The action position is a shell primitive. Business truth belongs to RFx services. Disabled actions must remain disabled until a real governed runtime exists.
+The action rail still owns exactly four physical positions. RFx business logic lives behind them.
 
-## Watch semantics
+## Source-derived issuer hierarchy
 
-The reference client keeps RFx Watch/Track state in mounted React state so the action rail and card star behave coherently without claiming durable persistence. Production should replace this with authenticated organization/user persistence through `rfx_watches` or the final relationship service and should emit activity/notification events.
+```text
+Issuer RFx
+├── Create RFx / Opportunity
+│   ├── Define Need
+│   │   ├── What do you need?
+│   │   ├── Starting Point
+│   │   └── Select RFx Type
+│   ├── Build Scope
+│   │   ├── Scope
+│   │   ├── Deliverables
+│   │   ├── Requirements
+│   │   ├── Schedule
+│   │   ├── Commercial Terms
+│   │   └── Define Who Is Needed
+│   ├── Understand Market
+│   │   ├── Potential Matches
+│   │   ├── Required Criteria Coverage
+│   │   ├── Service Geography
+│   │   └── Profile Completeness
+│   ├── Establish Evaluation
+│   │   ├── Evaluation Criteria
+│   │   └── Evaluation Governance
+│   ├── Assemble RFx Package
+│   │   ├── Overview
+│   │   ├── Scope
+│   │   ├── Requirements
+│   │   ├── Deliverables
+│   │   ├── Schedule
+│   │   ├── Commercial Information
+│   │   ├── Evaluation
+│   │   ├── Attachments
+│   │   ├── Terms
+│   │   └── Response Instructions
+│   ├── Review / Approve
+│   │   ├── Collaborators
+│   │   ├── Requested Revisions
+│   │   ├── Approval Gates
+│   │   └── Publication Readiness
+│   ├── Pre-Publication Validation
+│   ├── Preview
+│   └── Publish
+├── Manage RFx
+│   ├── Overview / Status
+│   ├── Draft / Save / Publish
+│   ├── Q&A / Addenda
+│   │   ├── Questions
+│   │   ├── Answers
+│   │   ├── Addenda
+│   │   └── Acknowledgements
+│   ├── View Responses / Matches
+│   │   ├── Potential Matches
+│   │   ├── Invited Organizations
+│   │   └── Received Responses
+│   ├── Evaluate
+│   │   ├── Compliance
+│   │   ├── Individual Evaluation
+│   │   ├── Clarification
+│   │   ├── Consensus
+│   │   ├── Recommendation
+│   │   └── Approval
+│   ├── Decision / Next Step
+│   │   ├── Update
+│   │   ├── Close
+│   │   ├── Select / Award / Connection
+│   │   ├── Advance
+│   │   └── Refer from Context
+│   └── Post-RFx Outcome
+│       ├── Contract / Relationship Initiated
+│       ├── Work Underway
+│       ├── Completed
+│       └── Outcome Reported
+├── Invite Team / Collaborators
+│   ├── Internal Collaborators
+│   ├── Create Invitation
+│   └── Responsibilities
+└── Track / Watch Status
+```
 
-## Search
+## Source-derived responder hierarchy
 
-The universal Exchange search remains the only search control. While the RFx lens is active, the reference filter also indexes RFx-domain terms such as solicitation number, RFx type, status, scope, performance geography, deliverables, response requirements, and requirement labels.
+```text
+Responder RFx
+├── View RFx Detail
+│   ├── What is this?
+│   ├── Why am I seeing it?
+│   ├── Can I pursue it?
+│   └── What will pursuing require?
+├── Respond / Submit
+│   ├── Assess Fit
+│   │   ├── Fit
+│   │   ├── Eligibility
+│   │   ├── Capacity
+│   │   ├── Economics
+│   │   ├── Competition
+│   │   └── Gaps
+│   ├── Go / No-Go
+│   ├── Resolve Gaps
+│   │   ├── Find a Teammate → Capabilities
+│   │   └── Find a Resource → Resources
+│   ├── Build Team
+│   │   ├── Discover
+│   │   ├── Discuss
+│   │   ├── Invite
+│   │   ├── Agree Externally
+│   │   └── Participate in Response
+│   ├── Plan Response
+│   ├── Draft
+│   ├── Collaborate
+│   ├── Q&A / Addenda
+│   │   ├── Submit Question
+│   │   ├── View Answers
+│   │   └── Acknowledge Addenda
+│   ├── Validate Compliance
+│   ├── Review
+│   ├── Submit
+│   │   ├── RFxchange-Hosted Submission
+│   │   └── External Submission
+│   ├── Clarify
+│   ├── Decision
+│   ├── Execute
+│   └── Report Outcome
+├── Team / Join / Collaborate
+│   └── same five-stage teaming sequence
+├── Watch / Follow
+├── Refer Relevant Organization
+└── Outcome
+    ├── Saved
+    ├── Submitted
+    ├── Teamed
+    └── Referred
+```
 
-Production search should preserve the same normalized shell contract while replacing deterministic filtering with the Exchange Search service.
+## Sticky RFx context actions
 
-## RFx object and lifecycle
+The source separately defines `View / Match / Refer / Save`. Those are implemented inside the RFx workflow surface as contextual actions and do not replace the four governed shell action positions.
 
-The intended RFx object covers a family of market requests such as RFI, RFQ, RFP, Sources Sought, supplier requests, and service requests. Templates can change required sections and governance without creating separate applications.
+- **View** returns to the shared RFx detail controller.
+- **Match** shows structured match context with an explicit non-qualification boundary.
+- **Refer** creates an RFx-context referral record in the workspace and can hand off to Menu → Referrals Management.
+- **Save** uses the same durable Watch/Track persistence used by the card star and action rail.
 
-A canonical lifecycle is:
+## Nested navigation state
 
-`Need → Build RFx → Publish → Discover/Match → Qualify/Assess Fit → Respond → Evaluate → Select/Award/Connect → Execute/Relationship → Outcome → Intelligence`
+The active RFx workflow is a recursive `RfxWorkflowNode` tree. The workspace records:
 
-Responder pursuit state is separate from RFx lifecycle state because many organizations can have different relationships to the same RFx simultaneously.
+- issuer vs. responder perspective;
+- current entry workflow;
+- active nested path;
+- values by workflow field;
+- completed node IDs;
+- list items such as requirements, deliverables, collaborators, questions, addenda, assignments, evaluations, clarifications, and referrals;
+- responder pursuit state;
+- issuer RFx lifecycle state;
+- version and timestamps.
 
-## Own vs. other context
+The UI renders breadcrumbs and child cards from the same tree, so child and grandchild items are true navigation states rather than headings with no destination.
 
-`ownedByViewer` is currently a chassis reference flag. Production must derive ownership and permissions from authenticated user → organization membership → role/permissions → RFx authority on the server. Client visibility or disabled buttons are not authorization controls.
+## Real workspace service
 
-## External RFx boundary
+RFx no longer uses mounted React state as its workflow persistence service.
 
-For external opportunities, RFxchange may support discovery, match explanation, go/no-go, teaming, response readiness, Q&A context, and tracking. It must not claim formal submission or award authority when those actions occur in an external issuer system.
+`lib/rfx/workspace-client.ts` uses the following service policy:
 
-For RFxchange-hosted RFx, future issuer and response services may support controlled publication, addenda, submission receipts, evaluation, clarification, and outcome tracking.
+1. Use `/api/rfx/workspaces` when the server has a configured Postgres `DATABASE_URL`.
+2. The API uses `@neondatabase/serverless` over HTTP and persists JSONB workspace state plus an append-only workspace event record.
+3. If the app is running as the static GitHub Pages preview, offline, or without a configured database, the same complete workflow persists to `localStorage` as an explicit **Local device workspace**. This is a functioning local persistence mode, not a fake remote success response.
+4. The UI displays which persistence mode is active.
 
-## Persistence target
+`db/rfx-workspaces.sql` contains the matching schema, and the server repository can also create the two workspace tables defensively with `IF NOT EXISTS`.
 
-`db/rfx-domain.sql` extends the existing normalized `exchange_records` / `rfx_records` model with RFx lifecycle data and reference tables for:
+Postgres shared persistence requires `DATABASE_URL`. The current repository does not contain database credentials and must never hard-code them.
 
-- watches;
-- pursuit state;
-- requirements;
-- addenda;
-- responses.
+## Watch / Track
 
-Future additions can include issuer collaborators, invitations, Q&A, evaluator assignments, scoring, clarifications, selections, and outcomes without changing the Exchange shell contracts.
+Watch/Track and the RFx card star now use the RFx workspace service. The responder workspace also updates its pursuit state between `discovered` and `watching`. This replaces the previous mounted-only RFx watch toggle.
 
-## Cross-lens integrations
+## RFx and pursuit state
 
-RFx should connect to the other platform domains rather than duplicate them:
+The workspace keeps RFx lifecycle and organization pursuit state separate because many organizations can have different relationships with the same RFx.
 
-- **Capabilities / AMACS:** requirement matching, gap identification, teammate discovery, capability/evidence context.
-- **Resources:** readiness gaps such as certifications, financing, workforce, technical assistance, or proposal support.
-- **Intelligence:** demand signals, participation, declines, teaming gaps, outcomes, and market activity.
-- **Referrals:** cross-lens introductions launched from RFx context and managed through Menu.
-- **Organization Profile:** canonical issuer, responder, teammate, and referral participant identity.
+Issuer lifecycle includes draft, internal review/readiness, open, close, evaluation, clarification, selection/award, execution, completion, and cancellation states supported by the source cycle.
 
-## Production integrations still required
+Responder pursuit includes discovered, matched, invited, watching, assessing, declined, pursuing, teaming, drafting, ready, submitted, withdrawn, clarification, selected/not-selected, executing, and outcome-reported states.
 
-- authenticated viewer and active-organization resolution;
-- server-side RFx authorization and action resolution;
-- durable Watch/Track persistence;
-- production Exchange search/facets;
-- RFx repository/API replacing reference catalog data;
-- response/go-no-go workspace;
-- teaming and cross-lens capability-gap workflow;
-- issuer create/manage/publish lifecycle;
-- Q&A and addenda;
-- response submission/receipts for hosted RFx;
-- evaluation/clarification/selection;
-- notification and deadline service;
-- activity/audit events;
-- object storage for solicitation/response attachments;
-- external issuer/source connectors where permitted.
+## Truth boundaries
+
+- A discovery match, potential match, or invitation is not qualification, endorsement, eligibility, or award prediction.
+- RFxchange organizes evaluation; it does not choose the winner.
+- Teaming invitations do not create a legal teaming agreement. The workflow explicitly preserves `Discover → Discuss → Invite → Agree externally → Participate in response`.
+- Externally sourced RFx records use an external-submission handoff. RFxchange does not claim formal submission or legal award authority where the issuer's external system is authoritative.
+- The local-device persistence mode does not claim cross-user delivery. Collaboration invitations can be shared using the device share/copy capability; multi-user notification/delivery requires the authenticated shared service environment.
+
+## Discovery fixtures versus services
+
+The existing RFx catalog and Exchange seed records remain sample discovery content for TestRFx. They are not used as the workflow persistence service and no action reports a fake backend mutation against those fixtures. New RFx work is stored in the real workspace adapter described above.
+
+Replacing the sample discovery catalog with imported/live RFx feeds is a separate data-ingestion integration and should not be conflated with making the RFx transaction workflow operational.
+
+## Connected functions
+
+The source also identifies Organization Profile, Settings, Referrals Management, and the Cross-lens Referral Workflow. Those are shared/Menu responsibilities already represented outside the RFx lens, so this RFx hierarchy links or hands off to them rather than duplicating them as RFx sub-applications.
+
+## Remaining production integrations
+
+These are infrastructure dependencies, not mocked RFx buttons:
+
+- authenticated viewer and active-organization resolution for server-side ownership/authorization;
+- deployment configuration of the Postgres `DATABASE_URL` for shared multi-device workspaces;
+- transactional email/push/in-app delivery for collaborator invitations and notifications;
+- object storage for solicitation and response attachments;
+- live RFx/import connectors to replace sample discovery fixtures;
+- formal external-submission integrations where issuer systems permit them.
+
+Those dependencies must preserve the existing RFx workflow and chassis contracts rather than reintroducing placeholder UI behavior.
