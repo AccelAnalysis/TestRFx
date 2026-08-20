@@ -9,6 +9,12 @@
 
 .searchDock :global(.search-surface) {
   width: 100%;
+  min-height: 52px;
+  border-color: rgba(255, 255, 255, .76);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .8);
+  box-shadow: 0 6px 18px rgba(11, 11, 13, .1);
+  backdrop-filter: blur(22px) saturate(118%);
   pointer-events: auto;
 }
 
@@ -24,7 +30,7 @@
 .utilityDock {
   position: absolute;
   z-index: 21;
-  top: calc(max(14px, env(safe-area-inset-top)) + 58px);
+  top: calc(max(14px, env(safe-area-inset-top)) + 60px);
   right: 14px;
   display: grid;
   gap: 8px;
@@ -36,38 +42,44 @@
   height: 48px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(255, 255, 255, .74);
   border-radius: 16px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, .76);
   color: var(--exchange-black);
-  box-shadow: 0 8px 28px rgba(11, 11, 13, 0.12);
-  backdrop-filter: blur(18px) saturate(125%);
+  box-shadow: 0 6px 18px rgba(11, 11, 13, .09);
+  backdrop-filter: blur(20px) saturate(118%);
   cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease, color 180ms ease, box-shadow 180ms ease;
 }
 
 .controlButton:hover,
-.controlButton:focus-visible,
 .controlButtonActive {
-  border-color: rgba(46, 94, 170, 0.4);
-  box-shadow: 0 0 0 3px rgba(46, 94, 170, 0.12), 0 8px 28px rgba(11, 11, 13, 0.12);
-  outline: none;
+  border-color: rgba(46, 94, 170, .34);
+  background: rgba(255, 255, 255, .9);
+  color: #244f93;
+}
+
+.controlButton:focus-visible {
+  border-color: rgba(46, 94, 170, .42);
+  outline: 3px solid rgba(46, 94, 170, .16);
+  outline-offset: 2px;
 }
 
 .controlButton:disabled {
   cursor: progress;
-  opacity: 0.72;
+  opacity: 0.68;
 }
 
 .controlGlyph {
   font-size: 19px;
-  font-weight: 800;
+  font-weight: 650;
   line-height: 1;
 }
 
 .controlText {
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.025em;
 }
 
 .badge {
@@ -84,23 +96,23 @@
   background: var(--signal-blue);
   color: white;
   font-size: 10px;
-  font-weight: 850;
+  font-weight: 700;
 }
 
 .filterPanel {
   position: absolute;
   z-index: 45;
-  top: calc(max(14px, env(safe-area-inset-top)) + 58px);
+  top: calc(max(14px, env(safe-area-inset-top)) + 60px);
   right: 14px;
   width: min(360px, calc(100vw - 28px));
   max-height: min(66dvh, 620px);
   overflow: auto;
   padding: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.75);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(24px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, .78);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 12px 32px rgba(11, 11, 13, .14);
+  backdrop-filter: blur(18px) saturate(112%);
 }
 
 .filterHeader,
@@ -108,30 +120,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 }
 
 .filterHeader h2 {
   margin: 0;
-  font-size: 18px;
-  letter-spacing: -0.02em;
+  font-size: 19px;
+  letter-spacing: -0.015em;
 }
 
 .textButton {
-  min-height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: 11px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid rgba(37, 41, 50, .12);
+  border-radius: 12px;
   background: transparent;
   cursor: pointer;
   font-size: 12px;
-  font-weight: 760;
+  font-weight: 600;
 }
 
 .filterGroup {
   display: grid;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 18px;
 }
 
 .filterGroup > span,
@@ -139,8 +151,8 @@
   padding: 0;
   color: #575d66;
   font-size: 11px;
-  font-weight: 850;
-  letter-spacing: 0.06em;
+  font-weight: 650;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 
@@ -148,10 +160,11 @@
   width: 100%;
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 13px;
+  border: 1px solid rgba(37, 41, 50, .12);
+  border-radius: 12px;
   background: white;
   color: var(--exchange-black);
+  font-size: 13px;
 }
 
 .toggleRow {
@@ -172,63 +185,64 @@
 .facetList {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
 }
 
 .facetButton {
-  min-height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
+  min-height: 36px;
+  padding: 0 11px;
+  border: 1px solid rgba(37, 41, 50, .12);
   border-radius: 999px;
   background: #f5f3ed;
   color: #4d535c;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .facetButton[aria-pressed="true"] {
-  border-color: rgba(46, 94, 170, 0.45);
-  background: rgba(46, 94, 170, 0.1);
+  border-color: rgba(46, 94, 170, .4);
+  background: rgba(46, 94, 170, .08);
   color: #244c8a;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .filterActions {
   position: sticky;
   bottom: -16px;
-  margin: 18px -16px -16px;
+  margin: 20px -16px -16px;
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  border-top: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid rgba(37, 41, 50, .1);
+  background: rgba(255, 255, 255, .98);
 }
 
 .applyButton {
-  min-height: 42px;
+  min-height: 44px;
   flex: 1;
   border: 0;
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--exchange-black);
   color: var(--warm-ivory);
   cursor: pointer;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .searchArea {
   position: absolute;
   z-index: 19;
-  top: calc(max(14px, env(safe-area-inset-top)) + 118px);
+  top: calc(max(14px, env(safe-area-inset-top)) + 120px);
   left: 50%;
   min-height: 40px;
   padding: 0 14px;
   transform: translateX(-50%);
-  border: 1px solid rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, .76);
   border-radius: 999px;
-  background: var(--surface-strong);
-  box-shadow: 0 8px 28px rgba(11, 11, 13, 0.14);
+  background: rgba(255, 255, 255, .86);
+  box-shadow: 0 5px 16px rgba(11, 11, 13, .1);
+  backdrop-filter: blur(18px) saturate(112%);
   cursor: pointer;
   white-space: nowrap;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 650;
 }
 
 .status {
@@ -245,7 +259,7 @@
     top: 24px;
     left: 24px;
     right: auto;
-    width: min(560px, 46vw);
+    width: min(580px, 48vw);
   }
 
   .primaryDock {
@@ -254,17 +268,17 @@
   }
 
   .utilityDock {
-    top: 82px;
+    top: 84px;
     right: 24px;
   }
 
   .filterPanel {
-    top: 82px;
+    top: 84px;
     right: 24px;
   }
 
   .searchArea {
-    top: 140px;
+    top: 142px;
   }
 }
 
@@ -281,10 +295,14 @@
   .controlButton {
     width: 45px;
     height: 45px;
-    border-radius: 14px;
+    border-radius: 16px;
   }
 
   .utilityDock {
     right: 10px;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .controlButton { transition: none; }
 }
