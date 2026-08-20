@@ -13,7 +13,7 @@ The current implementation uses **MapLibre GL JS** as the live provider adapter.
 3. Camera state survives lens changes, detail overlays, Menu overlays, and basemap changes.
 4. Marker, card, and detail surfaces share one `selectedRecordId`.
 5. Records without coordinates remain valid drawer results and do not receive artificial map points.
-6. Selected records render outside the clustered source so selection remains legible.
+6. Selected records render outside the clustered ordinary-marker source so selection remains legible.
 7. The result drawer is authoritative; viewport scope filters located records but intentionally preserves off-map records.
 8. Geographic authorization remains a service/API responsibility. Camera position is never authorization.
 9. Progressive availability applies to workflows, not to the shell.
@@ -21,10 +21,11 @@ The current implementation uses **MapLibre GL JS** as the live provider adapter.
 11. A basemap change changes only geographic presentation. Exchange records, clusters, overlays, selection, location, camera, drawer state, and marker hierarchy remain governed by the mounted Exchange shell.
 12. The selected record owns the strongest 2.5D focus pin. Focus always outranks any persistent highlight marker.
 13. Persistent 2.5D highlight pins are reserved for records that resolve through the governed `mapHighlight` policy, with backward-compatible support for existing featured/sponsored records, not for ordinary map records.
-14. A highlighted record that becomes selected rises from highlight altitude/scale to focus altitude/scale; when focus leaves it, it settles back to highlight state rather than collapsing to the ordinary marker plane.
-15. Highlight reasons are domain/legal metadata. The map workspace does not add explanatory status text for why a marker is elevated.
-16. Focus-marker motion respects `prefers-reduced-motion`; the information hierarchy remains available without animation.
-17. The dimensional pin body is a camera-facing 2.5D visual, while its geographic anchor and lift altitude remain true map-space coordinates.
+14. A record has one visible marker owner at a time: ordinary marker, 2.5D highlight pin, or 2.5D focus pin. The same record must not simultaneously render through multiple marker paths.
+15. The teardrop tip is permanently anchored to the record's exact projected longitude/latitude. Highlight/focus presentation changes scale, opacity, and dimensional treatment; it never moves the geographic anchor away from the map.
+16. Highlight reasons are domain/legal metadata. The map workspace does not add explanatory status text for why a marker is elevated.
+17. Focus-marker motion respects `prefers-reduced-motion`; the information hierarchy remains available without animation.
+18. The 2.5D pin is camera-facing and screen-readable, but its position is recomputed from MapLibre's own geographic projection on every render frame to remain stable during pan and zoom.
 
 ## True map hierarchy
 
@@ -76,7 +77,7 @@ The UI keeps nested navigation state (`root → view → map type`, or `root →
 - **Dark** — a low-light basemap that preserves bright Exchange overlays.
 - **Muted** — a subdued geographic background for lower visual competition with Exchange data.
 
-The live MapLibre instance switches styles in place. When a style reloads, the chassis reinstalls and repopulates its governed GeoJSON sources and the shared 2.5D custom marker layer so record markers, clusters, selected records, highlight/focus pins, viewer location, and supported lens heat/density overlays remain part of the same mounted Exchange experience.
+The live MapLibre instance switches styles in place. When a style reloads, the chassis reinstalls and repopulates its governed GeoJSON sources and the shared 2.5D custom marker layer so record markers, clusters, highlight/focus pins, viewer location, and supported lens heat/density overlays remain part of the same mounted Exchange experience.
 
 2D/3D changes the live MapLibre pitch while preserving the current lens and results. Zoom changes the live camera. Reset clears the selected geography and viewport scope, returns to the canonical Exchange camera, and restores the Standard map type while retaining the user's layer visibility choices.
 
@@ -84,7 +85,9 @@ The live MapLibre instance switches styles in place. When a style reloads, the c
 
 The record layer uses a live clustered GeoJSON source. Located owned records, external records, and sponsored records receive distinct presentation. Intelligence and Capabilities can enable/disable their supported heat/density overlay. RFx and Resources do not receive invented analytical overlays.
 
-The same shell-level record visibility also governs the 2.5D pin layer. Turning record markers off removes ordinary markers, focus pins, and highlight pins together rather than leaving detached elevated objects on the map.
+The same shell-level record visibility also governs the 2.5D pin layer. Turning record markers off removes ordinary markers, focus pins, and highlight pins together.
+
+Marker ownership is exclusive. When a record receives a 2.5D highlight or focus pin, the pin layer filters that record out of the normal point marker presentation. This prevents a default circle from remaining visible underneath the 2.5D pin.
 
 ### Geography
 
@@ -98,43 +101,44 @@ The map reports its real visible bounds. `Search this area` copies those bounds 
 
 ### Marker / cluster → result
 
-MapLibre performs provider clustering. Selecting a cluster requests its real expansion zoom. Selecting an ordinary marker, selected ground point, or the visible 2.5D pin updates the shell's canonical `selectedRecordId`, which synchronizes the drawer card and detail surface.
+MapLibre performs provider clustering. Selecting a cluster requests its real expansion zoom. Selecting an ordinary marker or visible 2.5D pin updates the shell's canonical `selectedRecordId`, which synchronizes the drawer card and detail surface.
 
 ### Animated 2.5D focus marker
 
-A selected mapped record is removed from the ordinary clustered source and rendered through both the existing selected-point layer and the shared `ExchangePinLayer`. The selected point remains the exact geographic ground anchor and a graceful fallback when the map is viewed without meaningful pitch or the custom pin layer is unavailable.
+A selected mapped record is removed from the ordinary clustered marker presentation and rendered through the shared `ExchangePinLayer` as the active focus pin.
 
-The visible pin is not a polygon extrusion. It is a textured, camera-facing billboard rendered through a MapLibre 3D custom layer. The texture is drawn procedurally with a classic teardrop location-pin silhouette, center opening, darker offset edge, inner-rim shading, and restrained specular highlights. The result is visually dimensional without behaving like a literal 3D solid that exposes an unreadable side/back face as the map rotates.
+The visible pin is not a polygon extrusion. It is a procedurally textured, camera-facing billboard with a classic teardrop location-pin silhouette, center opening, darker offset edge, inner-rim shading, and restrained specular highlights. The result is visually dimensional without behaving like a literal 3D solid that exposes an unreadable side/back face as the map rotates.
 
-The pin's bottom anchor is positioned at the record's real longitude/latitude and a true map-space altitude. A restrained tether connects that lifted anchor back toward the ground point when the camera pitch makes elevation visible. Therefore the **appearance is 2.5D while the spatial positioning is genuinely 3D**.
+The teardrop tip is the geographic anchor. The renderer asks MapLibre to project the record's longitude/latitude to screen coordinates every render frame, then draws the body upward from that exact point. The pin never uses an elevated world coordinate or tether.
 
-Focus transitions are driven by `requestAnimationFrame` over a short easing window. An ordinary record fades/scales into the dimensional pin while rising from the marker plane to focus altitude. A record already carrying highlight significance rises from highlight altitude/scale to focus altitude/scale. When focus moves away, the previous record returns to its governed base state: highlight pin for highlighted records and the ordinary marker plane for ordinary records.
+Focus transitions are driven by `requestAnimationFrame` over a short easing window. An ordinary record changes into the focus treatment through scale/opacity motion while preserving the same map point. A highlighted record transitions from highlight scale/emphasis to focus scale/emphasis. When focus moves away, it returns to highlight presentation when governed as a highlight, or yields marker ownership back to the ordinary marker path.
 
-Rapid selection changes start from the current in-flight altitude, scale, and opacity rather than resetting the animation. Users requesting reduced motion receive the same final hierarchy without the lift/retract animation.
+Rapid selection changes continue from current in-flight presentation state rather than resetting the animation. Users requesting reduced motion receive the same final hierarchy without animated interpolation.
 
 ### Persistent 2.5D highlight markers
 
-Special map prominence is expressed through the `mapHighlight` projection on `ExchangeRecord`. The map renderer consumes the governed outcome rather than deciding business significance itself. Existing `featured` and sponsored resource/card states are supported as backward-compatible inputs so the current real records can exercise the feature without inventing unsupported organization statuses.
+Special map prominence is expressed through the `mapHighlight` projection on `ExchangeRecord`. The map renderer consumes the governed outcome rather than deciding business significance itself. Existing `featured` and sponsored resource/card states are supported as backward-compatible inputs so current real records can exercise the feature without inventing unsupported organization statuses.
 
-The highlight resolver orders eligible mapped records by priority and applies a rendering budget of up to eight persistent 2.5D highlights. Highlight pins use the same pin family at a lower altitude, smaller scale, lower emphasis, and slightly darker RFx gold treatment. Focus is rendered separately with the brighter/larger treatment and always takes visual precedence.
+The highlight resolver orders eligible mapped records by priority and applies a rendering budget of up to eight persistent 2.5D highlights. Highlight pins use the same pin family at a smaller scale, lower emphasis, and slightly darker RFx gold treatment. Focus is rendered separately with the brighter/larger treatment and always takes visual precedence.
 
-Highlight reasons may include featured, sponsored, verified, recommended, time-sensitive, program, or custom classifications, but those reasons remain data/policy inputs. The map workspace does not render legal or semantic explanatory text beside the elevated marker.
+Highlight reasons may include featured, sponsored, verified, recommended, time-sensitive, program, or custom classifications, but those reasons remain data/policy inputs. The map workspace does not render legal or semantic explanatory text beside the marker.
 
 ### 2.5D rendering architecture
 
-The 2.5D pin renderer is implemented as one native MapLibre `CustomLayerInterface` with `renderingMode: "3d"`. It uses the map's WebGL context and projection matrix directly; it does not add Three.js or another scene framework.
+The 2.5D pin renderer is implemented as one native MapLibre `CustomLayerInterface` with `renderingMode: "2d"`. It uses the map's WebGL context for drawing but does not use absolute Mercator coordinates as Float32 GPU vertex positions.
+
+Instead, each render frame uses MapLibre's `map.project()` to compute the exact current screen coordinate from the record's longitude/latitude in JavaScript double precision. Only normalized screen coordinates near `[-1, 1]` are sent to the GPU. This avoids the precision loss that can make custom Mercator-space billboards visibly jitter during pan or zoom at higher map zoom levels.
 
 Each rendered pin carries:
 
 - record ID and real longitude/latitude;
 - highlight or focus kind;
-- map-space altitude in meters;
 - visual scale;
 - opacity.
 
-The custom layer converts the real coordinate/altitude through MapLibre's `MercatorCoordinate` implementation, projects the anchor with the map's current model-view-projection matrix, and draws the pin face as a screen-facing textured quad. The layer also maintains screen-space hit regions so tapping the visible pin selects the same canonical Exchange record.
+The layer maintains screen-space hit regions derived from the same projected point used to draw the pin, so tapping the visible marker selects the same canonical Exchange record.
 
-Because the 2.5D pins are part of the shared MapLibre style lifecycle, switching Standard, Detailed, Light, Dark, or Muted basemaps reinstalls the custom layer and reuses the current focus/highlight state without changing Exchange selection.
+Because the 2.5D pins are part of the shared MapLibre style lifecycle, switching Standard, Detailed, Light, Dark, or Muted basemaps reinstalls the custom layer and reuses current focus/highlight state without changing Exchange selection.
 
 ## Lens projections
 
@@ -155,9 +159,11 @@ Implemented now:
 - provider GeoJSON clustering;
 - native MapLibre/WebGL 2.5D focus pin;
 - governed persistent 2.5D highlight pins with capped priority selection;
-- true map-space altitude with a restrained ground tether;
+- exclusive marker ownership so ordinary/selected circles do not remain under a 2.5D pin;
+- exact pin-tip anchoring to MapLibre's projected geographic coordinate;
+- screen-space projection that avoids Mercator Float32 jitter during pan/zoom;
 - procedural teardrop pin texture with dimensional shading and center opening;
-- animated ordinary → focus and highlight → focus transitions across altitude, scale, and opacity;
+- animated ordinary → focus and highlight → focus transitions across scale and opacity;
 - reduced-motion fallback;
 - click selection on visible 2.5D pin geometry;
 - provider heatmap layer;
