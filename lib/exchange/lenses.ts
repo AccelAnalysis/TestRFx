@@ -1,5 +1,5 @@
 import type { ExchangeLens, ExchangeLensDefinition } from "./contracts";
-import { resolveLensActions } from "./action-registry";
+import { resolveLensActions, resolveRecordActions } from "./action-registry";
 
 export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
   rfx: {
@@ -8,7 +8,8 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
     icon: "⌁",
     searchPlaceholder: "Search RFx, agencies, opportunities, requirements…",
     emptyMessage: "No RFx records match this view.",
-    actions: (record) => resolveLensActions("rfx", record),
+    actions: (viewer) => resolveLensActions("rfx", viewer),
+    recordActions: (record, viewer) => resolveRecordActions("rfx", record, viewer),
   },
   resources: {
     id: "resources",
@@ -16,7 +17,8 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
     icon: "◫",
     searchPlaceholder: "Search resources, suppliers, equipment, services…",
     emptyMessage: "No resources match this view.",
-    actions: (record) => resolveLensActions("resources", record),
+    actions: (viewer) => resolveLensActions("resources", viewer),
+    recordActions: (record, viewer) => resolveRecordActions("resources", record, viewer),
   },
   intelligence: {
     id: "intelligence",
@@ -24,7 +26,8 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
     icon: "◉",
     searchPlaceholder: "Search markets, industries, organizations, insights…",
     emptyMessage: "No intelligence records match this view.",
-    actions: (record) => resolveLensActions("intelligence", record),
+    actions: (viewer) => resolveLensActions("intelligence", viewer),
+    recordActions: (record, viewer) => resolveRecordActions("intelligence", record, viewer),
   },
   capabilities: {
     id: "capabilities",
@@ -32,7 +35,8 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
     icon: "◇",
     searchPlaceholder: "Search companies, capabilities, AMACS categories…",
     emptyMessage: "No capabilities match this view.",
-    actions: (record) => resolveLensActions("capabilities", record),
+    actions: (viewer) => resolveLensActions("capabilities", viewer),
+    recordActions: (record, viewer) => resolveRecordActions("capabilities", record, viewer),
   },
 };
 
