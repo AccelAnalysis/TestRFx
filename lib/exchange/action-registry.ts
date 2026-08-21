@@ -179,13 +179,16 @@ function toAction(
 }
 
 export function deriveReferenceViewerContext(records: ExchangeRecord[]): ExchangeViewerContext {
+  const ownedRecords = records.filter((item) => item.ownedByViewer);
+  const organizationRecord = ownedRecords.find((item) => item.location) ?? ownedRecords[0];
   return {
-    canIssueRfx: records.some((item) => item.type === "rfx" && item.ownedByViewer),
+    canIssueRfx: ownedRecords.some((item) => item.type === "rfx"),
     canRespondRfx: true,
-    canOfferResources: records.some((item) => item.type === "resource" && item.ownedByViewer),
+    canOfferResources: ownedRecords.some((item) => item.type === "resource"),
     canRequestResources: true,
-    canContributeIntelligence: records.some((item) => item.type === "intelligence" && item.ownedByViewer),
-    canManageCapabilities: records.some((item) => item.type === "capability" && item.ownedByViewer),
+    canContributeIntelligence: ownedRecords.some((item) => item.type === "intelligence"),
+    canManageCapabilities: ownedRecords.some((item) => item.type === "capability"),
+    organization: organizationRecord ? { name: organizationRecord.organization, location: organizationRecord.location } : undefined,
   };
 }
 
