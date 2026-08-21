@@ -13,10 +13,23 @@
   border-color: rgba(37, 41, 50, 0.2);
 }
 
+.owned {
+  border-left-color: rgba(214, 162, 58, 0.78);
+  box-shadow: inset 4px 0 0 rgba(214, 162, 58, 0.82), 0 4px 14px rgba(11, 11, 13, 0.05);
+}
+
+.owned .media {
+  box-shadow: inset 0 3px 0 rgba(214, 162, 58, 0.58);
+}
+
 .selected {
   border-color: rgba(214, 162, 58, 0.72);
   background: rgba(214, 162, 58, 0.035);
   box-shadow: 0 5px 16px rgba(11, 11, 13, 0.06);
+}
+
+.owned.selected {
+  box-shadow: inset 4px 0 0 rgba(214, 162, 58, 0.9), 0 5px 16px rgba(11, 11, 13, 0.06);
 }
 
 .sponsored {
@@ -254,6 +267,12 @@
   content: "·";
 }
 
+.actionDock {
+  padding: 10px 12px 12px;
+  border-top: 1px solid rgba(37, 41, 50, 0.08);
+  background: rgba(247, 243, 234, 0.28);
+}
+
 .favorite {
   position: absolute;
   z-index: 2;
@@ -288,6 +307,10 @@
 
   .content {
     padding-left: 12px;
+  }
+
+  .actionDock {
+    padding-inline: 10px;
   }
 }
 

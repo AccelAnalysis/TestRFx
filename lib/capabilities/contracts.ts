@@ -21,14 +21,13 @@ export function capabilityProfileToExchangeRecord(profile: CapabilityOrganizatio
   const mapped = capabilityMappedCount(profile); const evidence = capabilityEvidenceCount(profile);
   const searchableCapabilityTerms = profile.capabilities.flatMap((capability) => [capability.name, capability.amacsNodeId ?? "", capability.amacsLabel ?? "", ...capability.specialties]);
   return {
-    id: profile.exchangeRecordId, type: "capability", title: leadCapability, organization: profile.organizationName, summary: profile.summary, geography: profile.geography,
-    metadata: [...searchableCapabilityTerms, ...profile.keywords, ...profile.serviceAreas, `${mapped} AMACS mapped`, `${evidence} evidence items`, `${profile.profileStrength}% profile strength`].filter(Boolean),
+    id: profile.exchangeRecordId, type: "capability", title: leadCapability, organization: profile.ownedByViewer ? "Accel Analysis" : profile.organizationName, summary: profile.summary, geography: profile.geography,
+    metadata: [...searchableCapabilityTerms, ...profile.keywords, ...profile.serviceAreas, `${mapped} AMACS mapped`, `${evidence} evidence items`].filter(Boolean),
     location: profile.location, ownedByViewer: profile.ownedByViewer, featured: profile.featured, saved: profile.saved,
     card: {
-      eyebrow: profile.ownedByViewer ? "Your capability profile" : "Organization capability profile",
+      eyebrow: "Organization capability profile",
       classifications: profile.capabilities.slice(0, 3).map((capability) => capability.name),
-      status: { label: `${profile.profileStrength}% profile`, tone: profile.profileStrength >= 85 ? "success" : profile.profileStrength >= 70 ? "info" : "warning" },
-      relationships: profile.ownedByViewer ? ["owned"] : profile.saved ? ["following"] : undefined,
+      relationships: !profile.ownedByViewer && profile.saved ? ["following"] : undefined,
       placement: profile.featured ? "featured" : "organic",
     },
   };

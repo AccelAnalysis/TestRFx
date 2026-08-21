@@ -13,14 +13,15 @@ const stateLabel: Record<DrawerState, string> = { peek: "Expand results", mid: "
 export interface ResultsDrawerProps {
   state: DrawerState; onStateChange: (state: DrawerState) => void; lens: ExchangeLens; lensLabel: string;
   records: ExchangeRecord[]; totalAvailableCount?: number; selectedRecordId?: string; actions: LensAction[];
-  activeActionIds?: string[]; onAction?: (action: LensAction) => void; emptyMessage: string; resultContext?: string;
+  activeActionIds?: string[]; getRecordActions: (record: ExchangeRecord) => LensAction[];
+  onAction?: (action: LensAction, record?: ExchangeRecord) => void; emptyMessage: string; resultContext?: string;
   query: DrawerQueryState; onQueryChange: (query: DrawerQueryState) => void; onSelect: (id: string) => void;
   onOpen: (id: string) => void; onToggleSave: (id: string) => void; resultStatus?: DrawerResultStatus;
   hasMore?: boolean; loadingMore?: boolean; onLoadMore?: () => void; onRetry?: () => void;
 }
 
 export function ResultsDrawer({
-  state, onStateChange, lens, lensLabel, records, totalAvailableCount, selectedRecordId, actions, activeActionIds = [], onAction,
+  state, onStateChange, lens, lensLabel, records, totalAvailableCount, selectedRecordId, actions, activeActionIds = [], getRecordActions, onAction,
   emptyMessage, resultContext, query, onQueryChange, onSelect, onOpen, onToggleSave, resultStatus = "ready", hasMore = false,
   loadingMore = false, onLoadMore, onRetry,
 }: ResultsDrawerProps) {
@@ -71,11 +72,11 @@ export function ResultsDrawer({
         <div className={styles.headingBlock}><h2>{resultHeading}</h2><p className={styles.resultContext} aria-live="polite">{resultContext ?? `${breakdown.mapped} mapped · ${breakdown.offMap} off-map`}{resultStatus === "refreshing" ? " · Refreshing…" : ""}</p></div>
         <div className={styles.headerActions}><label className={styles.sortControl}><span className="sr-only">Sort results</span><select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results"><option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option></select></label></div>
       </div>
-      {records.length > 0 ? <ActionRail actions={actions} activeActionIds={activeActionIds} onAction={onAction} /> : null}
+      <ActionRail actions={actions} activeActionIds={activeActionIds} onAction={(action) => onAction?.(action)} label={`${lensLabel} lens controls`} />
       <div className={styles.list} id={listId} ref={listRef} role="feed" aria-busy={resultStatus === "loading" || resultStatus === "refreshing" || loadingMore} onScroll={(event) => { scrollByLens.current[lens] = event.currentTarget.scrollTop; }}>
         {showSkeletons ? <div className={styles.skeletonStack} aria-label="Loading results"><div className={styles.skeletonCard} /><div className={styles.skeletonCard} /><div className={styles.skeletonCard} /></div> : null}
         {showFailure ? <div className={styles.stateMessage} role="status"><strong>{resultStatus === "offline" ? "You appear to be offline" : "Results could not be loaded"}</strong><p>{resultStatus === "offline" ? "Reconnect to refresh this Exchange view." : "Try loading the results again."}</p>{onRetry ? <button type="button" onClick={onRetry}>Retry</button> : null}</div> : null}
-        {!showSkeletons && !showFailure && records.length ? records.map((record) => <RecordCard key={record.id} record={record} selected={record.id === selectedRecordId} onSelect={() => onSelect(record.id)} onOpen={() => onOpen(record.id)} onToggleSave={() => onToggleSave(record.id)} />) : null}
+        {!showSkeletons && !showFailure && records.length ? records.map((record) => <RecordCard key={record.id} record={record} selected={record.id === selectedRecordId} actions={getRecordActions(record)} onSelect={() => onSelect(record.id)} onOpen={() => onOpen(record.id)} onToggleSave={() => onToggleSave(record.id)} onAction={(action) => onAction?.(action, record)} />) : null}
         {!showSkeletons && !showFailure && records.length === 0 ? <div className={styles.stateMessage}><strong>No results</strong><p>{emptyMessage}</p></div> : null}
         {records.length > 0 && (hasMore || loadingMore) ? <div className={styles.loadSentinel} ref={loadMoreRef} aria-live="polite">{loadingMore ? "Loading more results…" : "More results load as you scroll"}</div> : null}
         {records.length > 0 && !hasMore && !loadingMore ? <p className={styles.endOfResults}>End of results</p> : null}

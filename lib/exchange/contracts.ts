@@ -21,6 +21,7 @@ export type ExchangeRelationshipState = "saved" | "watched" | "following" | "ref
 export type LensActionTrigger = "detail" | "modal" | "menu" | "direct" | "workflow";
 export type LensActionOwnership = "own" | "other" | "any";
 export type LensActionToggle = "save" | "watch" | "track" | "follow";
+export type LensActionScope = "lens" | "record";
 export type ResourceAvailabilityState = "available" | "limited" | "scheduled";
 export type ResourceVisibility = "public-location" | "service-area" | "off-map";
 export type ResourceStatus = "active" | "archived";
@@ -56,13 +57,39 @@ export interface ExchangeRecord {
   mapHighlight?: MapHighlight;
 }
 
+export interface ExchangeOrganizationAnchor {
+  name: string;
+  location?: Coordinates;
+  logoUrl?: string;
+}
+
+/**
+ * Viewer/organization capabilities consumed by the Exchange action resolver.
+ * Production identity/authorization should supply these as server-authoritative
+ * claims. The reference shell can derive conservative defaults from its owned
+ * records until that identity seam is connected.
+ */
+export interface ExchangeViewerContext {
+  canIssueRfx: boolean;
+  canRespondRfx: boolean;
+  canOfferResources: boolean;
+  canRequestResources: boolean;
+  canContributeIntelligence: boolean;
+  canManageCapabilities: boolean;
+  organization?: ExchangeOrganizationAnchor;
+}
+
 export interface LensAction {
   id: string; position: 1 | 2 | 3 | 4; label: string; icon: string;
-  trigger: LensActionTrigger; ownership: LensActionOwnership;
+  trigger: LensActionTrigger; scope: LensActionScope; ownership: LensActionOwnership;
   visible: boolean; applicable: boolean; authorized: boolean; operational: boolean; prerequisitesSatisfied: boolean;
   requiresRecord?: boolean; toggle?: LensActionToggle; unavailableReason?: string;
 }
-export interface ExchangeLensDefinition { id: ExchangeLens; label: string; icon: string; searchPlaceholder: string; emptyMessage: string; actions: (record?: ExchangeRecord) => LensAction[]; }
+export interface ExchangeLensDefinition {
+  id: ExchangeLens; label: string; icon: string; searchPlaceholder: string; emptyMessage: string;
+  actions: (viewer: ExchangeViewerContext) => LensAction[];
+  recordActions: (record: ExchangeRecord, viewer: ExchangeViewerContext) => LensAction[];
+}
 
 export interface ExchangeSearchFilters { geography: string; location: SearchLocationMode; ownership: SearchOwnership; metadata: string[]; }
 export interface ExchangeSearchState { query: string; filters: ExchangeSearchFilters; sort: SearchSort; }

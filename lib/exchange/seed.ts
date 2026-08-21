@@ -14,10 +14,10 @@ export const exchangeSeed: ExchangeRecord[] = [
     card: { eyebrow: "Request for Proposals", classifications: ["Cybersecurity", "Advisory"], status: { label: "Open", tone: "success" }, distance: "31 mi" },
   },
   {
-    id: "rfx-003", type: "rfx", title: "Small Business Supplier Outreach", organization: "Your Organization",
-    summary: "Reference record proving own-organization action behavior.", geography: "Isle of Wight, VA",
-    metadata: ["Draft", "Owned by you"], location: { lat: 36.9, lng: -76.71 }, ownedByViewer: true,
-    card: { eyebrow: "RFx Draft", classifications: ["Supplier Outreach"], status: { label: "Draft", tone: "warning" }, relationships: ["owned"], distance: "Local" },
+    id: "rfx-003", type: "rfx", title: "Small Business Supplier Outreach", organization: "Accel Analysis",
+    summary: "Supplier outreach request managed by the signed-in organization.", geography: "Isle of Wight, VA",
+    metadata: ["Supplier Outreach"], location: { lat: 36.9, lng: -76.71 }, ownedByViewer: true,
+    card: { eyebrow: "RFx", classifications: ["Supplier Outreach"], status: { label: "Draft", tone: "warning" }, distance: "Local" },
   },
   {
     id: "res-001", type: "resource", title: "Mobile Training Classroom", organization: "Atlantic Skills Group",
@@ -34,10 +34,10 @@ export const exchangeSeed: ExchangeRecord[] = [
     resource: { category: "Professional Services", availability: "available", availabilityLabel: "Available now", capacity: "Up to 40 review hours / month", serviceArea: "Remote / Virginia", visibility: "off-map", terms: "Scope and timing confirmed with the provider after request.", status: "active" },
   },
   {
-    id: "res-003", type: "resource", title: "Conference Room Inventory", organization: "Your Organization",
-    summary: "Meeting and workshop space offered by the signed-in organization for partner use.", geography: "Isle of Wight, VA",
-    metadata: ["Facilities", "Owned by you", "Available now", "Up to 18 people"], location: { lat: 36.91, lng: -76.7 }, ownedByViewer: true,
-    card: { eyebrow: "Resource Offer", classifications: ["Facilities"], status: { label: "Published", tone: "info" }, relationships: ["owned"], distance: "Local" },
+    id: "res-003", type: "resource", title: "Conference Room Inventory", organization: "Accel Analysis",
+    summary: "Meeting and workshop space offered for partner use.", geography: "Isle of Wight, VA",
+    metadata: ["Facilities", "Available now", "Up to 18 people"], location: { lat: 36.91, lng: -76.7 }, ownedByViewer: true,
+    card: { eyebrow: "Resource Offer", classifications: ["Facilities"], status: { label: "Published", tone: "info" }, distance: "Local" },
     resource: { category: "Facilities", availability: "available", availabilityLabel: "Available now", capacity: "Up to 18 people", serviceArea: "Isle of Wight County", visibility: "public-location", terms: "Partner scheduling required.", status: "active" },
   },
   {
@@ -73,10 +73,10 @@ export const exchangeSeed: ExchangeRecord[] = [
     card: { eyebrow: "Organization Capability", classifications: ["AMACS Mapped", "Electrical", "Field Service"], status: { label: "Published", tone: "success" }, relationships: ["following"], distance: "33 mi" },
   },
   {
-    id: "cap-002", type: "capability", title: "Business Intelligence & Market Analysis", organization: "Your Organization",
-    summary: "Reference capability owned by the signed-in organization.", geography: "Isle of Wight, VA",
-    metadata: ["AMACS mapped", "Owned by you"], location: { lat: 36.9, lng: -76.71 }, ownedByViewer: true,
-    card: { eyebrow: "Organization Capability", classifications: ["AMACS Mapped", "Market Analysis", "Business Intelligence"], status: { label: "Published", tone: "success" }, relationships: ["owned"], distance: "Local" },
+    id: "cap-002", type: "capability", title: "Business Intelligence & Market Analysis", organization: "Accel Analysis",
+    summary: "Business intelligence and market analysis capability published by the signed-in organization.", geography: "Isle of Wight, VA",
+    metadata: ["AMACS mapped", "Market Analysis"], location: { lat: 36.9, lng: -76.71 }, ownedByViewer: true,
+    card: { eyebrow: "Organization Capability", classifications: ["AMACS Mapped", "Market Analysis", "Business Intelligence"], status: { label: "Published", tone: "success" }, distance: "Local" },
   },
   {
     id: "cap-003", type: "capability", title: "K-9 Training & Education", organization: "Regional Working Dog Institute",

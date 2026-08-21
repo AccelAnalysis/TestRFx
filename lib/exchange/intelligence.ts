@@ -20,6 +20,7 @@ export interface IntelligenceInsightInput {
   signalType: string;
   observedPeriod: string;
   sourceLabel: string;
+  organizationName?: string;
 }
 
 export const intelligenceSeed: ExchangeRecord[] = [
@@ -27,10 +28,10 @@ export const intelligenceSeed: ExchangeRecord[] = [
     id: "intel-own-001",
     type: "intelligence",
     title: "Regional small-business procurement pattern",
-    organization: "Your Organization",
-    summary: "Reference participant insight about recurring procurement activity across the local small-business network.",
+    organization: "Accel Analysis",
+    summary: "Participant insight about recurring procurement activity across the local small-business network.",
     geography: "Isle of Wight, VA",
-    metadata: ["Participant insight", "90-day view", "Owned by you", "Source: organization observation"],
+    metadata: ["Participant insight", "90-day view", "Source: organization observation"],
     location: { lat: 36.9, lng: -76.71 },
     ownedByViewer: true,
     saved: true,
@@ -71,11 +72,11 @@ export const intelligenceDetails: Record<string, IntelligenceDetail> = {
   "intel-own-001": {
     signalType: "Participant observation",
     observedPeriod: "90-day reference window",
-    sourceLabel: "Your Organization observation",
+    sourceLabel: "Accel Analysis observation",
     sourceType: "participant-observation",
     provenance: "Reference-only participant contribution. Production must retain author, organization, timestamps, visibility, evidence, and revision history server-side.",
     relatedCapabilities: ["Business Intelligence", "Market Analysis"],
-    relatedOrganizations: ["Your Organization"],
+    relatedOrganizations: ["Accel Analysis"],
   },
   "intel-001": {
     signalType: "Market signal",
@@ -124,10 +125,10 @@ export function buildParticipantInsight(input: IntelligenceInsightInput): Exchan
     id: `intel-session-${Date.now()}`,
     type: "intelligence",
     title: input.title.trim(),
-    organization: "Your Organization",
+    organization: input.organizationName?.trim() || "Accel Analysis",
     summary: input.summary.trim(),
     geography: input.geography.trim(),
-    metadata: [input.signalType.trim() || "Participant insight", input.observedPeriod.trim() || "Current view", "Owned by you", `Source: ${input.sourceLabel.trim() || "Participant observation"}`],
+    metadata: [input.signalType.trim() || "Participant insight", input.observedPeriod.trim() || "Current view", `Source: ${input.sourceLabel.trim() || "Participant observation"}`],
     ownedByViewer: true,
   };
 }
@@ -135,9 +136,10 @@ export function buildParticipantInsight(input: IntelligenceInsightInput): Exchan
 export function updateParticipantInsight(record: ExchangeRecord, input: IntelligenceInsightInput): ExchangeRecord {
   return {
     ...record,
+    organization: input.organizationName?.trim() || record.organization,
     title: input.title.trim(),
     summary: input.summary.trim(),
     geography: input.geography.trim(),
-    metadata: [input.signalType.trim() || "Participant insight", input.observedPeriod.trim() || "Current view", "Owned by you", `Source: ${input.sourceLabel.trim() || "Participant observation"}`],
+    metadata: [input.signalType.trim() || "Participant insight", input.observedPeriod.trim() || "Current view", `Source: ${input.sourceLabel.trim() || "Participant observation"}`],
   };
 }

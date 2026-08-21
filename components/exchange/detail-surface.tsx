@@ -5,7 +5,7 @@ import { RfxDetailContent } from "@/components/rfx/rfx-detail-content";
 import { CapabilityDetailBody } from "@/components/capabilities/capability-detail-body";
 import { getCapabilityProfileByExchangeRecordId } from "@/lib/capabilities/reference";
 import { getIntelligenceDetail } from "@/lib/exchange/intelligence";
-import { ActionRail } from "./action-rail";
+import { RecordActionRow } from "./record-actions";
 import { ResourceDetail } from "./resource-detail";
 
 function IntelligenceDetail({ record, notes }: { record: ExchangeRecord; notes: string[] }) {
@@ -19,14 +19,15 @@ function IntelligenceDetail({ record, notes }: { record: ExchangeRecord; notes: 
   <h2>Decision pathways</h2><div className="intelligence-outcomes"><span>Decision support</span><span>Opportunity / capability matching</span><span>Referral trigger · shared workflow</span><span>Track / follow / return</span></div></>;
 }
 
-export function DetailSurface({ record, actions, activeActionIds, notes = [], onAction, onClose }: { record: ExchangeRecord; actions: LensAction[]; activeActionIds?: string[]; notes?: string[]; onAction: (action: LensAction) => void; onClose: () => void; }) {
-  const capabilityProfile = record.type === "capability" ? getCapabilityProfileByExchangeRecordId(record.id) : undefined;
+export function DetailSurface({ record, actions, notes = [], onAction, onClose }: { record: ExchangeRecord; actions: LensAction[]; notes?: string[]; onAction: (action: LensAction) => void; onClose: () => void; }) {
+  const rawCapabilityProfile = record.type === "capability" ? getCapabilityProfileByExchangeRecordId(record.id) : undefined;
+  const capabilityProfile = rawCapabilityProfile?.ownedByViewer ? { ...rawCapabilityProfile, organizationName: record.organization } : rawCapabilityProfile;
   return <section className="detail-surface" role="dialog" aria-modal="true" aria-label={`${record.title} details`}>
     <header><button type="button" onClick={onClose}>← Back</button><span>{record.type.toUpperCase()}</span></header>
     <div className={`detail-hero record-media-${record.type}`}><p>{record.organization}</p><h1>{record.type === "capability" ? record.organization : record.title}</h1><span>{record.geography}</span></div>
-    <div className="detail-body"><ActionRail actions={actions} activeActionIds={activeActionIds} onAction={onAction} />
+    <div className="detail-body"><RecordActionRow actions={actions} maxVisible={4} onAction={onAction} label={`Actions for ${record.title}`} />
       {record.type === "rfx" ? <RfxDetailContent recordId={record.id} /> : record.type === "resource" ? <ResourceDetail record={record} /> : record.type === "intelligence" ? <IntelligenceDetail record={record} notes={notes} /> : capabilityProfile ? <CapabilityDetailBody profile={capabilityProfile} /> : <><p>{record.summary}</p><h2>Record context</h2><div className="detail-tags">{record.metadata.map((item) => <span key={item}>{item}</span>)}</div></>}
-      <h2>Shell contract</h2><p>This shared detail controller preserves the Exchange lens, query, selection, map context, drawer state, and list position when you return. The same four governed actions remain bound to the selected record.</p>
+      <h2>Shell contract</h2><p>This shared detail controller preserves the Exchange lens, query, selection, map context, drawer state, and list position when you return. Record-specific actions remain attached to this record, while the persistent four-slot rail stays reserved for lens-level controls.</p>
     </div>
   </section>;
 }

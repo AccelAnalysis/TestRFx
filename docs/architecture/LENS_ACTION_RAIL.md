@@ -1,8 +1,8 @@
 # Lens Action Rail
 
-The Lens Action Rail is a shared RFxchange operating-chassis primitive inside the **Authenticated Exchange Shell**. It occupies four permanent positions above the result cards and translates the active lens plus the current record/organization context into the next governed actions.
+The Lens Action Rail is a shared RFxchange operating-chassis primitive inside the **Authenticated Exchange Shell**. It occupies four permanent positions above the result cards and exposes commands that operate on the **active lens as a whole**.
 
-It is not a fifth lens, a page header, or a domain-specific toolbar. RFx, Resources, Intelligence, and Capabilities plug their actions into the same four slots.
+The rail is deliberately separate from record actions. Selecting a marker or card does not repurpose the four rail positions. Record-specific commands live on the record card and in the shared detail surface.
 
 ## Chassis placement
 
@@ -13,144 +13,139 @@ Authenticated Exchange Shell
 ├── Floating controls
 ├── Sliding result drawer
 │   ├── Results / Sort / Filter
-│   ├── Lens Action Rail  ← this module
+│   ├── Lens Action Rail      ← lens-wide commands
 │   └── Record cards
+│       └── Record Action Row ← commands for that record
 ├── Detail surfaces
 ├── Bottom navigation
 └── Shared workflows/services
 ```
 
-The rail is rendered in both the result drawer and the shared detail surface. Opening detail therefore does not replace the action model or create a separate domain UI.
+The rail remains visible even when a lens currently has zero results. A user must never need to select a marker or record before a legitimate lens-level workflow such as **Create RFx** becomes discoverable.
 
 ## Four-slot contract
 
-Every resolved action set must contain exactly four ordered positions. The positions are stable; labels and workflows change with context.
+Every resolved lens-control set contains exactly four ordered positions. The positions are stable, while the actual controls are resolved from the active lens plus authenticated viewer/organization context.
 
-`LensAction` keeps separate state for:
+A lens does **not** imply that every participant can perform every producer-side action. For example, opening Resources does not make the active organization a Resource Provider. An inapplicable producer command is replaced by a useful discovery command rather than left as a permanently disabled control.
 
+`LensAction` preserves separate state for:
+
+- `scope` (`lens` or `record`)
 - `visible`
 - `applicable`
 - `authorized`
 - `operational`
 - `prerequisitesSatisfied`
 
-Those fields must not be collapsed into one generic `disabled` flag. A workflow that is not released is different from an action that does not apply to the selected record or an action the viewer is not authorized to perform.
+The client presentation is not an authorization boundary. Production identity/domain services must supply and re-validate organization eligibility, user role, permissions, entitlement, prerequisites, and workflow readiness.
 
-The current reference implementation deliberately leaves production authorization and onboarding prerequisite resolution as integration seams. The client presentation is not an authorization boundary.
+## Viewer and organization context
 
-## Ownership context
+The action resolver consumes an `ExchangeViewerContext` containing the capabilities needed by the shell, currently including whether the viewer may issue RFx, respond to RFx, offer/request Resources, contribute Intelligence, or manage Capabilities.
 
-The source flows repeatedly distinguish **Own View** from **Others View**. The reference chassis currently derives that distinction from `ExchangeRecord.ownedByViewer`; production must derive it from authenticated user + active-organization membership and server-side record ownership/authority.
+The TestRFx reference shell derives conservative defaults from its owned fixture records so the interaction can be exercised today. `ExchangeShell` also accepts a viewer-context override as the seam for server-authoritative identity and policy claims. Production must replace fixture inference with authenticated active-organization membership and policy resolution.
 
-```text
-selected record
-    │
-    ├── owned by active organization → own action set
-    └── otherwise                    → other action set
-```
+## Current lens-control matrix
 
-## Governed action matrix
+The current assignments deliberately use only workflows or filters that already exist in TestRFx.
 
 ### RFx
 
-The RFx source contains a broader own-organization lifecycle (create, draft/save/publish, manage, invite, track/watch, responses/matches) and an others lifecycle (view, respond, team, watch, refer). The chassis rail binds four primary contextual positions from those branches:
+For a viewer whose organization can issue RFx:
 
-| Position | Own organization | Other organization |
+| Position | Control | Function |
 | --- | --- | --- |
-| 1 | Create RFx | View Detail |
-| 2 | Manage | Respond |
-| 3 | Invite Team | Team |
-| 4 | Watch | Watch |
+| 1 | Create RFx | Starts the issuer creation hierarchy without requiring a record selection |
+| 2 | My RFx | Shows organization-owned RFx records |
+| 3 | Watched | Shows watched/saved RFx records |
+| 4 | All | Restores the full RFx result set |
 
-The RFx source also shows a separate sticky quick-action reference (`View`, `Match`, `Refer`, `Save`). That source behavior is not silently treated as identical to the record-bound own/other action branch. Match/referral workflows remain domain/cross-lens integration points and can be promoted through the governed registry when the RFx product contract calls for them.
+For a viewer without issuer capability:
+
+| Position | Control | Function |
+| --- | --- | --- |
+| 1 | Watched | Shows watched RFx |
+| 2 | Mapped | Shows RFx with map locations |
+| 3 | Off-map | Shows valid RFx without point locations |
+| 4 | All | Restores the full RFx result set |
 
 ### Resources
 
-| Position | Own organization | Other organization |
-| --- | --- | --- |
-| 1 | Offer | Request |
-| 2 | Edit | View Detail |
-| 3 | Share | Share |
-| 4 | Save / Archive | Save |
+For an organization that can offer Resources:
 
-This follows the Resource source's explicit Own View and Others View columns. Resource referral remains a cross-lens workflow rather than consuming a permanent Resource slot.
+| Position | Control | Function |
+| --- | --- | --- |
+| 1 | Offer | Opens the existing Resource offer workflow |
+| 2 | My Listings | Shows organization-owned Resource listings |
+| 3 | Saved | Shows saved Resource records |
+| 4 | All | Restores the full Resource result set |
+
+For a viewer/organization that is not a Resource Provider, **Offer** and **My Listings** are not shown merely because the Resources lens is active. The rail resolves to Saved / Mapped / Off-map / All discovery controls instead.
 
 ### Intelligence
 
-| Position | Own organization | Other organization |
-| --- | --- | --- |
-| 1 | Add Insight | View Detail |
-| 2 | Edit Insight | Add Note |
-| 3 | Compare | Compare |
-| 4 | Track | Follow / Track |
-
-The source also identifies referral as a downstream cross-lens trigger rather than a permanent Intelligence lens action.
+Contributors receive Add Insight / Tracked / Mapped / All. Non-contributors receive Tracked / Mapped / Off-map / All.
 
 ### Capabilities
 
-| Position | Own organization | Other organization |
-| --- | --- | --- |
-| 1 | Manage | View |
-| 2 | AI → AMACS | Match to RFx |
-| 3 | Evidence | Refer |
-| 4 | Gaps | Save / Follow |
+Authorized capability managers receive My Capabilities / Manage / Following / All. Other viewers receive Following / Mapped / Off-map / All.
 
-The own branch is the ongoing continuation of onboarding capability enrichment; onboarding initializes organization capability context, while the authenticated Capabilities lens becomes the durable management/discovery surface.
+## Record actions are not rail actions
+
+The following behavior belongs to the record card/detail surface rather than the lens rail:
+
+- RFx Respond, Team, Manage, Invite Team, Share
+- Resource Request, Edit, Archive, Share
+- Intelligence Add Note, Edit, Compare, Share
+- Capability Match RFx, Refer, Manage, Evidence, AMACS, Gaps, Share
+
+Likewise, **View Detail** is not a rail command. Tapping the card body opens detail, making the target unambiguous.
+
+Save/Watch/Follow is represented by the card star rather than duplicated in each card's action row. Lens-level Watched/Saved/Following controls can filter the result set without duplicating the per-record toggle.
+
+## No implicit first-result selection
+
+The chassis must never infer that the first result is the selected record. `selectedRecordId` remains empty until the user selects a marker/card or enters through a record deep link. Lens controls therefore cannot accidentally operate on `records[0]`.
 
 ## Trigger types
 
 Actions declare how they enter the rest of the chassis:
 
 - `detail` — open the shared detail controller
-- `modal` — open a bounded modal workflow
+- `modal` — open a bounded workflow surface
 - `menu` — open a management/utility surface
-- `direct` — perform a reversible shell-level action such as Save, Watch, Track, Follow, or Share
-- `workflow` — enter a cross-record/domain workflow such as Team, Match, Compare, AMACS mapping, evidence, or Referral
+- `direct` — perform a shell-level command such as applying a result scope or sharing a record
+- `workflow` — enter a domain/cross-record workflow
 
-The rail dispatches intent; it does not implement RFx submission, AMACS mapping, referral policy, resource fulfillment, or intelligence calculations itself.
+The action registry dispatches intent; it does not replace domain authorization or transaction logic.
 
-## Progressive availability
+## Availability rule
 
-Unavailable workflows stay in their governed position rather than causing the rail to reflow. The reference UI labels unreleased actions as `Soon` and exposes the unavailable reason through the accessible name/title.
+Use disabled states for applicable but temporarily unavailable conditions, such as an unreleased workflow, missing prerequisite, entitlement, or user-level permission that can be resolved.
 
-Examples intentionally left non-operational until their product/service modules are connected include:
-
-- RFx Create / Manage / Respond / Team
-- Resource Offer / Edit / Request / Archive lifecycle
-- Intelligence Add / Edit / Note / Compare
-- Capability Manage / AI → AMACS / Evidence / Gaps / Match
-- Cross-lens Refer
-
-Reference direct actions are live enough to prove the chassis contract:
-
-- View opens the existing shared detail surface
-- Save / Watch / Track / Follow toggle in mounted shell state
-- Share uses the browser share sheet when available and otherwise copies a deep link
-
-These are reference behaviors, not a claim of canonical server persistence.
+Do not use a disabled button to represent an organization type or participation mode that does not apply. Inapplicable commands should be replaced/omitted by the resolver. That keeps the four-slot rail useful for buyers, issuers, providers, seekers, contributors, managers, and ordinary viewers without redesigning the shell.
 
 ## State continuity
 
-Action execution must not destroy Exchange context. The existing shell remains mounted and retains lens, query, selected record, map context, drawer state, and list position while detail/Menu/workflows overlay it.
-
-Direct action state is currently mounted client state, with seeded `saved` state respected where present. Production persistence should plug into authenticated favorites/watch/follow repositories and emit activity events without changing the four-slot UI contract.
+Changing lens scope through My / Saved / Mapped / Off-map / All updates the existing drawer query while preserving the active lens and sort. Action execution must not destroy map/search/drawer/detail continuity.
 
 ## Production integration points
 
-The next adapters should supply:
+The next identity/policy adapter should supply:
 
 1. authenticated viewer and active organization
-2. server-derived ownership
-3. role/permission authorization
-4. onboarding/profile/capability prerequisites
-5. feature/workflow operational state
-6. domain action executors
-7. persistent Save/Watch/Track/Follow state
-8. cross-lens referral composer and policy
+2. organization participation/eligibility
+3. user role and permissions
+4. server-derived record ownership
+5. membership/entitlement state
+6. onboarding/profile prerequisites
+7. feature/workflow operational state
+8. domain action executors
 9. activity/audit/notification events
 
-The server/domain workflow remains responsible for re-validating authorization and record state when an action is executed.
+The server/domain workflow remains responsible for re-validating authorization and current record state when an action executes.
 
 ## Source alignment rule
 
-RFxchange remains one application with four Exchange lenses. Product modules may add domain data, action executors, detail content, filters, or map layers, but they should not create another action bar, change the four-slot shell contract, or bypass the shared authorization/availability vocabulary.
+RFxchange remains one application with four Exchange lenses. Product modules may add domain data, action executors, detail content, filters, or map layers, but they should not create another lens toolbar, move record actions back into the lens rail, or bypass the shared authorization/availability vocabulary.
