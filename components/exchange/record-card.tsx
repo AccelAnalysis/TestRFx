@@ -11,7 +11,7 @@ const mediaLabels: Record<ExchangeRecord["type"], string> = {
   capability: "Capability",
 };
 
-const relationshipLabels: Record<ExchangeRelationshipState, string> = {
+const relationshipLabels: Partial<Record<ExchangeRelationshipState, string>> = {
   saved: "Saved",
   watched: "Watching",
   following: "Following",
@@ -20,7 +20,6 @@ const relationshipLabels: Record<ExchangeRelationshipState, string> = {
   teamed: "Teamed",
   requested: "Requested",
   connected: "Connected",
-  owned: "Owned by you",
 };
 
 const statusClass: Record<ExchangeStatusTone, string> = {
@@ -37,6 +36,8 @@ const mediaClass: Record<ExchangeRecord["type"], string> = {
   intelligence: styles.intelligence,
   capability: styles.capability,
 };
+
+function normalized(value?: string) { return value?.trim().toLowerCase() ?? ""; }
 
 export function RecordCard({
   record,
@@ -57,16 +58,22 @@ export function RecordCard({
 }) {
   const placement = record.card?.placement ?? (record.featured ? "featured" : "organic");
   const status = record.card?.status;
-  const relationships = new Set<ExchangeRelationshipState>(record.card?.relationships ?? []);
+  const relationships = new Set<ExchangeRelationshipState>((record.card?.relationships ?? []).filter((item) => item !== "owned"));
   if (record.saved) relationships.add("saved");
-  if (record.ownedByViewer) relationships.add("owned");
+  const visibleMetadata = record.metadata.filter((item) => {
+    const value = normalized(item);
+    if (value === "owned by you" || value === "your organization") return false;
+    if (status && value === normalized(status.label)) return false;
+    return true;
+  });
 
   return (
     <article
-      className={`${styles.card} ${selected ? styles.selected : ""} ${placement === "sponsored" ? styles.sponsored : ""}`}
+      className={`${styles.card} ${record.ownedByViewer ? styles.owned : ""} ${selected ? styles.selected : ""} ${placement === "sponsored" ? styles.sponsored : ""}`}
       data-record-id={record.id}
       data-record-type={record.type}
       data-selected={selected ? "true" : "false"}
+      data-owned={record.ownedByViewer ? "true" : "false"}
     >
       <button
         className={styles.main}
@@ -113,13 +120,18 @@ export function RecordCard({
             </div>
           ) : null}
 
-          <div className={styles.metadata} aria-label="Record metadata">
-            {record.metadata.slice(0, 2).map((item) => <span key={item}>{item}</span>)}
-          </div>
+          {visibleMetadata.length ? (
+            <div className={styles.metadata} aria-label="Record metadata">
+              {visibleMetadata.slice(0, 2).map((item) => <span key={item}>{item}</span>)}
+            </div>
+          ) : null}
 
           {relationships.size ? (
             <div className={styles.relationships} aria-label="Relationship state">
-              {[...relationships].slice(0, 2).map((relationship) => <span key={relationship}>{relationshipLabels[relationship]}</span>)}
+              {[...relationships].slice(0, 2).map((relationship) => {
+                const label = relationshipLabels[relationship];
+                return label ? <span key={relationship}>{label}</span> : null;
+              })}
             </div>
           ) : null}
         </div>
