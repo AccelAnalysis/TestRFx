@@ -20,7 +20,8 @@ function IntelligenceDetail({ record, notes }: { record: ExchangeRecord; notes: 
 }
 
 export function DetailSurface({ record, actions, notes = [], onAction, onClose }: { record: ExchangeRecord; actions: LensAction[]; notes?: string[]; onAction: (action: LensAction) => void; onClose: () => void; }) {
-  const capabilityProfile = record.type === "capability" ? getCapabilityProfileByExchangeRecordId(record.id) : undefined;
+  const rawCapabilityProfile = record.type === "capability" ? getCapabilityProfileByExchangeRecordId(record.id) : undefined;
+  const capabilityProfile = rawCapabilityProfile?.ownedByViewer ? { ...rawCapabilityProfile, organizationName: record.organization } : rawCapabilityProfile;
   return <section className="detail-surface" role="dialog" aria-modal="true" aria-label={`${record.title} details`}>
     <header><button type="button" onClick={onClose}>← Back</button><span>{record.type.toUpperCase()}</span></header>
     <div className={`detail-hero record-media-${record.type}`}><p>{record.organization}</p><h1>{record.type === "capability" ? record.organization : record.title}</h1><span>{record.geography}</span></div>
