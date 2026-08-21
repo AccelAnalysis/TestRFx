@@ -85,15 +85,47 @@ Typical content includes signal/insight type, source or contributor, geography, 
 
 ### Capabilities
 
-Typical content includes organization identity, AMACS-aligned capabilities, evidence or publication status, geography/service area, specialties, and discovery relationships such as following or referral state.
+Typical discovery content includes organization identity, published AMACS-aligned capabilities, evidence/publication state, geography/service area, specialties, and discovery relationships such as following or referral state.
+
+**Profile completeness is not a discovery-card attribute.** A completeness percentage measures internal profile-management progress; it must not be displayed or indexed as if it were qualification, verification, match strength, or market quality. Completeness belongs in onboarding and the signed-in organization's capability-management surfaces.
+
+## Self organization versus lens records
+
+The signed-in organization is persistent Exchange context, not a synthetic lens result.
+
+- The organization may remain visible as a visually distinct map anchor even when it has no RFx, Resource, Intelligence, or published Capability record matching the current lens.
+- The map anchor does not increment the result count and does not create a drawer card.
+- RFx results contain actual RFx records.
+- Resources results contain actual Resource offers/requests/listings.
+- Intelligence results contain actual insights/signals/observations.
+- Capabilities discovery contains actual published/discoverable capability profiles.
+- `My Capabilities` may still lead to the organization's management surface when nothing is published; that management state is not inserted into ordinary discovery results.
+
+Owned records use the organization's actual identity and a consistent visual ownership treatment. Cards should not repeat textual labels such as `Your Organization`, `Owned by you`, or `Your capability profile` merely to establish ownership.
+
+The current visual grammar uses a restrained RF Gold edge/accent for owned records. The same ownership language can be extended to the organization's map anchor and future logo/media treatment without adding explanatory pills.
+
+## Card information roles
+
+Each presentation element has one job:
+
+- **Eyebrow** → record kind, such as `RFx`, `Resource Offer`, `Market Signal`, or `Organization capability profile`.
+- **Status** → lifecycle/current state, such as `Draft`, `Open`, `Published`, `Closing soon`, or `Available`.
+- **Classification chips** → what the record is about.
+- **Ownership treatment** → whose record it is; visual rather than repeated text.
+- **Star** → the viewer's Save/Watch/Follow relationship.
+
+The same value should not be repeated in multiple roles. For example, `Draft` should not appear simultaneously as an eyebrow, status pill, and metadata pill.
 
 ## Text-density rule
 
-The card should not become a wall of pills. The reference implementation limits visible classification, metadata, and relationship tokens and restores real buttons for actions. Additional metadata belongs in detail rather than being promoted into pseudo-controls.
+The card should not become a wall of pills. The reference implementation limits visible classification, metadata, and relationship tokens and restores real buttons for actions. Additional metadata belongs in detail rather than being promoted into pseudo-controls. The shared card also suppresses legacy ownership strings and metadata that merely duplicates the current status.
 
 ## Located and off-map records
 
 The drawer is authoritative. A record with coordinates participates in marker/card synchronization; a record without coordinates remains a first-class drawer result and opens the same detail surface. Product domains must not discard valid results merely because they have no point location.
+
+The signed-in organization's self anchor is separate from this rule: it is map context, not a result record.
 
 ## Sponsored records
 
@@ -101,11 +133,12 @@ Sponsorship is a placement treatment on a normal Exchange record, not a separate
 
 ## Own versus other organization
 
-`ownedByViewer` is the current chassis projection for own-organization context. Production implementations should resolve ownership and authorization from authenticated organization membership on the server. Ownership affects the card's record actions, not the four lens-level controls above the list.
+`ownedByViewer` is the current chassis projection for own-organization context. Production implementations should resolve ownership and authorization from authenticated organization membership on the server. Ownership affects the card's visual treatment and record actions, not the four lens-level controls above the list and not ordinary relevance ranking except as a possible tie-breaker.
 
 ## Interaction rules
 
-- Selecting a map marker selects and reveals its card.
+- Selecting a map marker selects and reveals its card when the marker represents a lens record.
+- The persistent self-organization map anchor is context and does not fabricate a selected result.
 - Selecting/focusing a card updates shared selection state.
 - Opening the card launches the shared detail surface without unmounting the Exchange.
 - Returning from detail preserves lens, search, map, drawer, selection, and list context.
@@ -117,6 +150,8 @@ Sponsorship is a placement treatment on a normal Exchange record, not a separate
 ## Production integration points
 
 The reference chassis keeps most save state in memory; RFx Watch uses its workspace service. Production should connect relationships to authenticated repositories. Domain services should emit normalized `ExchangeRecord` projections and resolved action policy rather than allowing React components to infer authority from arbitrary table data.
+
+The authenticated viewer/organization adapter should also provide the active organization's canonical name, logo/media when available, and map location independently of lens-result records. That allows the Exchange to keep a self anchor without polluting search results.
 
 Recommended flow:
 
@@ -133,6 +168,9 @@ Shared RecordCard
         ├── card body → detail
         ├── star → relationship
         └── action row → domain workflow
+
+Active organization identity ──→ persistent map self anchor
+                              └─→ not part of result count
 ```
 
 The card component should remain stable as domain workflows mature. New business behavior plugs into domain adapters, the action registry, relationship services, and detail content rather than forking the shared card shell.
