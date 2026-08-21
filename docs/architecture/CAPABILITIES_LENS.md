@@ -4,7 +4,7 @@
 
 This module builds **Authenticated Exchange Shell → Bottom Navigation → Capabilities** as a domain lens that plugs into the RFxchange operating chassis. It does not create a second application, a second map, a second navigation system, or a capability-only organization database.
 
-The permanent shell remains responsible for the map, universal search, floating controls, three-state result drawer, four-slot action rail, shared record-card framework, shared detail controller, bottom navigation, deep links, selection state, and responsive behavior.
+The permanent shell remains responsible for the map, universal search, floating controls, three-state result drawer, four-slot lens-control rail, shared record-card framework, shared detail controller, bottom navigation, deep links, selection state, and responsive behavior.
 
 Capabilities supplies the domain projection placed into those contracts.
 
@@ -13,13 +13,13 @@ Capabilities supplies the domain projection placed into those contracts.
 The Capabilities lens answers two related questions:
 
 - **Discovery:** who can do what, where, with what supporting evidence, and how does that capability relate to a requirement?
-- **Own organization:** what can my organization credibly do, how is it mapped to AMACS, what supports the claim, and where are the gaps?
+- **Own organization management:** what can my organization credibly do, how is it mapped to AMACS, what supports the claim, what remains incomplete, and where are the gaps?
 
-The primary result object is therefore an **organization capability profile**, not a naked taxonomy node.
+The discovery result object is an **organization capability profile**, not a naked taxonomy node. The signed-in organization's management state is separate from ordinary discovery ranking.
 
 ## Organization-centered projection
 
-`lib/capabilities/reference.ts` models multiple capability claims under one organization and projects each organization back into the existing `ExchangeRecord` contract.
+`lib/capabilities/reference.ts` models multiple capability claims under one organization and projects each discoverable organization back into the existing `ExchangeRecord` contract.
 
 ```text
 Organization Capability Profile
@@ -35,81 +35,87 @@ Organization Capability Profile
         │
         ├── service geography
         ├── discoverability terms
-        ├── profile strength
+        ├── internal profile completeness
         ├── capability gaps
         └── RFx match context
                  │
-                 ▼
-          ExchangeRecord adapter
-                 │
-                 ▼
-        Shared Exchange chassis
+          ┌──────┴─────────┐
+          ▼                ▼
+   discovery projection   own-org management
+   (published context)    (completion/gaps)
 ```
 
-This allows search, map selection, cards, drawer behavior, deep links, and the detail controller to remain chassis-owned.
+This allows search, map selection, cards, drawer behavior, deep links, and the detail controller to remain chassis-owned while keeping internal management metrics out of discovery presentation.
 
-## Own organization vs. other organization
+## Lens controls versus record actions
 
-Ownership changes the meaning of the four governed action positions.
+The four permanent controls above the drawer are lens-wide and do not change when a capability card is selected.
 
-### Own organization
+For an authorized capability manager the current rail is:
 
-1. **Manage Capabilities**
-2. **AI → AMACS**
-3. **Add / Edit Evidence**
-4. **Capability Gaps**
+1. **My Capabilities**
+2. **Manage**
+3. **Following**
+4. **All**
 
-### Other organization
+For other viewers it resolves to discovery-oriented controls such as Following / Mapped / Off-map / All.
 
-1. **View Capabilities**
-2. **Match to RFx**
-3. **Refer**
-4. **Save / Follow**
+Record-specific actions remain on cards and in detail:
 
-The positions remain fixed. Capabilities supplies the action definitions and the shell dispatches them.
+### Own organization record
 
-Production authorization must derive ownership and permissions from authenticated user / organization membership context. `ownedByViewer` is still deterministic reference state on this chassis branch.
+- Manage
+- AI → AMACS
+- Evidence
+- Gaps in detail
+
+### Other organization record
+
+- Match RFx
+- Refer
+- Share
+
+Production authorization must derive ownership and permissions from authenticated user / active-organization membership context. `ownedByViewer` is deterministic reference state in TestRFx.
 
 ## Capability card
 
-Capabilities uses the shared `RecordCard` framework with a capability adapter. The card is organization-led and shows:
+Capabilities uses the shared `RecordCard` framework with a capability adapter. A discovery card may show:
 
 - organization identity;
-- geography;
-- lead capability;
-- up to three capability claims;
-- accepted AMACS mapping coverage;
-- evidence count;
-- profile strength;
-- own-organization context;
-- save state.
+- geography/service area;
+- lead capability and limited capability classifications;
+- relevant AMACS/evidence/publication context when useful;
+- save/follow state;
+- contextual record actions.
+
+A capability discovery card does **not** display profile-completeness/profile-strength percentages. Those numbers describe internal profile-management progress and can be confused with qualification, verification, or match strength. They remain available to onboarding and own-organization management workflows only.
+
+Likewise, ownership is conveyed through the shared visual self treatment rather than repeated text such as `Your Organization`, `Owned by you`, or `Your capability profile`.
 
 Records without a public location remain valid drawer results and simply do not render map markers.
+
+## Self organization and empty capability state
+
+The signed-in organization is persistent Exchange context, but it is not automatically inserted into ordinary capability discovery merely because the viewer owns it.
+
+- If the organization has published/discoverable capabilities, those real capability records can appear in discovery when relevant.
+- If it has no published capabilities, ordinary discovery does not receive a synthetic placeholder result and its result count is not inflated.
+- The organization can still remain visible as the Exchange's self map anchor.
+- **My Capabilities** / **Manage** remain the route into the organization's management surface, including an empty or incomplete profile. That management state may show profile completeness and specific next actions.
 
 ## Capability detail
 
 The shared `DetailSurface` delegates capability records to a capability-specific body while preserving the shared overlay controller and return behavior.
 
-Capability detail exposes:
-
-- organization summary;
-- governed action rail;
-- capability claims;
-- AMACS mapping state;
-- supporting evidence labels;
-- service geography;
-- discoverability terms;
-- reference-data truth boundary.
+Capability detail exposes published/discovery-relevant information such as organization summary, capability claims, AMACS mapping state, supporting evidence labels, service geography, discoverability terms, and truth boundaries. Internal profile-completeness percentages are not required for another participant to evaluate a discovery result.
 
 Returning closes the overlay rather than replacing the Exchange with another page.
 
 ## Workflow surfaces
 
-The reference implementation makes each substantive Capabilities action demonstrable without claiming production persistence.
-
 ### Manage Capabilities
 
-Reviews the organization capability inventory, publication state, mapping state, and evidence coverage. Production add/edit/archive/publish commands belong behind server authorization and the canonical capability repository.
+Reviews the signed-in organization's capability inventory, publication state, mapping state, evidence coverage, profile completeness, and remaining work. This is the appropriate home for internal completeness metrics and next-step guidance.
 
 ### AI → AMACS
 
@@ -131,11 +137,7 @@ An AI suggestion must not silently become accepted organization truth.
 
 ### Add / Edit Evidence
 
-Shows licenses, certifications, case studies, past performance, documents, and links associated with capability claims.
-
-Evidence supports a claim. Evidence upload does **not** automatically mean RFxchange independently verified the capability.
-
-Production evidence requires object storage, metadata persistence, authorization, visibility controls, and audit events.
+Shows licenses, certifications, case studies, past performance, documents, and links associated with capability claims. Evidence supports a claim; evidence upload does **not** automatically mean RFxchange independently verified the capability.
 
 ### Capability Gaps
 
@@ -147,34 +149,23 @@ Demonstrates requirement-aware match context. Production matching should compare
 
 ### Refer
 
-Demonstrates a Capabilities → Referral handoff. The shared referral engine owns creation, terms, status, audit, and any monetary workflow. Menu owns ongoing referral management. Referrals do not become another bottom-navigation lens.
-
-### Save / Follow
-
-The shell now owns in-memory save state so cards and the Capabilities action rail stay synchronized while the user changes records or lenses. Production persistence plugs into the shared Favorites / relationships service.
+Demonstrates a Capabilities → Referral handoff. The shared referral engine owns creation, terms, status, audit, and any monetary workflow. Menu owns ongoing referral management.
 
 ## Search
 
 The shared Universal Search changes semantic context through the lens definition:
 
-> Search companies, capabilities, or AMACS…
+> Search companies, capabilities, AMACS categories…
 
-The deterministic adapter indexes organization name, capability names, AMACS IDs / labels, specialties, service areas, geography, and discoverability terms through the normalized Exchange record metadata.
+The discovery adapter indexes organization name, capability names, AMACS IDs/labels, specialties, service areas, geography, and discoverability terms. Internal profile-completeness percentages are not discovery search terms.
 
 Production search remains an Exchange Search service concern rather than a Capabilities-only search implementation.
 
 ## Onboarding convergence
 
-The unmerged Capability Enrichment module and this authenticated lens intentionally use compatible truth concepts:
+Onboarding and the authenticated lens intentionally use compatible truth concepts: plain-language claims; suggested/accepted/needs-review mapping states; evidence as support rather than automatic verification; draft/ready/published visibility; specialties/discoverability terms; profile-completion guidance; and gap review.
 
-- plain-language capability claims;
-- `suggested`, `accepted`, and `needs-review` AMACS mapping states;
-- evidence as support rather than automatic verification;
-- draft / ready / published visibility intent;
-- specialties / discoverability terms;
-- gap review.
-
-When onboarding persistence is merged, the target flow is:
+The intended flow is:
 
 ```text
 Identity / Onboarding Capability Enrichment
@@ -186,42 +177,24 @@ canonical organization capabilities
       ▼                ▼
 Exchange capability   Own-org management
 search projection     in Capabilities lens
+(published context)   (completion work)
 ```
-
-The two modules should converge behind a shared repository / service rather than copy browser-session onboarding state into Exchange UI code.
 
 ## Production service boundaries
 
-This branch does not claim production completion for:
-
-- authentication or active-organization resolution;
-- server-side capability authorization;
-- canonical capability persistence;
-- live AMACS taxonomy / AI mapping;
-- independent capability verification;
-- object storage for evidence;
-- production Exchange search;
-- RFx requirement repositories or match scoring;
-- referral creation / terms / payouts;
-- persistent follows / favorites;
-- notifications;
-- activity / audit persistence.
-
-Those systems replace the deterministic adapters behind the same chassis and Capabilities contracts.
+Production integrations still include authenticated active-organization resolution, server-side capability authorization, canonical persistence, live AMACS/AI mapping, verification, evidence object storage, Exchange search, RFx matching, referrals, persistent follows, notifications, and audit/activity persistence. They replace the deterministic adapters behind the same chassis contracts.
 
 ## Acceptance behaviors
 
 A configured-browser acceptance run should verify:
 
 1. `/exchange/capabilities` keeps the persistent Exchange map/search/drawer/bottom navigation mounted.
-2. The drawer reports organizations rather than generic capability-result counts.
-3. Located capability organizations render markers; the Regional Working Dog Institute remains a valid off-map drawer result.
-4. Marker selection scrolls the matching organization card into view.
-5. Own organization exposes Manage Capabilities / AI → AMACS / Add / Edit Evidence / Capability Gaps.
-6. Other organizations expose View Capabilities / Match to RFx / Refer / Save / Follow.
-7. Capability cards show organization-led capability, AMACS, evidence, and profile-strength context.
-8. Capability detail opens inside the shared detail controller and returns to prior Exchange state.
-9. Own-organization workflow actions open their reference workflow surfaces without navigating away from the shell.
-10. Match to RFx and Refer open cross-domain handoff surfaces without creating new bottom-navigation destinations.
-11. Save / Follow changes save state immediately and the action label updates to Saved.
-12. Search matches organization names, capability terms, AMACS reference terms, specialties, service areas, and keywords.
+2. The drawer counts actual capability discovery records, not a synthetic self-organization placeholder.
+3. Located capability organizations render markers; off-map capability records remain valid drawer results.
+4. The signed-in organization retains a visual self treatment without `Your Organization` / `Owned by you` text.
+5. Profile-completeness percentages do not appear on discovery cards or in discovery metadata.
+6. My Capabilities / Manage can still open own-organization management, where completeness and next actions are appropriate.
+7. Marker selection scrolls matching real records into view; the self anchor does not fabricate a selected result.
+8. Other organizations expose Match RFx / Refer / Share record actions.
+9. Capability detail opens inside the shared detail controller and returns to prior Exchange state.
+10. Search matches organization/capability/AMACS/specialty/service-area terms without treating profile completeness as discovery relevance.
