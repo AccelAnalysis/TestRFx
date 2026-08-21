@@ -57,6 +57,12 @@ export interface ExchangeRecord {
   mapHighlight?: MapHighlight;
 }
 
+export interface ExchangeOrganizationAnchor {
+  name: string;
+  location?: Coordinates;
+  logoUrl?: string;
+}
+
 /**
  * Viewer/organization capabilities consumed by the Exchange action resolver.
  * Production identity/authorization should supply these as server-authoritative
@@ -70,6 +76,7 @@ export interface ExchangeViewerContext {
   canRequestResources: boolean;
   canContributeIntelligence: boolean;
   canManageCapabilities: boolean;
+  organization?: ExchangeOrganizationAnchor;
 }
 
 export interface LensAction {
