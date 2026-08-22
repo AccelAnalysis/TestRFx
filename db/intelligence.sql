@@ -48,8 +48,12 @@ CREATE INDEX IF NOT EXISTS intelligence_notes_visibility_idx ON intelligence_not
 -- Older Intelligence builds created a lens-specific tracking table. Canonical tracking/following
 -- now lives in record_relationships. Preserve an existing legacy table for migration/audit only;
 -- new runtime code must not write it.
-COMMENT ON TABLE intelligence_tracking IS
-  'Legacy compatibility only. New Intelligence Track/Follow relationships are stored in record_relationships.';
+DO $$ BEGIN
+  IF to_regclass('intelligence_tracking') IS NOT NULL THEN
+    COMMENT ON TABLE intelligence_tracking IS
+      'Legacy compatibility only. New Intelligence Track/Follow relationships are stored in record_relationships.';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS intelligence_relationships (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
