@@ -1,8 +1,9 @@
 import type { ExchangeRecord } from "./contracts";
 import { resourceProviderPreviewSeed } from "../resources/provider-preview";
+import { applyHamptonRoadsProviderPreviewGeocode } from "../resources/provider-preview-geocodes";
 
 export const exchangeSeed: ExchangeRecord[] = [
-  ...resourceProviderPreviewSeed,
+  ...resourceProviderPreviewSeed.map(applyHamptonRoadsProviderPreviewGeocode),
   {
     id: "rfx-001", type: "rfx", title: "Regional Facilities Maintenance IDIQ", organization: "City of Chesapeake",
     summary: "Multi-trade maintenance and repair services across municipal facilities.", geography: "Chesapeake, VA",
@@ -71,8 +72,7 @@ export const exchangeSeed: ExchangeRecord[] = [
     card: {
       eyebrow: "Market Signal",
       media: { kind: "visualization", label: "Supply signal", src: "/exchange-media/intelligence-maritime-signal.svg", alt: "Illustrated maritime supply-density signal for TestRFx reference intelligence" },
-      classifications: ["Maritime", "Supply Density"], status: { label: "Updated", tone: "info" }, relationships: ["following"],
-    },
+      classifications: ["Maritime", "Supply Density"], status: { label: "Updated", tone: "info" }, relationships: ["following"] },
   },
   {
     id: "intel-002", type: "intelligence", title: "Training demand exceeds visible local supply", organization: "RFxchange Intelligence",
@@ -87,8 +87,7 @@ export const exchangeSeed: ExchangeRecord[] = [
     card: {
       eyebrow: "Organization Capability",
       media: { kind: "image", label: "Electrical capability", src: "/exchange-media/capability-electrical.svg", alt: "Illustrated electrical system preview for the TestRFx capability reference" },
-      classifications: ["AMACS Mapped", "Electrical", "Field Service"], status: { label: "Published", tone: "success" }, relationships: ["following"], distance: "33 mi",
-    },
+      classifications: ["AMACS Mapped", "Electrical", "Field Service"], status: { label: "Published", tone: "success" }, relationships: ["following"], distance: "33 mi" },
   },
   {
     id: "cap-002", type: "capability", title: "Business Intelligence & Market Analysis", organization: "Accel Analysis",
@@ -103,7 +102,6 @@ export const exchangeSeed: ExchangeRecord[] = [
     card: {
       eyebrow: "Organization Capability",
       organizationMedia: { logo: { kind: "logo", label: "Organization mark", src: "/exchange-media/organization-rwdi-mark.svg", alt: "Reference organization mark for Regional Working Dog Institute" } },
-      classifications: ["Training", "Education"], status: { label: "Published", tone: "success" }, relationships: ["referred"],
-    },
+      classifications: ["Training", "Education"], status: { label: "Published", tone: "success" }, relationships: ["referred"] },
   },
 ];
