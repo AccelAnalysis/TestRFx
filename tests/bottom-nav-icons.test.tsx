@@ -12,10 +12,12 @@ const expectedIcons: Record<ExchangeLens, ExchangeLensIconId> = {
   capabilities: "capability-stack",
 };
 
+const legacyLensGlyphs = /[\u2301\u25eb\u25c9\u25c7]/;
+
 describe("Exchange lens navigation icons", () => {
   it("keeps semantic lens identity in the registry instead of raw glyph or SVG details", () => {
     expect(Object.fromEntries(Object.entries(lensDefinitions).map(([lens, definition]) => [lens, definition.icon]))).toEqual(expectedIcons);
-    expect(JSON.stringify(lensDefinitions)).not.toMatch(/[⌁◫◉◇]/);
+    expect(JSON.stringify(lensDefinitions)).not.toMatch(legacyLensGlyphs);
   });
 
   it("renders one Lucide SVG language while preserving navigation semantics and interaction", () => {
