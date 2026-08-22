@@ -8,6 +8,7 @@ import type { OrganizationIntroVideo } from "@/lib/onboarding/organization-profi
 import { assertOrganizationProfilePermission, type OnboardingActor } from "./actor";
 
 export type OrganizationMediaSnapshot = {
+  organizationName: string;
   logoUrl: string;
   introVideo: OrganizationIntroVideo | null;
   linkedVideo: {
@@ -39,6 +40,7 @@ function cleanLogoUrl(value: string) {
 export async function getOrganizationMedia(actor: OnboardingActor): Promise<OrganizationMediaSnapshot> {
   const sql = getDatabase();
   const rows = await sql<{
+    organization_name: string;
     logo_url: string | null;
     source_type: "linked" | "uploaded" | null;
     provider: "youtube" | "vimeo" | "rfxchange" | null;
@@ -51,6 +53,7 @@ export async function getOrganizationMedia(actor: OnboardingActor): Promise<Orga
     status: "pending" | "ready" | "rejected" | null;
   }[]>`
     SELECT
+      o.name AS organization_name,
       op.logo_url,
       om.source_type,
       om.provider,
@@ -96,6 +99,7 @@ export async function getOrganizationMedia(actor: OnboardingActor): Promise<Orga
   }
 
   return {
+    organizationName: row.organization_name,
     logoUrl: row.logo_url ?? "",
     introVideo,
     linkedVideo: { providers: ["youtube", "vimeo"], maxSeconds: ORGANIZATION_LINKED_VIDEO_MAX_SECONDS },
