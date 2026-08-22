@@ -3,7 +3,7 @@ import type { ExchangeLens, ExchangeRecord } from "./contracts";
 export type SharedWorkflowId = "save" | "watch" | "track" | "follow" | "share" | "refer" | "match" | "team" | "connect";
 export type SharedServiceId = "saved" | "referrals" | "notifications" | "membership";
 export type RelationshipKind = "saved" | "watching" | "tracking" | "following";
-export type WorkflowSource = "action-rail" | "detail" | "menu";
+export type WorkflowSource = "action-rail" | "detail" | "menu" | "card";
 
 export interface ExchangeActorContext {
   userId: string;
@@ -69,15 +69,15 @@ export const referenceActorContext: ExchangeActorContext = {
 };
 
 export const sharedWorkflowDefinitions: Record<SharedWorkflowId, SharedWorkflowDefinition> = {
-  save: { id: "save", label: "Save", description: "Keep a record in the cross-lens Saved collection.", category: "relationship", relationshipKind: "saved", durableInReference: false, productionAdapter: "Authenticated relationship repository" },
-  watch: { id: "watch", label: "Watch", description: "Track RFx lifecycle and deadline changes.", category: "relationship", relationshipKind: "watching", durableInReference: false, productionAdapter: "Relationship repository + event rules" },
-  track: { id: "track", label: "Track", description: "Track changes to an intelligence signal or insight.", category: "relationship", relationshipKind: "tracking", durableInReference: false, productionAdapter: "Relationship repository + intelligence event rules" },
-  follow: { id: "follow", label: "Follow", description: "Follow an organization or capability relationship.", category: "relationship", relationshipKind: "following", durableInReference: false, productionAdapter: "Organization relationship repository" },
-  share: { id: "share", label: "Share", description: "Create a permission-aware deep link without leaving the Exchange.", category: "sharing", durableInReference: false, productionAdapter: "Share-link policy and delivery service" },
-  refer: { id: "refer", label: "Refer", description: "Start the same referral workflow from any eligible Exchange record.", category: "referral", durableInReference: false, productionAdapter: "Referral engine + commercial settlement" },
-  match: { id: "match", label: "Match", description: "Request cross-domain matching using capability, geography, and relationship signals.", category: "matching", durableInReference: false, productionAdapter: "Matching service + AMACS projection" },
-  team: { id: "team", label: "Team", description: "Start a collaboration or teaming request anchored to the selected record.", category: "collaboration", durableInReference: false, productionAdapter: "Collaboration/team repository + messaging" },
-  connect: { id: "connect", label: "Connect", description: "Start an organization-to-organization connection anchored to a resource.", category: "collaboration", durableInReference: false, productionAdapter: "Relationship/collaboration repository + messaging" },
+  save: { id: "save", label: "Save", description: "Keep a record in the cross-lens Saved collection.", category: "relationship", relationshipKind: "saved", durableInReference: false, productionAdapter: "PostgreSQL record_relationships" },
+  watch: { id: "watch", label: "Watch", description: "Track RFx lifecycle and deadline changes.", category: "relationship", relationshipKind: "watching", durableInReference: false, productionAdapter: "PostgreSQL record_relationships + event rules" },
+  track: { id: "track", label: "Track", description: "Track changes to an intelligence signal or insight.", category: "relationship", relationshipKind: "tracking", durableInReference: false, productionAdapter: "PostgreSQL record_relationships + Intelligence events" },
+  follow: { id: "follow", label: "Follow", description: "Follow an organization or capability relationship.", category: "relationship", relationshipKind: "following", durableInReference: false, productionAdapter: "PostgreSQL record_relationships" },
+  share: { id: "share", label: "Share", description: "Create an auditable permission-aware deep link.", category: "sharing", durableInReference: false, productionAdapter: "PostgreSQL share_links" },
+  refer: { id: "refer", label: "Refer", description: "Start the same referral workflow from any eligible Exchange record.", category: "referral", durableInReference: false, productionAdapter: "PostgreSQL referrals + referral_events" },
+  match: { id: "match", label: "Match", description: "Request the governed cross-domain matching service.", category: "matching", durableInReference: false, productionAdapter: "Shared governed matching boundary + match_decisions provenance" },
+  team: { id: "team", label: "Team", description: "Start a collaboration or teaming request anchored to the selected record.", category: "collaboration", durableInReference: false, productionAdapter: "PostgreSQL collaboration_requests" },
+  connect: { id: "connect", label: "Connect", description: "Start an organization-to-organization connection anchored to a resource.", category: "collaboration", durableInReference: false, productionAdapter: "PostgreSQL collaboration_requests" },
 };
 
 export const sharedServiceDefinitions: Record<SharedServiceId, SharedServiceDefinition> = {
@@ -87,10 +87,23 @@ export const sharedServiceDefinitions: Record<SharedServiceId, SharedServiceDefi
   membership: { id: "membership", label: "Billing & Membership", description: "Resolve organization-level membership and entitlements without making billing a lens.", managementFor: ["membership", "credits", "fees", "payments", "payouts"] },
 };
 
-const sharedWorkflowIds = new Set<SharedWorkflowId>(Object.keys(sharedWorkflowDefinitions) as SharedWorkflowId[]);
+const actionAliases: Record<string, SharedWorkflowId> = {
+  save: "save",
+  watch: "watch",
+  track: "track",
+  follow: "follow",
+  "follow-track": "follow",
+  share: "share",
+  refer: "refer",
+  match: "match",
+  "match-rfx": "match",
+  team: "team",
+  "invite-team": "team",
+  connect: "connect",
+};
 
 export function workflowForAction(actionId: string): SharedWorkflowId | undefined {
-  return sharedWorkflowIds.has(actionId as SharedWorkflowId) ? actionId as SharedWorkflowId : undefined;
+  return actionAliases[actionId];
 }
 
 export function relationshipKindForWorkflow(workflow: SharedWorkflowId): RelationshipKind | undefined {
