@@ -18,13 +18,15 @@ type GeocodeCandidateRow = {
   promoted_exchange_record_id: string | null;
 };
 
-async function candidateBySourceRecord(sql: QueryExecutor, marketKey: string, sourceRecordId: string) {
+async function candidateBySourceRecord(sql: QueryExecutor, marketKey: string, sourceKey: string, sourceRecordId: string) {
   const rows = await sql<GeocodeCandidateRow[]>`
-    SELECT id::text, source_record_id, market_key, address_line_1, locality, region, postal_code,
-           candidate_state, promoted_exchange_record_id::text
-    FROM resource_ingestion_candidates
-    WHERE market_key = ${marketKey} AND source_record_id = ${sourceRecordId}
-    ORDER BY updated_at DESC
+    SELECT c.id::text, c.source_record_id, c.market_key, c.address_line_1, c.locality, c.region, c.postal_code,
+           c.candidate_state, c.promoted_exchange_record_id::text
+    FROM resource_ingestion_candidates c
+    JOIN external_resource_sources s ON s.id = c.source_id
+    WHERE c.market_key = ${marketKey}
+      AND s.source_key = ${sourceKey}
+      AND c.source_record_id = ${sourceRecordId}
     LIMIT 1
   `;
   return rows[0];
@@ -156,11 +158,11 @@ async function persistGeocode(sql: QueryExecutor, candidate: GeocodeCandidateRow
   };
 }
 
-export async function geocodeProviderCandidate(input: { marketKey: string; sourceRecordId: string }) {
+export async function geocodeProviderCandidate(input: { marketKey: string; sourceKey: string; sourceRecordId: string }) {
   const sql = getDatabase();
   return sql.begin(async (tx) => {
-    const candidate = await candidateBySourceRecord(tx, input.marketKey, input.sourceRecordId);
-    if (!candidate) throw new ProviderIngestionError("Resource Provider candidate was not found.", 404, "candidate_not_found");
+    const candidate = await candidateBySourceRecord(tx, input.marketKey, input.sourceKey, input.sourceRecordId);
+    if (!candidate) throw new ProviderIngestionError("Resource Provider candidate was not found for the requested source.", 404, "candidate_not_found");
 
     if (!candidate.address_line_1 || !candidate.locality || !candidate.region) {
       return persistGeocode(tx, candidate, {
