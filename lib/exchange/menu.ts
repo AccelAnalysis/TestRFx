@@ -195,7 +195,7 @@ export const menuSections: MenuNode[] = [
   section("organization", "Organization Profile", "View and manage the active organization's canonical RFxchange identity.", "⌂", "organization", [
     node("organization-details", "Organization details", "Review the organization's business identity, contact context, industry information, and public profile fields.", "▤", "organization", { destination: service("organization-profile-service") }),
     node("verified-information", "Verified information", "Review organization verification and trust-state information without conflating profile completion with verification.", "✓", "organization", { destination: service("organization-verification-service") }),
-    node("organization-capabilities", "Capabilities / AMACS", "Manage the same capability identity used by the Capabilities lens, including AMACS alignment and evidence handoff.", "◇", "organization", { kind: "handoff", surface: "handoff", destination: { type: "exchange", target: "capabilities" } }),
+    node("organization-capabilities", "Capabilities / AMACS", "Manage the same capability identity used by the Capabilities lens, including AMACS alignment and evidence handoff.", "capability-stack", "organization", { kind: "handoff", surface: "handoff", destination: { type: "exchange", target: "capabilities" } }),
     node("organization-locations", "Locations", "Manage primary and additional locations, public precision, and service-geography relationships.", "⌖", "organization", { destination: service("organization-geography-service") }),
     submenu("team-members", "Team members", "Manage organization membership, roles, invitations, and access.", "♙", "organization", [
       node("team-list", "Team list", "Review current organization members.", "▦", "organization", { surface: "list", destination: service("organization-membership-service") }),
@@ -218,7 +218,7 @@ export const menuSections: MenuNode[] = [
 
   section("profile", "My Profile", "Manage person-level information separately from the organization you represent.", "●", "user", [
     submenu("edit-profile", "Edit profile", "Manage the source-defined personal profile fields.", "✎", "user", [
-      node("personal-information", "Personal information", "Manage your name and person-level profile information.", "◉", "user", { surface: "form", destination: service("identity-profile-service") }),
+      node("personal-information", "Personal information", "Manage your name and person-level profile information.", "personal-profile", "user", { surface: "form", destination: service("identity-profile-service") }),
       node("contact-details", "Contact details", "Manage person-level contact details separately from organization contact information.", "✉", "user", { surface: "form", destination: service("identity-profile-service") }),
       node("profile-photo", "Profile photo", "Manage the personal profile image and its storage metadata.", "●", "user", { surface: "form", destination: service("object-storage-media-service") }),
     ]),
@@ -231,7 +231,7 @@ export const menuSections: MenuNode[] = [
   ]),
 
   section("security", "Security & Account", "Manage password/sign-in methods, MFA, devices, sessions, and account lifecycle.", "▣", "user", [
-    node("change-password", "Change password", "Change the credential where the connected identity provider uses passwords.", "⌁", "user", { surface: "form", destination: service("identity-session-service") }),
+    node("change-password", "Change password", "Change the credential where the connected identity provider uses passwords.", "security-key", "user", { surface: "form", destination: service("identity-session-service") }),
     node("mfa", "Multi-factor authentication (MFA)", "Configure stronger authentication through the production identity provider.", "✦", "user", { surface: "form", destination: service("identity-session-service") }),
     node("authentication-methods", "Authentication methods", "Manage connected sign-in methods without creating a second RFxchange credential model.", "◈", "user", { surface: "list", destination: service("identity-session-service") }),
     node("active-sessions", "Active sessions / devices", "Review authenticated sessions and devices and revoke access where permitted.", "▦", "user", { surface: "list", destination: service("identity-session-service") }),
@@ -255,7 +255,7 @@ export const menuSections: MenuNode[] = [
   ]),
 
   section("settings", "Settings", "Cross-lens application, notification, privacy, and general preferences.", "⚙", "user", [
-    node("application-preferences", "Application preferences", "General Exchange behavior and presentation preferences.", "◫", "user", { surface: "form", destination: service("user-preferences-service") }),
+    node("application-preferences", "Application preferences", "General Exchange behavior and presentation preferences.", "application-preferences", "user", { surface: "form", destination: service("user-preferences-service") }),
     node("notification-preferences", "Notification preferences", "Choose which event classes may generate in-app, email, push, or future channel notifications.", "◌", "user", { surface: "form", destination: service("notification-preferences-service") }),
     node("privacy-preferences", "Privacy preferences", "Control person-level privacy preferences independently from organization visibility.", "◍", "user", { surface: "form", destination: service("privacy-consent-service") }),
     node("general-preferences", "General preferences", "Manage remaining cross-lens user preferences that do not belong to a specific domain lens.", "⚙", "user", { surface: "form", destination: service("user-preferences-service") }),
@@ -308,7 +308,7 @@ export const menuSections: MenuNode[] = [
     ]),
     submenu("referral-details", "Referral details", "Inspect a specific referral after selection from a referral list or notification.", "▧", "cross-lens", [
       node("referral-information", "Referral information", "Core referral information and referenced Exchange context.", "i", "cross-lens", { destination: service("referral-service") }),
-      node("referral-status-timeline", "Status & timeline", "Referral lifecycle status and event timeline.", "⌁", "cross-lens", { destination: service("referral-service") }),
+      node("referral-status-timeline", "Status & timeline", "Referral lifecycle status and event timeline.", "timeline", "cross-lens", { destination: service("referral-service") }),
       node("referral-messages-notes", "Messages / notes", "Referral-specific messages and notes.", "✉", "cross-lens", { destination: service("referral-service") }),
       node("referral-payout-information", "Payout information", "Payout terms and status for the selected referral.", "$", "organization", { destination: service("referral-payment-service") }),
     ]),
@@ -334,8 +334,8 @@ export const menuSections: MenuNode[] = [
     node("saved-organizations", "Saved organizations", "Organizations saved from discovery surfaces.", "☆", "cross-lens", { surface: "list", destination: service("relationship-service") }),
     node("saved-rfx", "Saved RFx", "Saved RFx records and opportunity context.", "☆", "cross-lens", { surface: "list", destination: service("relationship-service") }),
     node("saved-resources", "Saved resources", "Saved resource offers, requests, and provider records.", "☆", "cross-lens", { surface: "list", destination: service("relationship-service") }),
-    node("watched-rfx", "Watched RFx", "RFx records with watch semantics and event notifications.", "◉", "cross-lens", { surface: "list", destination: service("relationship-service") }),
-    node("watched-organizations", "Watched organizations", "Organization relationships with follow/watch semantics.", "◉", "cross-lens", { surface: "list", destination: service("relationship-service") }),
+    node("watched-rfx", "Watched RFx", "RFx records with watch semantics and event notifications.", "watching", "cross-lens", { surface: "list", destination: service("relationship-service") }),
+    node("watched-organizations", "Watched organizations", "Organization relationships with follow/watch semantics.", "watching", "cross-lens", { surface: "list", destination: service("relationship-service") }),
   ]),
 
   section("billing", "Billing & Membership", "Organization-scoped plan, payments, credits, invoices, and membership lifecycle.", "$", "organization", [
@@ -354,7 +354,7 @@ export const menuSections: MenuNode[] = [
     ]),
     node("payment-history", "Payment history", "Review organization payment history separately from invoice documents.", "$", "organization", { surface: "list", destination: service("billing-payment-service") }),
     node("credits", "Credits", "Organization credit ledger, including balance, expiry, and application history.", "◈", "organization", { surface: "list", destination: service("organization-credit-service") }),
-    node("membership-lifecycle", "Membership lifecycle", "Review activation, renewal, cancellation, capacity, and entitlement events.", "⌁", "organization", { surface: "list", destination: service("commercial-membership-service") }),
+    node("membership-lifecycle", "Membership lifecycle", "Review activation, renewal, cancellation, capacity, and entitlement events.", "membership-lifecycle", "organization", { surface: "list", destination: service("commercial-membership-service") }),
   ]),
 
   section("privacy", "Privacy & Data", "Person-level privacy, consent, export, and data-request controls.", "◍", "user", [
