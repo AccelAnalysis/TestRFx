@@ -1,120 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import type { ExchangeSearchState, RecentSearch, SavedSearch, SearchSuggestion } from "@/lib/exchange/contracts";
+import type { Coordinates, ExchangeLens, ExchangeSearchState, MapBounds, RecentSearch, SavedSearch, SearchFacetDefinition, SearchGeographyMode, SearchSuggestion } from "@/lib/exchange/contracts";
+import { activeFilterCount } from "@/lib/exchange/search";
 import styles from "./search-controls.module.css";
 
-export function SearchControls({
-  state,
-  placeholder,
-  lensLabel,
-  suggestions,
-  recentSearches,
-  savedSearches,
-  onStateChange,
-  onCommit,
-  onRunState,
-  onSave,
-}: {
-  state: ExchangeSearchState;
-  placeholder: string;
-  lensLabel: string;
-  suggestions: SearchSuggestion[];
-  recentSearches: RecentSearch[];
-  savedSearches: SavedSearch[];
-  onStateChange: (state: ExchangeSearchState) => void;
-  onCommit: (state: ExchangeSearchState) => void;
-  onRunState: (state: ExchangeSearchState) => void;
-  onSave: () => void;
-}) {
-  const [panel, setPanel] = useState<"discover" | null>(null);
-
-  function patch(next: Partial<ExchangeSearchState>) {
-    onStateChange({ ...state, ...next });
-  }
-
-  function runSuggestion(suggestion: SearchSuggestion) {
-    const next = { ...state, query: suggestion.query };
-    onStateChange(next);
-    onCommit(next);
-    setPanel(null);
-  }
-
-  return (
-    <div className="floating-controls search-controls" onKeyDown={(event) => { if (event.key === "Escape") setPanel(null); }}>
-      <form
-        className="search-surface"
-        role="search"
-        onSubmit={(event) => { event.preventDefault(); onCommit(state); setPanel(null); }}
-      >
-        <span aria-hidden>⌕</span>
-        <label className="sr-only" htmlFor="exchange-universal-search">Search {lensLabel}</label>
-        <input
-          id="exchange-universal-search"
-          value={state.query}
-          onChange={(event) => patch({ query: event.target.value })}
-          onFocus={() => setPanel("discover")}
-          placeholder={placeholder}
-          autoComplete="off"
-          aria-autocomplete="list"
-          aria-expanded={panel === "discover"}
-          aria-controls="exchange-search-discovery"
-        />
-        {state.query ? (
-          <button aria-label="Clear search" className="inline-clear" onClick={() => patch({ query: "" })} type="button">×</button>
-        ) : null}
-      </form>
-
-      {panel === "discover" ? (
-        <section className={styles.panel} id="exchange-search-discovery" aria-label="Search suggestions">
-          {state.query.trim() ? (
-            <div className={styles.section}>
-              <div className={styles.heading}><strong>Suggestions</strong><span>{lensLabel}</span></div>
-              {suggestions.length ? suggestions.map((suggestion) => (
-                <button className={styles.option} key={suggestion.id} type="button" onClick={() => runSuggestion(suggestion)}>
-                  <span className={styles.kind}>{suggestion.kind}</span>
-                  <span><strong>{suggestion.label}</strong><small>{suggestion.description}</small></span>
-                </button>
-              )) : <p className={styles.empty}>Press Enter to search for “{state.query}”.</p>}
-            </div>
-          ) : null}
-
-          {recentSearches.length ? (
-            <div className={styles.section}>
-              <div className={styles.heading}><strong>Recent</strong><span>{lensLabel}</span></div>
-              {recentSearches.slice(0, 4).map((recent) => (
-                <button className={`${styles.option} ${styles.compact}`} key={recent.id} type="button" onClick={() => { onRunState(recent.state); setPanel(null); }}>
-                  <span className={styles.kind}>↺</span><span><strong>{recent.state.query || "Browse all"}</strong><small>{recent.state.filters.geography || "All geographies"}</small></span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {savedSearches.length ? (
-            <div className={styles.section}>
-              <div className={styles.heading}><strong>Saved</strong><span>{savedSearches.length}</span></div>
-              {savedSearches.slice(0, 4).map((saved) => (
-                <button className={`${styles.option} ${styles.compact}`} key={saved.id} type="button" onClick={() => { onRunState(saved.state); setPanel(null); }}>
-                  <span className={styles.kind}>☆</span><span><strong>{saved.name}</strong><small>{saved.state.query || "Browse all"}</small></span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-
-          {!state.query.trim() && !recentSearches.length && !savedSearches.length ? (
-            <p className={styles.empty}>Search organizations, records, geography, capabilities, and lens metadata from one Exchange surface.</p>
-          ) : null}
-
-          {(state.query.trim() || state.filters.geography || state.filters.location !== "all" || state.filters.ownership !== "all" || state.filters.metadata.length) ? (
-            <div className={styles.section}>
-              <div className={styles.heading}><strong>Search state</strong><span>Universal</span></div>
-              <button className={`${styles.option} ${styles.compact}`} type="button" onClick={onSave}>
-                <span className={styles.kind}>☆</span><span><strong>Save this search</strong><small>Preserve this query and its search-service filters.</small></span>
-              </button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-    </div>
-  );
+export function SearchControls({state,placeholder,lens,lensLabel,suggestions,recentSearches,savedSearches,facets={},facetDefinitions=[],mapCenter,mapBounds,onStateChange,onCommit,onRunState,onSave,onUpdateSaved,onDeleteSaved,onRunAlerts}:{
+  state:ExchangeSearchState;placeholder:string;lens:ExchangeLens;lensLabel:string;suggestions:SearchSuggestion[];recentSearches:RecentSearch[];savedSearches:SavedSearch[];facets?:Record<string,Array<{value:string;count:number}>>;facetDefinitions?:SearchFacetDefinition[];mapCenter?:Coordinates;mapBounds?:MapBounds;
+  onStateChange:(state:ExchangeSearchState)=>void;onCommit:(state:ExchangeSearchState)=>void;onRunState:(state:ExchangeSearchState)=>void;onSave:()=>void;onUpdateSaved?:(id:string,patch:{name?:string;state?:ExchangeSearchState;alertEnabled?:boolean})=>void;onDeleteSaved?:(id:string)=>void;onRunAlerts?:()=>void;
+}){
+  const[panel,setPanel]=useState<"discover"|"refine"|"saved"|null>(null);const[editing,setEditing]=useState<string>();const[editName,setEditName]=useState("");
+  function patch(next:Partial<ExchangeSearchState>){onStateChange({...state,...next});}
+  function patchFilters(next:Partial<ExchangeSearchState["filters"]>){onStateChange({...state,filters:{...state.filters,...next}});}
+  function runSuggestion(suggestion:SearchSuggestion){const next={...state,query:suggestion.query};onStateChange(next);onCommit(next);setPanel(null);}
+  function setArea(mode:SearchGeographyMode){const next:Partial<ExchangeSearchState["filters"]>={geographyMode:mode};if(mode==="viewport")next.bounds=mapBounds;if(mode==="radius"||mode==="service-area"||mode==="performance-area")next.center=mapCenter;if(mode!=="viewport")next.bounds=undefined;if(mode!=="radius")next.radiusMiles=undefined;patchFilters(next);}
+  function toggleFacet(key:string,value:string){const current=state.filters.facets?.[key]??[];const selected=current.includes(value)?current.filter((item)=>item!==value):[...current,value];patchFilters({facets:{...(state.filters.facets??{}),[key]:selected}});}
+  const geographyMode=state.filters.geographyMode??"exchange";const filterCount=activeFilterCount(state);
+  const areaOptions:[SearchGeographyMode,string,boolean][]=[["exchange","Exchange geography",true],["place","Place / ZIP / locality",true],["viewport","Current map area",Boolean(mapBounds)],["radius","Radius from map center",Boolean(mapCenter)],...(lens==="resources"||lens==="capabilities"?[["service-area","Service geography",Boolean(mapCenter)] as [SearchGeographyMode,string,boolean]]:[]),...(lens==="rfx"?[["performance-area","Performance geography",Boolean(mapCenter)] as [SearchGeographyMode,string,boolean]]:[])];
+  return <div className="floating-controls search-controls" onKeyDown={(event)=>{if(event.key==="Escape")setPanel(null);}}>
+    <form className="search-surface" role="search" onSubmit={(event)=>{event.preventDefault();onCommit(state);setPanel(null);}}><span aria-hidden>⌕</span><label className="sr-only" htmlFor="exchange-universal-search">Search {lensLabel}</label><input id="exchange-universal-search" value={state.query} onChange={(event)=>patch({query:event.target.value})} onFocus={()=>setPanel("discover")} placeholder={placeholder} autoComplete="off" aria-autocomplete="list" aria-expanded={panel!==null} aria-controls="exchange-search-discovery"/>{state.query?<button aria-label="Clear search" className="inline-clear" onClick={()=>patch({query:""})} type="button">×</button>:null}<button className={filterCount?styles.searchModeActive:styles.searchMode} type="button" onClick={()=>setPanel(panel==="refine"?null:"refine")} aria-label="Refine search">⌄{filterCount?<small>{filterCount}</small>:null}</button></form>
+    {panel?<section className={styles.panel} id="exchange-search-discovery" aria-label="Universal Search"><div className={styles.tabs}><button type="button" className={panel==="discover"?styles.tabActive:undefined} onClick={()=>setPanel("discover")}>Discover</button><button type="button" className={panel==="refine"?styles.tabActive:undefined} onClick={()=>setPanel("refine")}>Refine</button><button type="button" className={panel==="saved"?styles.tabActive:undefined} onClick={()=>setPanel("saved")}>Saved{savedSearches.length?` ${savedSearches.length}`:""}</button></div>
+      {panel==="discover"?<>{state.query.trim()?<div className={styles.section}><div className={styles.heading}><strong>Suggestions</strong><span>{lensLabel}</span></div>{suggestions.length?suggestions.map((suggestion)=><button className={styles.option} key={suggestion.id} type="button" onClick={()=>runSuggestion(suggestion)}><span className={styles.kind}>{suggestion.kind}</span><span><strong>{suggestion.label}</strong><small>{suggestion.description}</small></span></button>):<p className={styles.empty}>Press Enter to search for “{state.query}”.</p>}</div>:null}{recentSearches.length?<div className={styles.section}><div className={styles.heading}><strong>Recent</strong><span>{lensLabel}</span></div>{recentSearches.slice(0,5).map((recent)=><button className={`${styles.option} ${styles.compact}`} key={recent.id} type="button" onClick={()=>{onRunState(recent.state);setPanel(null);}}><span className={styles.kind}>↺</span><span><strong>{recent.state.query||"Browse all"}</strong><small>{recent.state.filters.geography||"All geographies"}</small></span></button>)}</div>:null}{!state.query.trim()&&!recentSearches.length?<p className={styles.empty}>Search records, organizations, geography, RFx requirements, Resources, Intelligence sources, capabilities, and AMACS from this one surface.</p>:null}{filterCount||state.query.trim()?<div className={styles.section}><button className={`${styles.option} ${styles.compact}`} type="button" onClick={onSave}><span className={styles.kind}>☆</span><span><strong>Save this search</strong><small>Preserve the query, map geography, filters, facets, and sort.</small></span></button></div>:null}</>:null}
+      {panel==="refine"?<div className={styles.filterPanel}><div className={styles.filterGrid}><label>Area<select value={geographyMode} onChange={(event)=>setArea(event.target.value as SearchGeographyMode)}>{areaOptions.map(([value,label,enabled])=><option key={value} value={value} disabled={!enabled}>{label}</option>)}</select></label>{geographyMode==="place"||geographyMode==="exchange"?<label>Geography<input value={state.filters.geography} onChange={(event)=>patchFilters({geography:event.target.value})} placeholder="City, county, state, ZIP…"/></label>:null}{geographyMode==="radius"?<label>Radius<input type="number" min="1" max="500" value={state.filters.radiusMiles??25} onChange={(event)=>patchFilters({center:mapCenter,radiusMiles:Math.max(1,Math.min(500,Number(event.target.value)||25))})}/></label>:null}<label>Map presence<select value={state.filters.location} onChange={(event)=>patchFilters({location:event.target.value as ExchangeSearchState["filters"]["location"]})}><option value="all">All records</option><option value="mapped">Mapped only</option><option value="off-map">Off-map only</option></select></label><label>Organization<select value={state.filters.ownership} onChange={(event)=>patchFilters({ownership:event.target.value as ExchangeSearchState["filters"]["ownership"]})}><option value="all">All organizations</option><option value="mine">My organization</option><option value="others">Other organizations</option></select></label><label>Sort<select value={state.sort} onChange={(event)=>patch({sort:event.target.value as ExchangeSearchState["sort"]})}><option value="relevance">Relevance</option><option value="recent">Most recent</option><option value="title">Title</option><option value="geography">Geography</option></select></label></div>{facetDefinitions.length?<div className={styles.facets}>{facetDefinitions.map((definition)=>{const options=facets[definition.key]??[];if(!options.length)return null;return <div className={styles.facet} key={definition.key}><strong>{definition.label}</strong><div>{options.slice(0,8).map((option)=>{const active=(state.filters.facets?.[definition.key]??[]).includes(option.value);return <button className={active?styles.facetActive:undefined} type="button" key={option.value} onClick={()=>toggleFacet(definition.key,option.value)}>{option.value}<small>{option.count}</small></button>;})}</div></div>;})}</div>:null}<div className={styles.actions}><button type="button" onClick={()=>onStateChange({...state,filters:{geography:"",geographyMode:"exchange",location:"all",ownership:"all",metadata:[],facets:{}},sort:"relevance"})}>Clear refinements</button><button type="button" onClick={()=>{onCommit(state);setPanel(null);}}>Show results</button></div></div>:null}
+      {panel==="saved"?<div className={styles.section}><div className={styles.heading}><strong>Saved searches</strong>{onRunAlerts?<button type="button" onClick={onRunAlerts}>Check alerts</button>:null}</div>{savedSearches.length?savedSearches.map((saved)=><div className={styles.savedRow} key={saved.id}>{editing===saved.id?<><input value={editName} onChange={(event)=>setEditName(event.target.value)} aria-label={`Rename ${saved.name}`}/><button type="button" onClick={()=>{if(editName.trim())onUpdateSaved?.(saved.id,{name:editName.trim()});setEditing(undefined);}}>Save</button></>:<><button className={styles.savedRun} type="button" onClick={()=>{onRunState(saved.state);setPanel(null);}}><strong>{saved.name}</strong><small>{saved.state.query||"Browse all"}</small></button><button type="button" title="Rename" onClick={()=>{setEditing(saved.id);setEditName(saved.name);}}>✎</button><button type="button" className={saved.alertEnabled?styles.alertActive:undefined} title={saved.alertEnabled?"Disable alert":"Enable alert"} onClick={()=>onUpdateSaved?.(saved.id,{alertEnabled:!saved.alertEnabled})}>◉</button><button type="button" title="Delete" onClick={()=>onDeleteSaved?.(saved.id)}>×</button></>}</div>):<p className={styles.empty}>No saved searches yet.</p>}</div>:null}
+    </section>:null}
+  </div>;
 }
