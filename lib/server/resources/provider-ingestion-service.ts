@@ -1,5 +1,4 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { Sql } from "postgres";
 import { getDatabase } from "@/lib/server/database";
 import type { ExchangeRecord } from "@/lib/exchange/contracts";
 import { normalizeProviderCandidate, type ExternalSourceDescriptor, type NormalizedProviderCandidate, type ProviderSourceCandidate } from "@/lib/resources/provider-ingestion";
@@ -12,6 +11,11 @@ export class ProviderIngestionError extends Error {
   }
 }
 
+// postgres.js exposes root Sql and transaction Sql as separate TypeScript
+// interfaces even though both provide the tagged-template + json surface used
+// by these helpers. Keep the helper boundary deliberately structural.
+type QueryExecutor = any;
+
 type DuplicateMatch = { organizationId?: string; score: number; basis: string; state: "ready" | "review_duplicate" | "duplicate_exact" };
 
 function slugFor(name: string) {
@@ -19,11 +23,15 @@ function slugFor(name: string) {
   return `${base}-${randomUUID().slice(0, 8)}`;
 }
 
+function jsonSafe(value: unknown) {
+  return JSON.parse(JSON.stringify(value ?? {}));
+}
+
 function jsonHash(value: unknown) {
   return createHash("sha256").update(JSON.stringify(value ?? {})).digest("hex");
 }
 
-async function ensureSource(sql: Sql, source: ExternalSourceDescriptor) {
+async function ensureSource(sql: QueryExecutor, source: ExternalSourceDescriptor) {
   const rows = await sql<{ id: string }[]>`
     INSERT INTO external_resource_sources (source_key, name, authority, source_url, license_or_use_basis, updated_at)
     VALUES (${source.key}, ${source.name}, ${source.authority}, ${source.sourceUrl ?? null}, ${source.licenseOrUseBasis}, now())
@@ -39,7 +47,7 @@ async function ensureSource(sql: Sql, source: ExternalSourceDescriptor) {
   return rows[0].id;
 }
 
-async function findDuplicate(sql: Sql, candidate: NormalizedProviderCandidate): Promise<DuplicateMatch> {
+async function findDuplicate(sql: QueryExecutor, candidate: NormalizedProviderCandidate): Promise<DuplicateMatch> {
   if (candidate.normalizedDomain) {
     const exact = await sql<{ organization_id: string }[]>`
       SELECT organization_id::text
@@ -110,7 +118,7 @@ export async function stageProviderCandidates(input: {
           ${candidate.providerType}, ${candidate.providerClass}, ${candidate.participationPolicy}, ${candidate.classificationBasis}, ${candidate.requiresClassificationReview},
           ${candidate.resourceCategory}, ${candidate.serviceName}, ${candidate.serviceSummary},
           ${candidate.addressLine1 ?? null}, ${candidate.locality ?? null}, ${candidate.region ?? null}, ${candidate.postalCode ?? null}, ${candidate.latitude ?? null}, ${candidate.longitude ?? null}, ${candidate.phone ?? null}, ${candidate.contactEmail ?? null}, ${candidate.serviceArea ?? null},
-          ${tx.json(candidate.raw ?? {})}, ${state}, ${duplicate.organizationId ?? null}::uuid, ${duplicate.score}, ${duplicate.basis}, now()
+          ${tx.json(jsonSafe(candidate.raw))}, ${state}, ${duplicate.organizationId ?? null}::uuid, ${duplicate.score}, ${duplicate.basis}, now()
         )
         ON CONFLICT (source_id, source_record_id) DO UPDATE SET
           ingestion_run_id = EXCLUDED.ingestion_run_id,
@@ -171,7 +179,7 @@ type CandidateRow = {
   raw_payload: Record<string, unknown>; candidate_state: string; matched_organization_id: string | null; source_name: string; source_key: string; source_authority: "authoritative" | "licensed" | "curated";
 };
 
-async function candidateById(sql: Sql, candidateId: string) {
+async function candidateById(sql: QueryExecutor, candidateId: string) {
   const rows = await sql<CandidateRow[]>`
     SELECT c.*, s.name AS source_name, s.source_key, s.authority AS source_authority
     FROM resource_ingestion_candidates c
@@ -228,12 +236,12 @@ export async function promoteProviderCandidate(input: { candidateId: string; can
       const locationRows = candidate.latitude !== null && candidate.longitude !== null
         ? await tx<{ id: string }[]>`
             INSERT INTO locations (organization_id, label, address, point)
-            VALUES (${organizationId}::uuid, 'Seeded provider location', ${tx.json(address)}, ST_SetSRID(ST_MakePoint(${candidate.longitude}, ${candidate.latitude}), 4326)::geography)
+            VALUES (${organizationId}::uuid, 'Seeded provider location', ${tx.json(jsonSafe(address))}, ST_SetSRID(ST_MakePoint(${candidate.longitude}, ${candidate.latitude}), 4326)::geography)
             RETURNING id::text
           `
         : await tx<{ id: string }[]>`
             INSERT INTO locations (organization_id, label, address)
-            VALUES (${organizationId}::uuid, 'Seeded provider location', ${tx.json(address)})
+            VALUES (${organizationId}::uuid, 'Seeded provider location', ${tx.json(jsonSafe(address))})
             RETURNING id::text
           `;
       locationId = locationRows[0]?.id;
@@ -245,7 +253,7 @@ export async function promoteProviderCandidate(input: { candidateId: string; can
       VALUES (
         ${publicId}, 'resource', ${organizationId}::uuid, ${locationId ?? null}::uuid,
         ${candidate.service_name}, ${candidate.service_summary}, 'active',
-        ${tx.json({ seeded: true, source: candidate.source_name, providerType: candidate.provider_type, providerClass: candidate.provider_class, claimState: "unclaimed", marketKey: candidate.market_key })}
+        ${tx.json(jsonSafe({ seeded: true, source: candidate.source_name, providerType: candidate.provider_type, providerClass: candidate.provider_class, claimState: "unclaimed", marketKey: candidate.market_key }))}
       )
       RETURNING id::text
     `;
@@ -256,16 +264,16 @@ export async function promoteProviderCandidate(input: { candidateId: string; can
       INSERT INTO resources (exchange_record_id, resource_mode, category, availability, capacity, visibility, terms)
       VALUES (
         ${exchangeRecordId}::uuid, 'offer', ${candidate.resource_category},
-        ${tx.json({ state: "unknown", label: "Provider confirmation required", serviceArea: candidate.service_area })},
-        ${tx.json({})},
+        ${tx.json(jsonSafe({ state: "unknown", label: "Provider confirmation required", serviceArea: candidate.service_area }))},
+        ${tx.json(jsonSafe({}))},
         ${locationId ? "public-location" : candidate.service_area ? "service-area" : "off-map"},
-        ${tx.json({ sourced: true })}
+        ${tx.json(jsonSafe({ sourced: true }))}
       )
     `;
 
     await tx`
       INSERT INTO external_resource_source_records (source_id, source_record_id, organization_id, exchange_record_id, source_url, raw_payload_hash, source_snapshot)
-      VALUES (${candidate.source_id}::uuid, ${candidate.source_record_id}, ${organizationId}::uuid, ${exchangeRecordId}::uuid, ${candidate.source_record_url}, ${jsonHash(candidate.raw_payload)}, ${tx.json(candidate.raw_payload)})
+      VALUES (${candidate.source_id}::uuid, ${candidate.source_record_id}, ${organizationId}::uuid, ${exchangeRecordId}::uuid, ${candidate.source_record_url}, ${jsonHash(candidate.raw_payload)}, ${tx.json(jsonSafe(candidate.raw_payload))})
       ON CONFLICT (source_id, source_record_id) DO UPDATE SET
         organization_id = EXCLUDED.organization_id,
         exchange_record_id = EXCLUDED.exchange_record_id,
