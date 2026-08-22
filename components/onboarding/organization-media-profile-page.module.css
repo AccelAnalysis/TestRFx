@@ -1,0 +1,11 @@
+.shell { min-height: 100dvh; background: #f8f6f0; color: #20242b; }
+.header { position: sticky; top: 0; z-index: 5; min-height: 58px; display: grid; grid-template-columns: 44px minmax(0,1fr) 44px; align-items: center; padding: max(8px, env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid rgba(37,41,50,.1); background: rgba(248,246,240,.94); backdrop-filter: blur(16px); }
+.header a { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: #343942; text-decoration: none; font-size: 31px; line-height: 1; }
+.header a:hover { background: rgba(37,41,50,.06); }
+.header a:focus-visible { outline: 3px solid rgba(46,94,170,.22); outline-offset: 2px; }
+.header h1 { margin: 0; overflow: hidden; font-size: 18px; font-weight: 750; letter-spacing: -.02em; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.content { width: min(100%, 900px); margin: 0 auto; padding: 28px 22px calc(36px + env(safe-area-inset-bottom)); }
+.empty { max-width: 420px; margin: 80px auto 0; text-align: center; }
+.empty h2 { margin: 0 0 18px; font-size: 22px; }
+.empty a { display: inline-flex; min-height: 44px; align-items: center; padding: 0 16px; border-radius: 12px; background: #252932; color: white; text-decoration: none; font-size: 13px; font-weight: 700; }
+@media (min-width: 900px) { .content { padding-top: 42px; } }

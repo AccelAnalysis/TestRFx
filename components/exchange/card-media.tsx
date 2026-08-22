@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ExchangeCardPlacement, ExchangeCardStatus, ExchangeLensIconId, ExchangeRecord } from "@/lib/exchange/contracts";
 import type { ResolvedExchangeCardMedia } from "@/lib/exchange/card-presentation";
+import { buildApprovedVideoEmbedUrl } from "@/lib/media/approved-video";
 import { ExchangeIcon } from "./exchange-nav-icon";
 import styles from "./card-media.module.css";
 
-type ActiveExchangeCardVideo = { video: HTMLVideoElement; stop: () => void };
-let activeExchangeCardVideo: ActiveExchangeCardVideo | null = null;
+type ActiveExchangeCardPlayback = { key: string; stop: () => void };
+let activeExchangeCardPlayback: ActiveExchangeCardPlayback | null = null;
 
 const fallbackIcon: Record<ExchangeRecord["type"], ExchangeLensIconId> = {
   rfx: "opportunity-document",
@@ -56,38 +57,38 @@ export function CardMedia({
   const [playing, setPlaying] = useState(false);
   const [mediaFailed, setMediaFailed] = useState(false);
 
+  const externalEmbedUrl = useMemo(() => {
+    if (media.kind !== "video" || !media.videoProvider || !media.providerVideoId) return undefined;
+    if (media.videoProvider !== "youtube" && media.videoProvider !== "vimeo") return undefined;
+    return buildApprovedVideoEmbedUrl(media.videoProvider, media.providerVideoId);
+  }, [media.kind, media.providerVideoId, media.videoProvider]);
+  const playbackKey = `${record.id}:${media.videoProvider ?? "hosted"}:${media.providerVideoId ?? media.videoSrc ?? "video"}`;
   const visualSrc = media.kind === "video" ? (media.poster ?? media.src) : media.src;
-  const playableVideo = media.kind === "video" && Boolean(media.videoSrc && visualSrc) && !mediaFailed;
+  const directVideo = media.kind === "video" && Boolean(media.videoSrc);
+  const playableVideo = media.kind === "video" && Boolean((directVideo || externalEmbedUrl) && !mediaFailed);
   const showFallback = media.fallback || mediaFailed || !visualSrc;
 
   function stopPlayback() {
-    const video = videoRef.current;
-    pauseElement(video);
+    pauseElement(videoRef.current);
     setPlaying(false);
-    if (video && activeExchangeCardVideo?.video === video) activeExchangeCardVideo = null;
+    if (activeExchangeCardPlayback?.key === playbackKey) activeExchangeCardPlayback = null;
   }
 
   useEffect(() => {
     if (!playing) return;
-    const video = videoRef.current;
-    if (!video) return;
+    if (activeExchangeCardPlayback && activeExchangeCardPlayback.key !== playbackKey) activeExchangeCardPlayback.stop();
+    activeExchangeCardPlayback = { key: playbackKey, stop: stopPlayback };
 
-    if (activeExchangeCardVideo && activeExchangeCardVideo.video !== video) activeExchangeCardVideo.stop();
-    const active: ActiveExchangeCardVideo = {
-      video,
-      stop: () => {
-        pauseElement(video);
-        setPlaying(false);
-        if (activeExchangeCardVideo?.video === video) activeExchangeCardVideo = null;
-      },
-    };
-    activeExchangeCardVideo = active;
-    video.muted = true;
-    void video.play().catch(() => {
-      active.stop();
-      setMediaFailed(true);
-    });
-  }, [playing]);
+    if (directVideo) {
+      const video = videoRef.current;
+      if (!video) return;
+      video.muted = true;
+      void video.play().catch(() => {
+        stopPlayback();
+        setMediaFailed(true);
+      });
+    }
+  }, [directVideo, playbackKey, playing]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -97,9 +98,9 @@ export function CardMedia({
     }, { threshold: [0, 0.28, 0.6] });
     observer.observe(root);
     return () => observer.disconnect();
-  }, []);
+  }, [playbackKey]);
 
-  useEffect(() => () => stopPlayback(), []);
+  useEffect(() => () => stopPlayback(), [playbackKey]);
 
   function failMedia() {
     stopPlayback();
@@ -125,51 +126,63 @@ export function CardMedia({
       data-media-fallback={showFallback ? "true" : "false"}
       data-video-playing={playing ? "true" : "false"}
     >
-      <button
-        type="button"
-        className={styles.open}
-        onClick={openRecord}
-        onFocus={onSelect}
-        aria-label={`Open ${record.title} details`}
-      >
-        {playing && playableVideo ? (
-          <video
-            ref={videoRef}
-            className={styles.visual}
-            src={media.videoSrc}
-            poster={visualSrc}
-            muted
-            playsInline
-            preload="none"
-            onEnded={stopPlayback}
-            onError={failMedia}
-            aria-label={media.alt || `${record.title} video preview`}
+      {playing && externalEmbedUrl ? (
+        <div className={styles.embedFrame}>
+          <iframe
+            src={externalEmbedUrl}
+            title={media.alt || `${record.title} video`}
+            allow="autoplay; encrypted-media; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
           />
-        ) : !showFallback && visualSrc ? (
-          <img
-            className={`${styles.visual}${media.kind === "logo" ? ` ${styles.logoVisual}` : ""}`}
-            src={visualSrc}
-            alt={media.alt}
-            loading="lazy"
-            decoding="async"
-            onError={failMedia}
-          />
-        ) : (
-          <span className={`${styles.fallback} ${fallbackTone[record.type]}`} aria-hidden="true">
-            <span className={styles.fallbackGlyph}>
-              <ExchangeIcon icon={fallbackIcon[record.type]} size={52} strokeWidth={1.7} />
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.open}
+          onClick={openRecord}
+          onFocus={onSelect}
+          aria-label={`Open ${record.title} details`}
+        >
+          {playing && directVideo ? (
+            <video
+              ref={videoRef}
+              className={styles.visual}
+              src={media.videoSrc}
+              poster={visualSrc}
+              muted
+              playsInline
+              preload="none"
+              onEnded={stopPlayback}
+              onError={failMedia}
+              aria-label={media.alt || `${record.title} video preview`}
+            />
+          ) : !showFallback && visualSrc ? (
+            <img
+              className={`${styles.visual}${media.kind === "logo" ? ` ${styles.logoVisual}` : ""}`}
+              src={visualSrc}
+              alt={media.alt}
+              loading="lazy"
+              decoding="async"
+              onError={failMedia}
+            />
+          ) : (
+            <span className={`${styles.fallback} ${fallbackTone[record.type]}`} aria-hidden="true">
+              <span className={styles.fallbackGlyph}>
+                <ExchangeIcon icon={fallbackIcon[record.type]} size={52} strokeWidth={1.7} />
+              </span>
+              <span className={styles.fallbackLabel}>{media.label}</span>
             </span>
-            <span className={styles.fallbackLabel}>{media.label}</span>
-          </span>
-        )}
-      </button>
+          )}
+        </button>
+      )}
 
       <div className={styles.topBadges}>
         {status ? <span className={`${styles.status} ${statusTone[status.tone ?? "neutral"]}`}>{status.label}</span> : null}
         {placement !== "organic" ? <span className={styles.placement}>{placement === "sponsored" ? "Sponsored" : "Featured"}</span> : null}
       </div>
 
-      {media.kind === "video" ? <span className={styles.mediaKind}>{media.videoSrc ? "Video" : "Video preview"}</span> : media.kind === "visualization" ? <span className={styles.mediaKind}>Insight visual</span> : null}
+      {media.kind === "video" ? <span className={styles.mediaKind}>{playableVideo ? "Video" : "Video preview"}</span> : media.kind === "visualization" ? <span className={styles.mediaKind}>Insight visual</span> : null}
 
       {playableVideo && !playing ? (
         <button type="button" className={styles.play} onClick={startVideo} aria-label={`Play video preview for ${record.title}`}>
