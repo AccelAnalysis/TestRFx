@@ -1,76 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { ExchangeLens, ExchangeRecord, MapBounds } from "@/lib/exchange/contracts";
-import { exchangeSeed } from "@/lib/exchange/seed";
-import { deriveReferenceViewerContext } from "@/lib/exchange/action-registry";
+import type { ExchangeLens, ExchangeViewerContext } from "@/lib/exchange/contracts";
+import { searchStateFromParams } from "@/lib/exchange/search";
 import { lensDefinitions } from "@/lib/exchange/lenses";
-import { scopeMapRecordsToBounds } from "@/lib/exchange/map-service";
-import { searchExchangeRecords, searchStateFromParams } from "@/lib/exchange/search";
-import { CapabilityCatalogUnavailableError, listCanonicalCapabilityExchangeRecords } from "@/lib/server/capabilities/exchange-records";
+import { ExchangeForbiddenError, ExchangeUnauthorizedError, resolveExchangeActor } from "@/lib/server/exchange/actor";
 import { DatabaseServiceUnavailableError } from "@/lib/server/database";
-import { listSeededResourceProviderRecords } from "@/lib/server/resources/provider-ingestion-service";
+import { ServiceConfigurationError } from "@/lib/server/postgres";
+import { searchExchange } from "@/lib/server/exchange/search-service";
 
-const lenses = new Set<ExchangeLens>(["rfx", "resources", "intelligence", "capabilities"]);
+export const dynamic = "force-dynamic";
+const lenses=new Set<ExchangeLens>(["rfx","resources","intelligence","capabilities"]);
+function viewer(actor:Awaited<ReturnType<typeof resolveExchangeActor>>):ExchangeViewerContext{const write=actor.role==="owner"||actor.role==="admin"||actor.permissions.includes("exchange:write");return{canIssueRfx:write||actor.permissions.includes("rfx:write"),canRespondRfx:true,canOfferResources:write||actor.permissions.includes("resources:write"),canRequestResources:true,canContributeIntelligence:write||actor.permissions.includes("intelligence:write"),canManageCapabilities:write||actor.permissions.includes("capabilities:write"),organization:{name:actor.organizationName}};}
+function errorResponse(error:unknown){if(error instanceof ExchangeUnauthorizedError)return NextResponse.json({error:error.message},{status:401});if(error instanceof ExchangeForbiddenError)return NextResponse.json({error:error.message},{status:403});if(error instanceof DatabaseServiceUnavailableError||error instanceof ServiceConfigurationError)return NextResponse.json({error:error.message,service:"postgresql"},{status:503});console.error(error);return NextResponse.json({error:"Universal Search failed."},{status:500});}
 
-function boundsFromRequest(request: NextRequest): MapBounds | undefined {
-  const names = ["north", "south", "east", "west"] as const;
-  const raw = Object.fromEntries(names.map((name) => [name, request.nextUrl.searchParams.get(name)])) as Record<(typeof names)[number], string | null>;
-  if (names.some((name) => raw[name] === null || raw[name] === "")) return undefined;
-  const values = Object.fromEntries(names.map((name) => [name, Number(raw[name])])) as Record<(typeof names)[number], number>;
-  if (!names.every((name) => Number.isFinite(values[name]))) return undefined;
-  if (values.north < values.south) return undefined;
-  return values;
-}
-
-async function recordsForLens(lens: ExchangeLens) {
-  if (lens === "capabilities") {
-    const records = await listCanonicalCapabilityExchangeRecords();
-    return { records, catalogMode: "database" as const };
-  }
-  if (lens !== "resources") return { records: exchangeSeed, catalogMode: "reference" as const };
-  try {
-    const seeded = await listSeededResourceProviderRecords();
-    const existingIds = new Set(exchangeSeed.map((record) => record.id));
-    const merged: ExchangeRecord[] = [...exchangeSeed, ...seeded.filter((record) => !existingIds.has(record.id))];
-    return { records: merged, catalogMode: seeded.length ? "database+reference" as const : "reference" as const };
-  } catch (error) {
-    if (!(error instanceof DatabaseServiceUnavailableError)) console.error("Seeded Resource Provider read failed", error);
-    return { records: exchangeSeed, catalogMode: "reference" as const };
-  }
-}
-
-export async function GET(request: NextRequest) {
-  const lensParam = request.nextUrl.searchParams.get("lens") ?? "rfx";
-  if (!lenses.has(lensParam as ExchangeLens)) return NextResponse.json({ error: "Unsupported lens" }, { status: 400 });
-  const lens = lensParam as ExchangeLens;
-  const state = searchStateFromParams(request.nextUrl.searchParams);
-
-  let catalog;
-  try {
-    catalog = await recordsForLens(lens);
-  } catch (error) {
-    if (error instanceof CapabilityCatalogUnavailableError) return NextResponse.json({ error: error.message, catalogMode: "unavailable" }, { status: 503 });
-    throw error;
-  }
-
-  const response = searchExchangeRecords(catalog.records, lens, state);
-  const bounds = boundsFromRequest(request);
-  const records = scopeMapRecordsToBounds(response.results.map((result) => result.record), bounds);
-  const mapped = records.filter((record) => record.location).length;
-  const viewer = deriveReferenceViewerContext(catalog.records);
-  const visibleResults = response.results.filter((result) => records.some((record) => record.id === result.record.id));
-
-  return NextResponse.json({
-    lens,
-    state,
-    bounds,
-    catalogMode: catalog.catalogMode,
-    records,
-    // Compatibility projection for bounded consumers such as the RFx mobile
-    // market preview. It contains the same canonical records and match data;
-    // it is not a second search implementation.
-    results: visibleResults,
-    matches: visibleResults.map((result) => ({ id: result.record.id, ...result.match })),
-    summary: { total: records.length, mapped, offMap: records.length - mapped },
-    actions: lensDefinitions[lens].actions(viewer),
-  });
+export async function GET(request:NextRequest){
+  try{
+    const lensParam=request.nextUrl.searchParams.get("lens")??"rfx";if(!lenses.has(lensParam as ExchangeLens))return NextResponse.json({error:"Unsupported lens"},{status:400});const lens=lensParam as ExchangeLens;const actor=await resolveExchangeActor(request);const state=searchStateFromParams(request.nextUrl.searchParams);const cursor=request.nextUrl.searchParams.get("cursor")??undefined;const requestedLimit=Number(request.nextUrl.searchParams.get("limit")??"30");const response=await searchExchange({actor,lens,state,cursor,limit:Number.isFinite(requestedLimit)?requestedLimit:30});const records=response.results.map((item)=>item.record);
+    return NextResponse.json({...response,records,summary:{total:response.total,mapped:response.mapped,offMap:response.offMap},actions:lensDefinitions[lens].actions(viewer(actor)),catalogMode:"postgresql",persistence:"postgresql"},{headers:{"Cache-Control":"no-store"}});
+  }catch(error){return errorResponse(error);}
 }
