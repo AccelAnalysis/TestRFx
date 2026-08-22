@@ -1,17 +1,22 @@
--- Intelligence lens persistence extension for the RFxchange operating chassis.
--- Apply after db/schema.sql. This describes the production target; the current UI uses deterministic/reference-session data.
+-- RFxchange Authenticated Exchange → Intelligence persistence extension.
+-- Apply after db/schema.sql and db/shared-workflows.sql.
+-- Tracking/following deliberately uses the canonical record_relationships table.
 
 ALTER TABLE intelligence_records
   ADD COLUMN IF NOT EXISTS observed_from timestamptz,
   ADD COLUMN IF NOT EXISTS observed_to timestamptz,
   ADD COLUMN IF NOT EXISTS source_type text,
-  ADD COLUMN IF NOT EXISTS provenance jsonb NOT NULL DEFAULT '{}'::jsonb;
+  ADD COLUMN IF NOT EXISTS provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
+
+CREATE INDEX IF NOT EXISTS intelligence_records_observed_idx
+  ON intelligence_records(observed_from DESC, observed_to DESC);
 
 CREATE TABLE IF NOT EXISTS intelligence_sources (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   intelligence_record_id uuid NOT NULL REFERENCES intelligence_records(id) ON DELETE CASCADE,
   source_label text NOT NULL,
-  source_type text NOT NULL CHECK (source_type IN ('exchange-activity', 'participant-observation', 'external-dataset', 'reference-dataset')),
+  source_type text NOT NULL,
   publisher text,
   source_uri text,
   coverage jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -21,6 +26,10 @@ CREATE TABLE IF NOT EXISTS intelligence_sources (
   retrieved_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE intelligence_sources DROP CONSTRAINT IF EXISTS intelligence_sources_source_type_check;
+ALTER TABLE intelligence_sources
+  ADD CONSTRAINT intelligence_sources_source_type_check
+  CHECK (source_type IN ('exchange-activity', 'participant-observation', 'external-dataset')) NOT VALID;
 CREATE INDEX IF NOT EXISTS intelligence_sources_record_idx ON intelligence_sources(intelligence_record_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS intelligence_notes (
@@ -34,17 +43,17 @@ CREATE TABLE IF NOT EXISTS intelligence_notes (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS intelligence_notes_record_idx ON intelligence_notes(intelligence_record_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS intelligence_notes_visibility_idx ON intelligence_notes(visibility, organization_id, author_user_id);
 
-CREATE TABLE IF NOT EXISTS intelligence_tracking (
-  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  intelligence_record_id uuid NOT NULL REFERENCES intelligence_records(id) ON DELETE CASCADE,
-  organization_id uuid REFERENCES organizations(id),
-  tracking_mode text NOT NULL DEFAULT 'track' CHECK (tracking_mode IN ('track', 'follow')),
-  preferences jsonb NOT NULL DEFAULT '{}'::jsonb,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (user_id, intelligence_record_id)
-);
+-- Older Intelligence builds created a lens-specific tracking table. Canonical tracking/following
+-- now lives in record_relationships. Preserve an existing legacy table for migration/audit only;
+-- new runtime code must not write it.
+DO $$ BEGIN
+  IF to_regclass('intelligence_tracking') IS NOT NULL THEN
+    COMMENT ON TABLE intelligence_tracking IS
+      'Legacy compatibility only. New Intelligence Track/Follow relationships are stored in record_relationships.';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS intelligence_relationships (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -58,5 +67,5 @@ CREATE TABLE IF NOT EXISTS intelligence_relationships (
 );
 CREATE INDEX IF NOT EXISTS intelligence_relationships_record_idx ON intelligence_relationships(intelligence_record_id, relationship_type);
 
--- Comparison is intentionally computed from governed source records rather than persisted as market truth by default.
--- Activity events should record contribution, edit, note, compare, track/follow, and referral-trigger actions.
+-- Comparison is computed from canonical records and is not stored as market truth.
+-- Save/Track/Follow use record_relationships; referrals use referrals/referral_events.

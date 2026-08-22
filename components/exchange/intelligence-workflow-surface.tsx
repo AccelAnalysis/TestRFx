@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import type { ExchangeRecord } from "@/lib/exchange/contracts";
-import { buildParticipantInsight, getIntelligenceDetail, updateParticipantInsight, type IntelligenceInsightInput, type IntelligenceWorkflow } from "@/lib/exchange/intelligence";
+import type { IntelligenceCompareDimension, IntelligenceCompareResponse, IntelligenceInsightInput, IntelligenceWorkflow } from "@/lib/exchange/intelligence-runtime";
+import { addIntelligenceNoteThroughService, compareIntelligenceThroughService, createIntelligenceThroughService, updateIntelligenceThroughService } from "@/lib/exchange/intelligence-client";
 
 function sourceFrom(record?: ExchangeRecord) {
   return record?.metadata.find((item) => item.startsWith("Source:"))?.replace(/^Source:\s*/, "") ?? "Participant observation";
@@ -30,82 +31,79 @@ export function IntelligenceWorkflowSurface({
     summary: record?.summary ?? "",
     geography: record?.geography ?? "",
     signalType: record?.metadata[0] ?? "Participant insight",
-    observedPeriod: record?.metadata[1] ?? "Current view",
+    observedFrom: "",
+    observedTo: "",
     sourceLabel: sourceFrom(record),
+    sourceType: "participant-observation",
+    sourceUri: "",
   });
   const [note, setNote] = useState("");
-  const comparisonOptions = useMemo(() => records.filter((item) => item.type === "intelligence" && item.id !== record?.id), [records, record?.id]);
-  const [comparisonId, setComparisonId] = useState(comparisonOptions[0]?.id ?? "");
-  const comparison = records.find((item) => item.id === comparisonId);
+  const [noteVisibility, setNoteVisibility] = useState<"personal" | "organization" | "shared">("organization");
+  const [dimension, setDimension] = useState<IntelligenceCompareDimension>("insights");
+  const intelligenceRecords = useMemo(() => records.filter((item) => item.type === "intelligence"), [records]);
+  const organizationOptions = useMemo(() => Array.from(new Map(intelligenceRecords.map((item) => [item.organization, item.organization])).values()), [intelligenceRecords]);
+  const geographyOptions = useMemo(() => Array.from(new Set(intelligenceRecords.map((item) => item.geography).filter(Boolean))), [intelligenceRecords]);
+  const insightOptions = useMemo(() => intelligenceRecords.map((item) => ({ value: item.id, label: item.title })), [intelligenceRecords]);
+  const dimensionOptions = dimension === "insights" ? insightOptions : dimension === "organizations" ? organizationOptions.map((value) => ({ value, label: value })) : geographyOptions.map((value) => ({ value, label: value }));
+  const [left, setLeft] = useState(record?.id ?? insightOptions[0]?.value ?? "");
+  const [right, setRight] = useState(insightOptions.find((item) => item.value !== record?.id)?.value ?? "");
+  const [comparison, setComparison] = useState<IntelligenceCompareResponse>();
+  const [message, setMessage] = useState("");
+  const [pending, setPending] = useState(false);
 
-  function updateField<K extends keyof IntelligenceInsightInput>(key: K, value: IntelligenceInsightInput[K]) {
-    setInput((current) => ({ ...current, [key]: value }));
+  function updateField<K extends keyof IntelligenceInsightInput>(key: K, value: IntelligenceInsightInput[K]) { setInput((current) => ({ ...current, [key]: value })); }
+
+  function resetComparison(nextDimension: IntelligenceCompareDimension) {
+    setDimension(nextDimension); setComparison(undefined);
+    const options = nextDimension === "insights" ? insightOptions : nextDimension === "organizations" ? organizationOptions.map((value) => ({ value, label: value })) : geographyOptions.map((value) => ({ value, label: value }));
+    setLeft(options[0]?.value ?? ""); setRight(options[1]?.value ?? options[0]?.value ?? "");
   }
 
-  function submitInsight(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!input.title.trim() || !input.summary.trim() || !input.geography.trim()) return;
-    if (workflow === "add") onCreate(buildParticipantInsight(input));
-    if (workflow === "edit" && record) onUpdate(updateParticipantInsight(record, input));
-    onClose();
+  async function submitInsight(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setPending(true); setMessage("");
+    try {
+      if (workflow === "add") { const result = await createIntelligenceThroughService(input); onCreate(result.record); }
+      if (workflow === "edit" && record) { const result = await updateIntelligenceThroughService(record.id, input); onUpdate(result.record); }
+      onClose();
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Intelligence could not be saved."); }
+    finally { setPending(false); }
   }
 
-  function submitNote(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!record || !note.trim()) return;
-    onAddNote(record.id, note.trim());
-    onClose();
+  async function submitNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!record || !note.trim()) return; setPending(true); setMessage("");
+    try { await addIntelligenceNoteThroughService(record.id, note.trim(), noteVisibility); onAddNote(record.id, note.trim()); onClose(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Note could not be saved."); }
+    finally { setPending(false); }
   }
 
-  const title = workflow === "add" ? "Add insight" : workflow === "edit" ? "Manage insight" : workflow === "note" ? "Add note" : "Compare intelligence";
+  async function runComparison() {
+    if (!left || !right) return; setPending(true); setMessage("");
+    try { const result = await compareIntelligenceThroughService(dimension, left, right); setComparison(result.comparison); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Comparison could not be loaded."); }
+    finally { setPending(false); }
+  }
 
-  return (
-    <section className="intelligence-workflow-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div className="intelligence-workflow-surface" role="dialog" aria-modal="true" aria-label={title}>
-        <header className="intelligence-workflow-header">
-          <div><p className="eyebrow">Intelligence workflow</p><h2>{title}</h2></div>
-          <button type="button" aria-label={`Close ${title}`} onClick={onClose}>×</button>
-        </header>
-
-        {workflow === "add" || workflow === "edit" ? (
-          <form className="intelligence-form" onSubmit={submitInsight}>
-            <p className="workflow-boundary">Reference-session contribution only. Production persistence, authorization, source verification, and revision history plug in behind this workflow.</p>
-            <label>Insight title<input required value={input.title} onChange={(event) => updateField("title", event.target.value)} /></label>
-            <label>Observation<textarea required rows={4} value={input.summary} onChange={(event) => updateField("summary", event.target.value)} /></label>
-            <div className="intelligence-form-grid">
-              <label>Geography<input required value={input.geography} onChange={(event) => updateField("geography", event.target.value)} /></label>
-              <label>Signal type<input value={input.signalType} onChange={(event) => updateField("signalType", event.target.value)} /></label>
-              <label>Observed period<input value={input.observedPeriod} onChange={(event) => updateField("observedPeriod", event.target.value)} /></label>
-              <label>Source<label className="sr-only">Source label</label><input value={input.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} /></label>
-            </div>
-            <div className="workflow-actions"><button type="button" onClick={onClose}>Cancel</button><button className="workflow-primary" type="submit">{workflow === "add" ? "Add insight" : "Save changes"}</button></div>
-          </form>
-        ) : null}
-
-        {workflow === "note" ? (
-          <form className="intelligence-form" onSubmit={submitNote}>
-            <p className="workflow-subject">{record?.title}</p>
-            <p className="workflow-boundary">Notes are kept in this mounted reference session. Production must enforce personal, organization, or shared visibility server-side.</p>
-            <label>Note<textarea autoFocus required rows={6} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add context, commentary, or a decision note…" /></label>
-            <div className="workflow-actions"><button type="button" onClick={onClose}>Cancel</button><button className="workflow-primary" type="submit">Save note</button></div>
-          </form>
-        ) : null}
-
-        {workflow === "compare" ? (
-          <div className="intelligence-compare">
-            <p className="workflow-boundary">Comparison uses the visible TestRFx reference records only. Missing data is shown as missing rather than interpreted as zero.</p>
-            <label>Compare with<select value={comparisonId} onChange={(event) => setComparisonId(event.target.value)}>{comparisonOptions.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}</select></label>
-            <div className="compare-grid">
-              {[record, comparison].map((item, index) => {
-                if (!item) return <div className="compare-column" key={index}><p>No comparison record available.</p></div>;
-                const detail = getIntelligenceDetail(item);
-                return <div className="compare-column" key={item.id}><p className="eyebrow">{index === 0 ? "Selected" : "Comparison"}</p><h3>{item.title}</h3><dl><dt>Geography</dt><dd>{item.geography}</dd><dt>Signal</dt><dd>{detail?.signalType ?? "Not supplied"}</dd><dt>Period</dt><dd>{detail?.observedPeriod ?? "Not supplied"}</dd><dt>Source</dt><dd>{detail?.sourceLabel ?? "Not supplied"}</dd></dl></div>;
-              })}
-            </div>
-            <div className="workflow-actions"><button className="workflow-primary" type="button" onClick={onClose}>Done</button></div>
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
+  const title = workflow === "add" ? "Add insight" : workflow === "edit" ? "Edit insight" : workflow === "note" ? "Add note" : "Compare intelligence";
+  return <section className="intelligence-workflow-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+    <div className="intelligence-workflow-surface" role="dialog" aria-modal="true" aria-label={title}>
+      <header className="intelligence-workflow-header"><div><p className="eyebrow">Intelligence</p><h2>{title}</h2></div><button type="button" aria-label={`Close ${title}`} onClick={onClose}>×</button></header>
+      {workflow === "add" || workflow === "edit" ? <form className="intelligence-form" onSubmit={(event) => void submitInsight(event)}>
+        <label>Insight title<input required value={input.title} onChange={(event) => updateField("title", event.target.value)} /></label>
+        <label>Observation<textarea required rows={4} value={input.summary} onChange={(event) => updateField("summary", event.target.value)} /></label>
+        <div className="intelligence-form-grid">
+          <label>Geography<input value={input.geography} onChange={(event) => updateField("geography", event.target.value)} /></label>
+          <label>Signal type<input required value={input.signalType} onChange={(event) => updateField("signalType", event.target.value)} /></label>
+          <label>Observed from<input type="date" value={input.observedFrom ?? ""} onChange={(event) => updateField("observedFrom", event.target.value)} /></label>
+          <label>Observed to<input type="date" value={input.observedTo ?? ""} onChange={(event) => updateField("observedTo", event.target.value)} /></label>
+          <label>Source type<select value={input.sourceType} onChange={(event) => updateField("sourceType", event.target.value as IntelligenceInsightInput["sourceType"])}><option value="participant-observation">Participant observation</option><option value="exchange-activity">Exchange activity</option><option value="external-dataset">External dataset</option></select></label>
+          <label>Source label<input required value={input.sourceLabel} onChange={(event) => updateField("sourceLabel", event.target.value)} /></label>
+        </div>
+        <label>Source link (optional)<input type="url" value={input.sourceUri ?? ""} onChange={(event) => updateField("sourceUri", event.target.value)} placeholder="https://…" /></label>
+        {message ? <p className="intelligence-service-state intelligence-service-error" role="alert">{message}</p> : null}
+        <div className="workflow-actions"><button type="button" onClick={onClose}>Cancel</button><button className="workflow-primary" type="submit" disabled={pending}>{pending ? "Saving…" : workflow === "add" ? "Add insight" : "Save changes"}</button></div>
+      </form> : null}
+      {workflow === "note" ? <form className="intelligence-form" onSubmit={(event) => void submitNote(event)}><p className="workflow-subject">{record?.title}</p><label>Visibility<select value={noteVisibility} onChange={(event) => setNoteVisibility(event.target.value as typeof noteVisibility)}><option value="personal">Personal</option><option value="organization">Organization</option><option value="shared">Shared</option></select></label><label>Note<textarea autoFocus required rows={6} value={note} onChange={(event) => setNote(event.target.value)} /></label>{message ? <p className="intelligence-service-state intelligence-service-error" role="alert">{message}</p> : null}<div className="workflow-actions"><button type="button" onClick={onClose}>Cancel</button><button className="workflow-primary" type="submit" disabled={pending}>{pending ? "Saving…" : "Save note"}</button></div></form> : null}
+      {workflow === "compare" ? <div className="intelligence-compare"><label>Compare by<select value={dimension} onChange={(event) => resetComparison(event.target.value as IntelligenceCompareDimension)}><option value="insights">Insights</option><option value="organizations">Organizations</option><option value="geographies">Geographies</option></select></label><div className="intelligence-form-grid"><label>Left<select value={left} onChange={(event) => setLeft(event.target.value)}>{dimensionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label><label>Right<select value={right} onChange={(event) => setRight(event.target.value)}>{dimensionOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label></div><button className="workflow-primary" type="button" disabled={pending || !left || !right} onClick={() => void runComparison()}>{pending ? "Comparing…" : "Compare"}</button>{comparison ? <div className="compare-grid">{[comparison.left, comparison.right].map((side) => <div className="compare-column" key={side.label}><h3>{side.label}</h3>{side.records.length ? side.records.map((item) => <dl key={item.id}><dt>{item.title}</dt><dd>{item.signalType ?? "Signal not supplied"} · {item.geography}</dd></dl>) : <p>No Intelligence records in this side.</p>}</div>)}</div> : null}{message ? <p className="intelligence-service-state intelligence-service-error" role="alert">{message}</p> : null}<div className="workflow-actions"><button type="button" onClick={onClose}>Done</button></div></div> : null}
+    </div>
+  </section>;
 }
