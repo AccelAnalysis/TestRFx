@@ -29,7 +29,12 @@ function menuIcon(node: MenuNode) {
   return isExchangeUiIconId(node.icon) ? <ExchangeIcon icon={node.icon} size={19} /> : node.icon;
 }
 
+function displayLabel(node: MenuNode) {
+  return node.id === "organization-logo-branding" ? "Logo & Media" : node.label;
+}
+
 function destinationHref(node: MenuNode) {
+  if (node.id === "organization-logo-branding") return "/onboarding/organization-profile/organization-details/logo-branding";
   const destination = node.destination;
   if (!destination) return undefined;
   if (destination.type === "public-shell" && destination.target.startsWith("/")) return destination.target;
@@ -39,7 +44,7 @@ function destinationHref(node: MenuNode) {
 }
 
 function leafActionLabel(node: MenuNode) {
-  if (!isMenuNodeOperational(node) && node.destination?.type === "service") return "Coming soon";
+  if (!isMenuNodeOperational(node) && node.destination?.type === "service" && node.id !== "organization-logo-branding") return "Coming soon";
   if (node.kind === "confirmation") return "Confirm";
   if (node.kind === "handoff") return "Open";
   return "Continue";
@@ -92,7 +97,7 @@ export function MenuSurface({
         onClick={() => navigate(node)}
       >
         <span className={styles.icon} aria-hidden>{menuIcon(node)}</span>
-        <span className={styles.rowLabel}>{node.label}</span>
+        <span className={styles.rowLabel}>{displayLabel(node)}</span>
         <span className={styles.chevron} aria-hidden>›</span>
       </button>
     );
@@ -100,6 +105,7 @@ export function MenuSurface({
 
   const href = activeNode ? destinationHref(activeNode) : undefined;
   const executeEnabled = Boolean(activeNode && (isMenuNodeOperational(activeNode) || href));
+  const isReferralSummary = activeNode?.id === "referral-summary";
 
   return (
     <div className={styles.backdrop} role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
@@ -110,7 +116,7 @@ export function MenuSurface({
               <span aria-hidden>‹</span>
             </button>
           ) : <span className={styles.headerSpacer} />}
-          <h2 id="exchange-menu-title">{activeNode?.label ?? "Menu"}</h2>
+          <h2 id="exchange-menu-title">{activeNode ? displayLabel(activeNode) : "Menu"}</h2>
           <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Close Menu">×</button>
         </header>
 
@@ -121,7 +127,7 @@ export function MenuSurface({
                 <span className={styles.avatar} aria-hidden>{context.organizationInitials}</span>
                 <div>
                   <strong>{context.organizationName}</strong>
-                  <span>{context.userName}</span>
+                  {context.userName && context.userName !== "Reference Member" ? <span>{context.userName}</span> : null}
                 </div>
                 {context.organizationCount > 1 ? (
                   <button type="button" className={styles.switchButton} onClick={() => navigate(menuNodeById["switch-active-organization"])}>Switch</button>
@@ -145,18 +151,18 @@ export function MenuSurface({
             </>
           ) : null}
 
-          {activeNode?.id === "referrals" ? <ReferralTrackingPanel /> : null}
-
           {activeNode?.children?.length ? (
             <div className={styles.rows}>
               {activeNode.children.map(renderRow)}
             </div>
           ) : null}
 
-          {activeNode && !activeNode.children?.length ? (
+          {isReferralSummary ? <ReferralTrackingPanel /> : null}
+
+          {activeNode && !activeNode.children?.length && !isReferralSummary ? (
             <div className={activeNode.destructive ? `${styles.leaf} ${styles.leafDanger}` : styles.leaf}>
               <div className={styles.leafIcon} aria-hidden>{menuIcon(activeNode)}</div>
-              <h3>{activeNode.label}</h3>
+              <h3>{displayLabel(activeNode)}</h3>
               {activeNode.description ? <p>{activeNode.description}</p> : null}
               {activeNode.details?.length ? (
                 <ul>
