@@ -163,7 +163,6 @@ export function MenuSurface({
             <div className={activeNode.destructive ? `${styles.leaf} ${styles.leafDanger}` : styles.leaf}>
               <div className={styles.leafIcon} aria-hidden>{menuIcon(activeNode)}</div>
               <h3>{displayLabel(activeNode)}</h3>
-              {activeNode.description ? <p>{activeNode.description}</p> : null}
               {activeNode.details?.length ? (
                 <ul>
                   {activeNode.details.map((detail) => <li key={detail}>{detail}</li>)}
