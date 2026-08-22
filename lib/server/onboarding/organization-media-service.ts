@@ -24,6 +24,18 @@ function asStatus(value: string): "pending" | "ready" {
   return value === "ready" ? "ready" : "pending";
 }
 
+function cleanLogoUrl(value: string) {
+  const candidate = value.trim().slice(0, 500);
+  if (!candidate) return "";
+  try {
+    const parsed = new URL(candidate);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") throw new Error();
+    return parsed.toString();
+  } catch {
+    throw new Error("Enter a valid logo URL.");
+  }
+}
+
 export async function getOrganizationMedia(actor: OnboardingActor): Promise<OrganizationMediaSnapshot> {
   const sql = getDatabase();
   const rows = await sql<{
@@ -89,6 +101,24 @@ export async function getOrganizationMedia(actor: OnboardingActor): Promise<Orga
     linkedVideo: { providers: ["youtube", "vimeo"], maxSeconds: ORGANIZATION_LINKED_VIDEO_MAX_SECONDS },
     uploadVideo: { enabled: false, maxSeconds: ORGANIZATION_UPLOAD_VIDEO_MAX_SECONDS },
   };
+}
+
+export async function saveOrganizationLogo(actor: OnboardingActor, value: string) {
+  assertOrganizationProfilePermission(actor);
+  const logoUrl = cleanLogoUrl(value);
+  const sql = getDatabase();
+  await sql`
+    INSERT INTO organization_profiles (organization_id, logo_url, updated_at)
+    VALUES (${actor.organizationId}::uuid, ${logoUrl || null}, now())
+    ON CONFLICT (organization_id) DO UPDATE SET
+      logo_url = EXCLUDED.logo_url,
+      updated_at = now()
+  `;
+  await sql`
+    INSERT INTO activity_events (event_name, actor_user_id, organization_id, payload)
+    VALUES ('OrganizationLogoUpdated', ${actor.userId}::uuid, ${actor.organizationId}::uuid, ${JSON.stringify({ hasLogo: Boolean(logoUrl) })}::jsonb)
+  `;
+  return getOrganizationMedia(actor);
 }
 
 export async function saveLinkedOrganizationIntroVideo(actor: OnboardingActor, value: string) {
