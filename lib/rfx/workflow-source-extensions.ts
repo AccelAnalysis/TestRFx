@@ -28,6 +28,18 @@ function insertUnique(parent: RfxWorkflowNode | undefined, nodes: RfxWorkflowNod
 }
 
 function applyIssuerExtensions() {
+  const requirements = find(issuerWorkflowTree, "requirements");
+  if (requirements) {
+    requirements.description = "Build requirement cards that tell responders what is required, who it applies to, and what evidence or confirmation is expected.";
+    requirements.fields = [
+      { id: "requirements.next", label: "Requirement", type: "text", required: true, placeholder: "e.g. Virginia Class A license" },
+      { id: "requirements.kind", label: "Requirement kind", type: "select", required: true, options: ["Capability", "Eligibility", "Documentation", "Commercial"] },
+      { id: "requirements.priority", label: "How important is it?", type: "select", required: true, options: ["Required", "Preferred"] },
+      { id: "requirements.appliesTo", label: "Who must satisfy it?", type: "select", required: true, options: ["Prime / lead responder", "All response team members", "Any qualified team member"] },
+      { id: "requirements.evidence", label: "Evidence or confirmation requested", type: "textarea", placeholder: "Describe what responders should provide or confirm." },
+    ];
+  }
+
   const reviewApprove = find(issuerWorkflowTree, "review-approve");
   insertUnique(reviewApprove, [
     {
@@ -132,6 +144,22 @@ function applyResponderExtensions() {
   const respond = find(responderWorkflowTree, "respond");
   if (!respond?.children) return;
 
+  const fitPrompts: Array<[string, string, string]> = [
+    ["fit", "fit.performance", "Can we perform the work?"],
+    ["eligibility", "fit.eligibility", "Do we meet the mandatory eligibility requirements?"],
+    ["capacity", "fit.capacity", "Do we have capacity for the required schedule?"],
+    ["economics", "fit.economics", "Does the opportunity appear economically worthwhile?"],
+  ];
+  for (const [nodeId, fieldId, label] of fitPrompts) {
+    const node = find(responderWorkflowTree, nodeId);
+    if (!node) continue;
+    node.description = "Make a fast pursuit assessment; add detail only when useful.";
+    node.fields = [
+      { id: fieldId, label, type: "select", required: true, options: ["Yes", "Unsure", "No"] },
+      { id: `${fieldId}.note`, label: "Optional note", type: "textarea", placeholder: "Add context only if it helps the decision." },
+    ];
+  }
+
   const draftIndex = respond.children.findIndex((node) => node.id === "draft");
   if (draftIndex >= 0 && !respond.children.some((node) => node.id === "reused-profile-confirmation")) {
     respond.children.splice(draftIndex + 1, 0, {
@@ -171,6 +199,7 @@ function applyResponderExtensions() {
         fields: [
           { id: "collab.section", label: "Section", type: "text", required: true },
           { id: "collab.assignee", label: "Assignee", type: "text", required: true },
+          { id: "collab.sectionState", label: "State", type: "select", required: true, options: ["Assigned", "In progress", "Ready for review", "Complete"] },
         ],
       },
       {
@@ -181,6 +210,7 @@ function applyResponderExtensions() {
         fields: [
           { id: "collab.requestFrom", label: "Requested from", type: "text", required: true },
           { id: "collab.request", label: "Information requested", type: "textarea", required: true },
+          { id: "collab.requestState", label: "State", type: "select", required: true, options: ["Requested", "Received", "Resolved"] },
         ],
       },
       {
