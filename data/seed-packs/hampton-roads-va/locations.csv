@@ -1,0 +1,41 @@
+location_key,seed_key,label,address1,address2,city,state,postal_code,location_kind,location_status
+hrva-hampton-roads-alliance-loc-1,hrva-hampton-roads-alliance,Regional office,3 Commercial Place,Suite 1320,Norfolk,VA,23510,office,candidate
+hrva-hampton-roads-chamber-loc-1,hrva-hampton-roads-chamber,Main office,101 W Main Street,Suite 800,Norfolk,VA,23510,office,candidate
+hrva-hampton-roads-sbdc-loc-1,hrva-hampton-roads-sbdc,Mailbox / main contact,101 W Main Street,Suite 800,Norfolk,VA,23510,office,candidate
+hrva-hampton-roads-sbdc-loc-2,hrva-hampton-roads-sbdc,Southside Office (source label),600 College Dr,Suite 1300,Hampton,VA,23666,office,candidate
+hrva-hampton-roads-sbdc-loc-3,hrva-hampton-roads-sbdc,Peninsula Office (source label),739 High Street,Office 126,Portsmouth,VA,23704,office,candidate
+hrva-hampton-roads-workforce-council-loc-1,hrva-hampton-roads-workforce-council,Main office,999 Waterside Drive,Suite 1314,Norfolk,VA,23510,office,candidate
+hrva-odu-iie-loc-1,hrva-odu-iie,Institute office,112 Bank Street,,Norfolk,VA,23510,office,candidate
+hrva-757-collab-loc-1,hrva-757-collab,Norfolk office,400 Granby St,,Norfolk,VA,23510,office,candidate
+hrva-retail-alliance-loc-1,hrva-retail-alliance,Main office,101 W Main Street,Suite 905,Norfolk,VA,23510,office,candidate
+hrva-virginia-maritime-association-loc-1,hrva-virginia-maritime-association,Main office,236 East Plume Street,,Norfolk,VA,23510,office,candidate
+hrva-greater-williamsburg-chamber-loc-1,hrva-greater-williamsburg-chamber,Main office,421 N Boundary St,,Williamsburg,VA,23185,office,candidate
+hrva-virginia-peninsula-chamber-loc-1,hrva-virginia-peninsula-chamber,Main office,11850 Merchants Walk,Suite 110,Newport News,VA,23606,office,candidate
+hrva-launchpad-incubator-loc-1,hrva-launchpad-incubator,Launchpad,249 Richmond Road,,Williamsburg,VA,23185,program_site,candidate
+hrva-bloom-coworking-loc-1,hrva-bloom-coworking,Main location,739 High Street,,Portsmouth,VA,23704,coworking_site,candidate
+hrva-bloom-coworking-loc-2,hrva-bloom-coworking,Satellite location,719 High Street,,Portsmouth,VA,23704,coworking_site,candidate
+hrva-virginia-beach-hive-loc-1,hrva-virginia-beach-hive,The HIVE,140 Independence Blvd,,Virginia Beach,VA,23462,resource_hub,candidate
+hrva-norfolk-economic-development-loc-1,hrva-norfolk-economic-development,Department office,999 Waterside Drive,Suite 2430,Norfolk,VA,23510,office,candidate
+hrva-virginia-beach-economic-development-loc-1,hrva-virginia-beach-economic-development,Department office,4525 Main Street,Suite 700,Virginia Beach,VA,23462,office,candidate
+hrva-chesapeake-economic-development-loc-1,hrva-chesapeake-economic-development,Department office,555 Belaire Ave,Suite 310,Chesapeake,VA,23320,office,candidate
+hrva-portsmouth-economic-development-loc-1,hrva-portsmouth-economic-development,Department office,200 High Street,Suite 200,Portsmouth,VA,23704,office,candidate
+hrva-hampton-economic-development-loc-1,hrva-hampton-economic-development,Department office,One Franklin Street,Suite 600,Hampton,VA,23669,office,candidate
+hrva-newport-news-economic-development-authority-loc-1,hrva-newport-news-economic-development-authority,Economic Development office,2400 Washington Avenue,3rd Floor,Newport News,VA,23607,office,candidate
+hrva-isle-of-wight-economic-development-loc-1,hrva-isle-of-wight-economic-development,Department office,17146 Monument Circle,,Isle of Wight,VA,23397,office,candidate
+hrva-james-city-county-economic-development-loc-1,hrva-james-city-county-economic-development,Office,101 Mounts Bay Road,Building D,Williamsburg,VA,23185,office,candidate
+hrva-york-county-economic-tourism-development-loc-1,hrva-york-county-economic-tourism-development,Current office candidate,224 Ballard Street,,Yorktown,VA,23690,office,needs_review
+hrva-williamsburg-economic-development-authority-loc-1,hrva-williamsburg-economic-development-authority,City municipal contact,401 Lafayette Street,,Williamsburg,VA,23185,government_contact,candidate
+hrva-townebank-loc-1,hrva-townebank,Portsmouth - Churchland,5716 W High Street,Suite 100,Portsmouth,VA,23703,branch,candidate
+hrva-langley-federal-credit-union-loc-1,hrva-langley-federal-credit-union,Commercial lending office candidate,721 Lakefront Commons,Suite 102,Newport News,VA,23606,commercial_lending_office,candidate
+hrva-bayport-credit-union-loc-1,hrva-bayport-credit-union,Headquarters,One BayPort Way,Suite 350,Newport News,VA,23606,headquarters,candidate
+hrva-first-advantage-federal-credit-union-loc-1,hrva-first-advantage-federal-credit-union,Kiln Creek Branch & Headquarters,110 Cybernetics Way,,Yorktown,VA,23693,headquarters,candidate
+hrva-chartway-credit-union-loc-1,hrva-chartway-credit-union,Virginia Beach office,5700 Cleveland Street,,Virginia Beach,VA,23462,office,candidate
+hrva-abnb-federal-credit-union-loc-1,hrva-abnb-federal-credit-union,Corporate office,830 Greenbrier Circle,,Chesapeake,VA,23320,headquarters,candidate
+hrva-atlantic-union-bank-loc-1,hrva-atlantic-union-bank,Norfolk commercial office,999 Waterside Drive,Suite 900,Norfolk,VA,23510,commercial_office,candidate
+hrva-atlantic-union-bank-loc-2,hrva-atlantic-union-bank,Norfolk branch,539 W 21st St,,Norfolk,VA,,branch,candidate
+hrva-atlantic-union-bank-loc-3,hrva-atlantic-union-bank,Suffolk branch,3535 Bridge Rd,,Suffolk,VA,,branch,candidate
+hrva-atlantic-union-bank-loc-4,hrva-atlantic-union-bank,Virginia Beach branch,4505 Columbus St,Suite 100,Virginia Beach,VA,,branch,candidate
+hrva-atlantic-union-bank-loc-5,hrva-atlantic-union-bank,Williamsburg branch,4960 Monticello Ave,,Williamsburg,VA,,branch,candidate
+hrva-gather-workspaces-loc-1,hrva-gather-workspaces,Newport News,700 Tech Center Pkwy,Suite 200,Newport News,VA,23606,coworking_site,candidate
+hrva-gather-workspaces-loc-2,hrva-gather-workspaces,Norfolk,500 East Main Street,16th Floor,Norfolk,VA,23510,coworking_site,candidate
+hrva-gather-workspaces-loc-3,hrva-gather-workspaces,Virginia Beach,249 Central Park Avenue,Suite 300,Virginia Beach,VA,23462,coworking_site,candidate
