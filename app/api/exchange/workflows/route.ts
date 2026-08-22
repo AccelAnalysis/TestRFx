@@ -9,10 +9,10 @@ import {
   createSharedCollaboration,
   createSharedLink,
   createSharedReferral,
-  requestSharedMatch,
   setSharedRecordRelationship,
   SharedExchangeWorkflowError,
 } from "@/lib/server/exchange/shared-workflow-service";
+import { requestGovernedMatch } from "@/lib/server/exchange/match-service";
 import {
   relationshipKindForWorkflow,
   sharedServiceDefinitions,
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (workflow === "match") {
-      const matches = await requestSharedMatch({ actor, recordPublicId: body.recordId });
+      const matches = await requestGovernedMatch({ actor, recordPublicId: body.recordId });
       return NextResponse.json({ accepted: true, durable: true, workflow, matches });
     }
 
