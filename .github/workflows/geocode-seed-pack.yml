@@ -1,0 +1,29 @@
+name: geocode-seed-pack
+
+on:
+  push:
+    branches:
+      - feature/resource-provider-geocoding
+    paths:
+      - scripts/build-hampton-roads-geocode-manifest.mjs
+      - data/seed-packs/hampton-roads-va/locations.csv
+      - .github/workflows/geocode-seed-pack.yml
+
+permissions:
+  contents: read
+
+jobs:
+  geocode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build Census geocode manifest
+        run: node scripts/build-hampton-roads-geocode-manifest.mjs --output=/tmp/hampton-roads-geocodes.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hampton-roads-geocodes
+          path: /tmp/hampton-roads-geocodes.json
+          if-no-files-found: error
