@@ -82,8 +82,8 @@ describe("RecordCard media-first rendering", () => {
 
   it("resolves different governed record actions for own versus other organizations", () => {
     const viewer = { canIssueRfx: true, canRespondRfx: true, canOfferResources: true, canRequestResources: true, canContributeIntelligence: true, canManageCapabilities: true };
-    expect(resolveRecordActions("resources", baseRecord(), viewer).map((item) => item.label)).toEqual(["Request", "Share"]);
-    expect(resolveRecordActions("resources", baseRecord({ id: "res-own", ownedByViewer: true }), viewer).map((item) => item.label)).toEqual(["Edit", "Archive", "Share"]);
+    expect(resolveRecordActions("resources", baseRecord(), viewer).map((item) => item.label)).toEqual(["Request", "Refer", "Share"]);
+    expect(resolveRecordActions("resources", baseRecord({ id: "res-own", ownedByViewer: true }), viewer).map((item) => item.label)).toEqual(["Edit", "Archive", "Refer", "Share"]);
   });
 
   it("keeps only one card video playing at a time and restores the prior card to Play state", async () => {

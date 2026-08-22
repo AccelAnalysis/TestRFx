@@ -21,22 +21,8 @@ type ActionSpec = {
   toggle?: LensActionToggle;
 };
 
-const lens = (id: string, label: string, icon: string, trigger: LensActionTrigger = "direct"): ActionSpec => ({
-  id,
-  label,
-  icon,
-  trigger,
-  scope: "lens",
-});
-
-const record = (id: string, label: string, icon: string, trigger: LensActionTrigger): ActionSpec => ({
-  id,
-  label,
-  icon,
-  trigger,
-  scope: "record",
-  requiresRecord: true,
-});
+const lens = (id: string, label: string, icon: string, trigger: LensActionTrigger = "direct"): ActionSpec => ({ id, label, icon, trigger, scope: "lens" });
+const record = (id: string, label: string, icon: string, trigger: LensActionTrigger): ActionSpec => ({ id, label, icon, trigger, scope: "record", requiresRecord: true });
 
 const discoveryFallback = (savedLabel: string): ActionSpec[] => [
   lens("show-saved", savedLabel, "☆"),
@@ -48,116 +34,60 @@ const discoveryFallback = (savedLabel: string): ActionSpec[] => [
 function lensSpecs(activeLens: ExchangeLens, viewer: ExchangeViewerContext): ActionSpec[] {
   if (activeLens === "rfx") {
     return viewer.canIssueRfx
-      ? [
-          lens("create-rfx", "Create RFx", "+", "workflow"),
-          lens("show-mine", "My RFx", "my-records"),
-          lens("show-saved", "Watched", "☆"),
-          lens("show-all", "All", "≡"),
-        ]
+      ? [lens("create-rfx", "Create RFx", "+", "workflow"), lens("show-mine", "My RFx", "my-records"), lens("show-saved", "Watched", "☆"), lens("show-all", "All", "≡")]
       : discoveryFallback("Watched");
   }
-
   if (activeLens === "resources") {
     return viewer.canOfferResources
-      ? [
-          lens("offer-resource", "Offer", "+", "modal"),
-          lens("show-mine", "My Listings", "my-records"),
-          lens("show-saved", "Saved", "☆"),
-          lens("show-all", "All", "≡"),
-        ]
+      ? [lens("offer-resource", "Offer", "+", "modal"), lens("show-mine", "My Listings", "my-records"), lens("show-saved", "Saved", "☆"), lens("show-all", "All", "≡")]
       : discoveryFallback("Saved");
   }
-
   if (activeLens === "intelligence") {
     return viewer.canContributeIntelligence
-      ? [
-          lens("add-insight", "Add Insight", "+", "modal"),
-          lens("show-saved", "Tracked", "☆"),
-          lens("show-mapped", "Mapped", "⌖"),
-          lens("show-all", "All", "≡"),
-        ]
+      ? [lens("add-insight", "Add Insight", "+", "modal"), lens("show-saved", "Tracked", "☆"), lens("show-mapped", "Mapped", "⌖"), lens("show-all", "All", "≡")]
       : discoveryFallback("Tracked");
   }
-
   return viewer.canManageCapabilities
-    ? [
-        lens("show-mine", "My Capabilities", "my-records"),
-        lens("manage-capability-profile", "Manage", "✎", "workflow"),
-        lens("show-saved", "Following", "☆"),
-        lens("show-all", "All", "≡"),
-      ]
+    ? [lens("show-mine", "My Capabilities", "my-records"), lens("manage-capability-profile", "Manage", "✎", "workflow"), lens("show-saved", "Following", "☆"), lens("show-all", "All", "≡")]
     : discoveryFallback("Following");
 }
 
 function recordSpecs(activeLens: ExchangeLens, item: ExchangeRecord, viewer: ExchangeViewerContext): ActionSpec[] {
   const own = Boolean(item.ownedByViewer);
-
   if (activeLens === "rfx") {
-    if (own) {
-      return [
-        record("manage-rfx", "Manage", "✎", "workflow"),
-        record("invite-team", "Invite Team", "◎", "workflow"),
-        record("share", "Share", "↗", "direct"),
-      ];
-    }
+    if (own) return [record("manage-rfx", "Manage", "✎", "workflow"), record("invite-team", "Invite Team", "◎", "workflow"), record("share", "Share", "↗", "direct")];
     return [
       ...(viewer.canRespondRfx ? [record("respond", "Respond", "↵", "workflow")] : []),
       record("team", "Team", "◎", "workflow"),
       record("share", "Share", "↗", "direct"),
     ];
   }
-
   if (activeLens === "resources") {
     if (own) {
       return [
         record("edit-resource", "Edit", "✎", "modal"),
         record("archive-resource", "Archive", "▣", "workflow"),
-        record("share", "Share", "↗", "direct"),
+        record("refer", "Refer", "↗", "workflow"),
+        record("share", "Share", "⇧", "workflow"),
       ];
     }
     return [
       ...(viewer.canRequestResources ? [record("request-resource", "Request", "+", "modal")] : []),
-      record("share", "Share", "↗", "direct"),
+      record("refer", "Refer", "↗", "workflow"),
+      record("share", "Share", "⇧", "workflow"),
     ];
   }
-
   if (activeLens === "intelligence") {
-    if (own && viewer.canContributeIntelligence) {
-      return [
-        record("edit-insight", "Edit", "✎", "modal"),
-        record("compare", "Compare", "⇄", "workflow"),
-        record("share", "Share", "↗", "direct"),
-      ];
-    }
-    return [
-      record("add-note", "Add Note", "◌", "modal"),
-      record("compare", "Compare", "⇄", "workflow"),
-      record("share", "Share", "↗", "direct"),
-    ];
+    if (own && viewer.canContributeIntelligence) return [record("edit-insight", "Edit", "✎", "modal"), record("compare", "Compare", "⇄", "workflow"), record("share", "Share", "↗", "direct")];
+    return [record("add-note", "Add Note", "◌", "modal"), record("compare", "Compare", "⇄", "workflow"), record("share", "Share", "↗", "direct")];
   }
-
   if (own && viewer.canManageCapabilities) {
-    return [
-      record("manage-capabilities", "Manage", "✎", "workflow"),
-      record("ai-amacs", "AI → AMACS", "✦", "workflow"),
-      record("capability-evidence", "Evidence", "✓", "workflow"),
-      record("capability-gaps", "Gaps", "▥", "workflow"),
-    ];
+    return [record("manage-capabilities", "Manage", "✎", "workflow"), record("ai-amacs", "AI → AMACS", "✦", "workflow"), record("capability-evidence", "Evidence", "✓", "workflow"), record("capability-gaps", "Gaps", "▥", "workflow")];
   }
-
-  return [
-    record("match-rfx", "Match RFx", "match-rfx", "workflow"),
-    record("refer", "Refer", "↗", "workflow"),
-    record("share", "Share", "⇧", "direct"),
-  ];
+  return [record("match-rfx", "Match RFx", "match-rfx", "workflow"), record("refer", "Refer", "↗", "workflow"), record("share", "Share", "⇧", "direct")];
 }
 
-function toAction(
-  spec: ActionSpec,
-  position: 1 | 2 | 3 | 4,
-  ownership: LensActionOwnership,
-  item?: ExchangeRecord,
-): LensAction {
+function toAction(spec: ActionSpec, position: 1 | 2 | 3 | 4, ownership: LensActionOwnership, item?: ExchangeRecord): LensAction {
   const applicable = spec.requiresRecord ? Boolean(item) : true;
   return {
     id: spec.id,
@@ -195,17 +125,13 @@ export function deriveReferenceViewerContext(records: ExchangeRecord[]): Exchang
 export function resolveLensActions(activeLens: ExchangeLens, viewer: ExchangeViewerContext): LensAction[] {
   const specs = lensSpecs(activeLens, viewer);
   const actions = specs.map((spec, index) => toAction(spec, (index + 1) as 1 | 2 | 3 | 4, "any"));
-  if (actions.length !== 4 || new Set(actions.map((item) => item.position)).size !== 4) {
-    throw new Error(`Lens ${activeLens} must resolve exactly four governed lens controls.`);
-  }
+  if (actions.length !== 4 || new Set(actions.map((item) => item.position)).size !== 4) throw new Error(`Lens ${activeLens} must resolve exactly four governed lens controls.`);
   return actions;
 }
 
 export function resolveRecordActions(activeLens: ExchangeLens, item: ExchangeRecord, viewer: ExchangeViewerContext): LensAction[] {
   const ownership: LensActionOwnership = item.ownedByViewer ? "own" : "other";
-  return recordSpecs(activeLens, item, viewer)
-    .slice(0, 4)
-    .map((spec, index) => toAction(spec, (index + 1) as 1 | 2 | 3 | 4, ownership, item));
+  return recordSpecs(activeLens, item, viewer).slice(0, 4).map((spec, index) => toAction(spec, (index + 1) as 1 | 2 | 3 | 4, ownership, item));
 }
 
 export function isLensActionEnabled(action: LensAction) {
