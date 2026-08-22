@@ -1,5 +1,6 @@
 import "@testing-library/jest-dom/vitest";
-import { vi } from "vitest";
+import { cleanup } from "@testing-library/react";
+import { afterEach, vi } from "vitest";
 
 class TestIntersectionObserver implements IntersectionObserver {
   readonly root = null;
@@ -16,6 +17,8 @@ class TestIntersectionObserver implements IntersectionObserver {
     this.callback([{ boundingClientRect: rect, intersectionRatio: 1, intersectionRect: rect, isIntersecting: true, rootBounds: null, target, time: performance.now() }], this);
   }
 }
+
+afterEach(() => cleanup());
 
 Object.defineProperty(globalThis, "IntersectionObserver", { value: TestIntersectionObserver, writable: true });
 Object.defineProperty(Element.prototype, "scrollIntoView", { value: vi.fn(), writable: true });
