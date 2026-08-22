@@ -74,12 +74,12 @@ function resolvedMedia(record: ExchangeRecord): ResolvedExchangeCardMedia {
   const candidates: Array<ExchangeCardMedia | undefined> = [
     featured?.kind === "video" ? featured : undefined,
     featured && (featured.kind === "image" || featured.kind === "visualization") ? featured : undefined,
-    hasVisualSource(organizationHero) ? organizationHero : undefined,
+    organizationHero,
     featured?.kind === "logo" ? featured : undefined,
-    hasVisualSource(organizationLogo) ? organizationLogo : undefined,
+    organizationLogo,
   ];
 
-  const media = candidates.find(Boolean);
+  const media = candidates.find((candidate): candidate is ExchangeCardMedia => Boolean(candidate && hasVisualSource(candidate)));
   if (media) {
     return {
       kind: media.kind,
