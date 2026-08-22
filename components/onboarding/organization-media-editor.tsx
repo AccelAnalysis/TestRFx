@@ -21,21 +21,14 @@ type MediaSnapshot = {
 export function OrganizationMediaEditor({
   organizationId,
   organizationName,
-  logoUrl,
-  onLogoChange,
-  onSaveLogo,
-  savingLogo,
 }: {
   organizationId?: string;
   organizationName: string;
-  logoUrl: string;
-  onLogoChange: (value: string) => void;
-  onSaveLogo: () => void;
-  savingLogo: boolean;
 }) {
   const [snapshot, setSnapshot] = useState<MediaSnapshot | null>(null);
+  const [logoUrl, setLogoUrl] = useState("");
   const [videoUrl, setVideoUrl] = useState("");
-  const [working, setWorking] = useState(false);
+  const [working, setWorking] = useState<"logo" | "video" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -62,15 +55,43 @@ export function OrganizationMediaEditor({
       }
       const next = payload as MediaSnapshot;
       setSnapshot(next);
-      if (next.introVideo?.source === "linked") setVideoUrl(next.introVideo.canonicalUrl);
+      setLogoUrl(next.logoUrl);
+      setVideoUrl(next.introVideo?.source === "linked" ? next.introVideo.canonicalUrl : "");
     } catch {
       setError("Media could not be loaded.");
     }
   }
 
+  async function saveLogo() {
+    if (!organizationId) return;
+    setWorking("logo");
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/onboarding/organization-media", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ organizationId, logoUrl }),
+      });
+      const payload = await response.json() as MediaSnapshot | { error?: string };
+      if (!response.ok) {
+        setError("error" in payload && payload.error ? payload.error : "Logo could not be saved.");
+        return;
+      }
+      const next = payload as MediaSnapshot;
+      setSnapshot(next);
+      setLogoUrl(next.logoUrl);
+      setNotice("Logo saved.");
+    } catch {
+      setError("Logo could not be saved.");
+    } finally {
+      setWorking(null);
+    }
+  }
+
   async function saveVideo() {
     if (!organizationId || !parsedDraft) return;
-    setWorking(true);
+    setWorking("video");
     setError(null);
     setNotice(null);
     try {
@@ -84,18 +105,20 @@ export function OrganizationMediaEditor({
         setError("error" in payload && payload.error ? payload.error : "Video could not be saved.");
         return;
       }
-      setSnapshot(payload as MediaSnapshot);
+      const next = payload as MediaSnapshot;
+      setSnapshot(next);
+      setVideoUrl(next.introVideo?.source === "linked" ? next.introVideo.canonicalUrl : videoUrl);
       setNotice("Introduction video saved.");
     } catch {
       setError("Video could not be saved.");
     } finally {
-      setWorking(false);
+      setWorking(null);
     }
   }
 
   async function removeVideo() {
     if (!organizationId) return;
-    setWorking(true);
+    setWorking("video");
     setError(null);
     setNotice(null);
     try {
@@ -111,7 +134,7 @@ export function OrganizationMediaEditor({
     } catch {
       setError("Video could not be removed.");
     } finally {
-      setWorking(false);
+      setWorking(null);
     }
   }
 
@@ -127,9 +150,9 @@ export function OrganizationMediaEditor({
           </div>
           <label>
             <span>Logo URL</span>
-            <input value={logoUrl} onChange={(event) => onLogoChange(event.target.value)} inputMode="url" placeholder="https://" />
+            <input value={logoUrl} onChange={(event) => setLogoUrl(event.target.value)} inputMode="url" placeholder="https://" />
           </label>
-          <button type="button" onClick={onSaveLogo} disabled={savingLogo || !organizationId}>{savingLogo ? "Saving…" : "Save"}</button>
+          <button type="button" onClick={() => void saveLogo()} disabled={working !== null || !organizationId}>{working === "logo" ? "Saving…" : "Save"}</button>
         </div>
       </section>
 
@@ -151,7 +174,7 @@ export function OrganizationMediaEditor({
             <div>
               <strong>{approvedVideoProviderLabel(intro.provider)}</strong>
               <span>{intro.status === "ready" ? "Ready" : "Saved · checking length"}</span>
-              <button type="button" onClick={() => void removeVideo()} disabled={working}>Remove</button>
+              <button type="button" onClick={() => void removeVideo()} disabled={working !== null}>Remove</button>
             </div>
           </div>
         ) : null}
@@ -161,14 +184,14 @@ export function OrganizationMediaEditor({
             <span>YouTube or Vimeo link</span>
             <input value={videoUrl} onChange={(event) => setVideoUrl(event.target.value)} inputMode="url" placeholder="Paste video link" />
           </label>
-          <button type="button" onClick={() => void saveVideo()} disabled={working || !organizationId || !parsedDraft}>{working ? "Saving…" : intro ? "Change" : "Add video"}</button>
+          <button type="button" onClick={() => void saveVideo()} disabled={working !== null || !organizationId || !parsedDraft}>{working === "video" ? "Saving…" : intro ? "Change" : "Add video"}</button>
         </div>
         {videoUrl && !parsedDraft ? <p className={styles.inlineError}>Use a YouTube or Vimeo link.</p> : null}
       </section>
 
       <section className={`${styles.section} ${styles.future}`}>
         <div className={styles.sectionTitle}>
-          <div><h2>Upload a short video</h2><p>Direct RFxchange upload is prepared for a later media-service release.</p></div>
+          <div><h2>Upload a short video</h2><p>Direct upload will be available here.</p></div>
           <span>{ORGANIZATION_UPLOAD_VIDEO_MAX_SECONDS}s max</span>
         </div>
         <button type="button" disabled>Upload video</button>
