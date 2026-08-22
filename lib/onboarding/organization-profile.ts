@@ -92,7 +92,7 @@ export type OrganizationProfileSubmission = {
   contactPhone: string;
   brandName: string;
   logoUrl: string;
-  introVideo: OrganizationIntroVideo | null;
+  introVideo?: OrganizationIntroVideo | null;
   searchable: boolean;
   mapVisible: boolean;
   publicContact: boolean;
