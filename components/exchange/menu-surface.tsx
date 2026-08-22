@@ -61,6 +61,7 @@ export function MenuSurface({
 }) {
   const [navigationStack, setNavigationStack] = useState<string[]>(() => initialSectionId ? [initialSectionId] : []);
   const activeNode = navigationStack.length ? menuNodeById[navigationStack[navigationStack.length - 1]] : undefined;
+  const showIdentity = context.organizationName !== "Your Organization" || context.userName !== "Reference Member";
 
   useEffect(() => {
     if (initialSectionId) setNavigationStack([initialSectionId]);
@@ -123,16 +124,18 @@ export function MenuSurface({
         <div className={styles.scroll}>
           {!activeNode ? (
             <>
-              <div className={styles.identityRow}>
-                <span className={styles.avatar} aria-hidden>{context.organizationInitials}</span>
-                <div>
-                  <strong>{context.organizationName}</strong>
-                  {context.userName && context.userName !== "Reference Member" ? <span>{context.userName}</span> : null}
+              {showIdentity ? (
+                <div className={styles.identityRow}>
+                  <span className={styles.avatar} aria-hidden>{context.organizationInitials}</span>
+                  <div>
+                    <strong>{context.organizationName}</strong>
+                    {context.userName && context.userName !== "Reference Member" ? <span>{context.userName}</span> : null}
+                  </div>
+                  {context.organizationCount > 1 ? (
+                    <button type="button" className={styles.switchButton} onClick={() => navigate(menuNodeById["switch-active-organization"])}>Switch</button>
+                  ) : null}
                 </div>
-                {context.organizationCount > 1 ? (
-                  <button type="button" className={styles.switchButton} onClick={() => navigate(menuNodeById["switch-active-organization"])}>Switch</button>
-                ) : null}
-              </div>
+              ) : null}
 
               {sectionGroups.map((group) => (
                 <section className={styles.group} key={group.label} aria-labelledby={`menu-${group.label.replace(/\W+/g, "-").toLowerCase()}`}>
