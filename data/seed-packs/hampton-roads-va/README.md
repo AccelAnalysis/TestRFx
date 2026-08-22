@@ -1,74 +1,99 @@
 # Hampton Roads, VA — Resource Provider Seed Pack
 
-Version: `0.1.0`  
-Prepared: `2026-08-22`  
-Status: **research candidate / staging only**
+Version: `0.2.0`  
+Prepared / reconciled: `2026-08-22`  
+Status: **source-backed seed data, ready for protected staging**
 
-This pack contains **32 real provider candidates** for the RFxchange Resources ecosystem in Hampton Roads, Virginia:
+This pack contains **32 real Resource Provider candidates** for Hampton Roads, Virginia:
 
-- **24 community / institutional candidates** — proposed `free_standard`
-- **8 commercial candidates** — proposed `commercial_paid`
-- **6 classification-review flags**
-- **17 canonicalization-review flags**
+- **24 Community / Institutional** → `free_standard`
+- **8 Commercial** → `commercial_paid`
+- **0 provider-classification review flags** after reconciliation to the merged Resource Provider taxonomy
+- **17 canonicalization / entity-shape review flags**
 - **40 sourced location rows**
 - **45 provenance rows**
+- **0 fabricated coordinates**
 
-It is intentionally a **data-only pack**. It does not create canonical Organizations, claim records, Resource records, entitlements, coordinates, or billing state.
+The pack is reconciled directly to the Resource Provider Seeding, Unclaimed Listings & Claims framework merged in PR #65. It uses that framework's exact provider-type IDs, Resource category IDs, classification policy, staging API, deduplication behavior, canonical Organization model, and existing organization-claim handoff.
 
-## Purpose
+## What this PR does
 
-The pack is designed to be reconciled with the in-progress **Resource Provider Seeding, Unclaimed Listings & Claims** framework before any live import. It assumes that framework will stage candidates before canonical creation, preserve provenance, run entity resolution/deduplication, classify provider participation, geocode approved locations, and hand unclaimed records into the existing organization-claim workflow.
+1. Replaces the two fictional Resource Provider preview fixtures with a **read-only, source-backed projection of these 32 Hampton Roads candidates**, so the current TestRFx Resources drawer/detail experience is populated with real providers immediately.
+2. Keeps those preview records **off-map** until an address has passed review and an authoritative geocoding/location process supplies coordinates. The pack does not guess coordinates.
+3. Provides normalized research data for candidate identity, locations, provider classification, service/resource category, provenance, aliases, parent/program relationships, and review notes.
+4. Adds `scripts/stage-hampton-roads-provider-seed-pack.mjs`, which converts the CSV data into PR #65's exact `ProviderSourceCandidate` + `ExternalSourceDescriptor` contract and submits each candidate through the protected ingestion endpoint.
+5. Does **not** automatically promote staging candidates into canonical Organizations/Resources. Promotion remains the explicit admin step after deduplication and review, exactly as PR #65 requires.
 
 ## Files
 
-- `candidates.csv` — one row per provider candidate, including provider/participation classifications, entity-shape and parent hints, review flags, aliases, service-area labels, resource-category candidates, and review notes.
-- `locations.csv` — normalized candidate locations keyed back to `seed_key`; no coordinates are fabricated.
-- `sources.csv` — normalized provenance ledger for the official public sources used by the pack.
+- `candidates.csv` — one row per provider candidate using the merged framework's exact provider-type and Resource-category IDs, plus source-backed service name/summary, participation class, entity-shape hints, aliases, and review flags.
+- `locations.csv` — 40 sourced locations keyed to the provider seed records. Rows needing address review remain flagged rather than being silently normalized.
+- `sources.csv` — 45 provenance rows with official public source URLs, retrieval date, source type, use basis, and facts supported.
+- `../../../../scripts/stage-hampton-roads-provider-seed-pack.mjs` — protected staging utility; no external npm dependency is required.
 
-The normalized CSV layout is deliberate: it can be mapped into the framework's eventual staging tables without pre-empting their final table or field names.
+## Framework reconciliation
 
-## Import rules
+The original research pass used descriptive provider-type names. PR #65 subsequently established the authoritative IDs. This pack now maps directly to them, including:
 
-1. **Do not insert these rows directly into canonical Organizations.**
-2. Import to the framework's staging-candidate layer after its schema is finalized.
-3. Run organization/entity resolution before creating anything new.
-4. Treat every approved listing as `unclaimed` until the existing claim workflow changes that state.
-5. Before claim, publish only source-supported factual fields permitted by policy; do not turn candidate resource categories into provider-authored marketing copy.
-6. Geocode after normalization/deduplication. This pack intentionally does **not** invent coordinates.
-7. Provider class and participation policy are *candidates*, not irreversible facts. Flagged records require admin review.
+- Hampton Roads Alliance → `regional-development-organization`
+- local economic-development departments → `economic-development-office`
+- Newport News / Williamsburg EDAs → `economic-development-authority`
+- Chambers → `chamber-of-commerce`
+- Hampton Roads SBDC → `sbdc`
+- Hampton Roads Workforce Council → `workforce-board`
+- ODU IIE → `public-university`
+- 757 Collab / Launchpad / REaKTOR → `nonprofit-incubator`
+- Bloom Coworking → `public-coworking`
+- The HIVE → `public-program`
+- Retail Alliance / Virginia Maritime Association → `nonprofit-business-association`
+- TowneBank / Atlantic Union Bank → `bank`
+- Langley / BayPort / 1st Advantage / Chartway / ABNB → `credit-union`
+- Gather Workspaces → `coworking-space`
 
-## Important deduplication / canonicalization cases
+Because `bank`, `credit-union`, and `coworking-space` are explicit Commercial provider types in PR #65, the provisional credit-union classification-review flags have been removed. Identity claiming and factual corrections remain free; commercial Resource participation remains subject to `commercial_paid` entitlement.
+
+## Important canonicalization cases
 
 ### TowneBank / Old Point
 
-Do **not** seed Old Point National Bank as a second current bank. TowneBank states Old Point locations, accounts, and systems officially came under the TowneBank name on February 9, 2026. Old Point names are retained as aliases/source identifiers so importer matching can collapse older source records into the TowneBank organization.
+Do **not** seed Old Point National Bank as a second current bank. TowneBank states that Old Point locations, accounts, and systems officially came under the TowneBank name on **February 9, 2026**. The Old Point names remain aliases/source identifiers so entity resolution can absorb older records into the TowneBank organization rather than create a duplicate.
 
 ### Government departments and programs
 
-Local economic-development departments, The HIVE, REaKTOR, Launchpad, and ODU IIE may be operating units/programs rather than independent legal organizations. The future importer should reconcile them to existing City/County/University organization identities where appropriate while preserving provider-specific profiles and locations.
+Local economic-development departments, The HIVE, REaKTOR, Launchpad, ODU IIE, and Bloom may be operating units, programs, DBAs, or jointly sponsored initiatives rather than independent legal organizations. Their parent/entity-shape hints are carried in the staging `raw` payload so the admin/deduplication review can attach them to the correct canonical Organization without losing provider-specific identity or provenance.
 
-### Credit unions
+### Locations requiring review
 
-Langley, BayPort, 1st Advantage, Chartway, and ABNB are included in the **commercial candidate** lane because they offer business/commercial financial services. Because credit unions are member-owned/not-for-profit institutions, each is flagged for participation-policy review before `commercial_paid` is made authoritative.
+- **Hampton REaKTOR**: no street address is promoted from this pack; it remains off-map until an authoritative current location is resolved.
+- **York County Economic & Tourism Development**: the candidate address remains `needs_review` because official county materials have shown different office addresses; the staging utility deliberately omits that address from the canonical candidate.
+- **Hampton Roads SBDC secondary offices**: source labels/secondary-office details remain in provenance for review; the clearly sourced main-contact location is used as the staging candidate address.
 
-## Geography
+## Dry-run validation
 
-`hampton-roads-va` is a market-seeding boundary for establishing useful provider density. It is not asserted as a legal, statistical, or exclusive service-territory definition.
+From the repository root:
+
+```bash
+node scripts/stage-hampton-roads-provider-seed-pack.mjs --dry-run
+```
+
+The utility validates the pack cardinality, source references, duplicate seed IDs, classification readiness, location-review count, and confirms that no coordinates are supplied.
+
+## Stage into a configured TestRFx runtime
+
+The runtime must have PR #65's database migration applied and `RFXCHANGE_INGESTION_TOKEN` configured. Then:
+
+```bash
+RFXCHANGE_INGESTION_TOKEN="..." \
+node scripts/stage-hampton-roads-provider-seed-pack.mjs \
+  --base-url=https://your-testrfx-runtime.example
+```
+
+Each provider is sent through `/api/resources/providers/ingest` as a `stage` action. The framework then performs normalization, provider classification, existing Organization/domain/name/locality deduplication, and writes the candidate plus provenance into the ingestion review layer.
+
+**Staging is not promotion.** No candidate becomes a canonical visible runtime listing until an authorized reviewer explicitly promotes it (or attaches it to an existing canonical Organization) through the framework's promotion path.
 
 ## Source-use discipline
 
-`sources.csv` stores official public URLs as `public_factual_reference`. The seed pack uses facts such as identity, location, organizational relationship, and service type. It does not copy promotional descriptions from provider websites.
+The pack is built from official public provider, institution, university, financial-institution, and local-government pages. `sources.csv` records those sources as `public_factual_reference`. The dataset uses factual identity, location, organizational relationship, and service-type information; it does not copy provider marketing descriptions.
 
-## Suggested reconciliation target
-
-When the Resource Provider Seeding framework PR opens, map these neutral fields into its authoritative model:
-
-- `seed_key` → staging/source-record key
-- provider / participation candidates → provider classification model
-- `locations.csv` → normalized staging locations, then geocoding
-- `sources.csv` → external source/source-record provenance
-- aliases / parent candidates → entity-resolution evidence
-- `ingestion_status` + review flags → admin ingestion/review state
-- `intended_claim_state=unclaimed` → existing organization identity / claim state after canonical approval
-
-No competing identity, map, claim, or entitlement architecture should be introduced by this pack.
+The result is additive to the RFxchange chassis: one canonical Organization/Location/Resource graph, one existing claim workflow, and one Resources lens—not a parallel directory or identity system.
