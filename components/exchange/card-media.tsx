@@ -1,18 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { ExchangeCardPlacement, ExchangeCardStatus, ExchangeRecord } from "@/lib/exchange/contracts";
+import type { ExchangeCardPlacement, ExchangeCardStatus, ExchangeLensIconId, ExchangeRecord } from "@/lib/exchange/contracts";
 import type { ResolvedExchangeCardMedia } from "@/lib/exchange/card-presentation";
+import { ExchangeIcon } from "./exchange-nav-icon";
 import styles from "./card-media.module.css";
 
 type ActiveExchangeCardVideo = { video: HTMLVideoElement; stop: () => void };
 let activeExchangeCardVideo: ActiveExchangeCardVideo | null = null;
 
-const fallbackGlyph: Record<ExchangeRecord["type"], string> = {
-  rfx: "⌁",
-  resource: "◫",
-  intelligence: "◉",
-  capability: "◇",
+const fallbackIcon: Record<ExchangeRecord["type"], ExchangeLensIconId> = {
+  rfx: "opportunity-document",
+  resource: "resource-ecosystem",
+  intelligence: "intelligence-signal",
+  capability: "capability-stack",
 };
 
 const fallbackTone: Record<ExchangeRecord["type"], string> = {
@@ -155,7 +156,9 @@ export function CardMedia({
           />
         ) : (
           <span className={`${styles.fallback} ${fallbackTone[record.type]}`} aria-hidden="true">
-            <span className={styles.fallbackGlyph}>{fallbackGlyph[record.type]}</span>
+            <span className={styles.fallbackGlyph}>
+              <ExchangeIcon icon={fallbackIcon[record.type]} size={52} strokeWidth={1.7} />
+            </span>
             <span className={styles.fallbackLabel}>{media.label}</span>
           </span>
         )}
