@@ -1,19 +1,23 @@
-import { NextResponse } from "next/server";
-import { assertOrganizationMembership, CapabilityServiceError, searchActiveAmacsConcepts } from "@/lib/server/capability-enrichment-repository";
+import { NextRequest, NextResponse } from "next/server";
+import { CapabilityServiceError, searchActiveAmacsConcepts } from "@/lib/server/capability-enrichment-repository";
 import { query, ServiceConfigurationError } from "@/lib/server/postgres";
+import { ExchangeForbiddenError, ExchangeUnauthorizedError, resolveExchangeActor } from "@/lib/server/exchange/actor";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function jsonError(error: unknown) {
   if (error instanceof CapabilityServiceError) return NextResponse.json({ error: error.message }, { status: error.status });
+  if (error instanceof ExchangeUnauthorizedError) return NextResponse.json({ error: error.message }, { status: 401 });
+  if (error instanceof ExchangeForbiddenError) return NextResponse.json({ error: error.message }, { status: 403 });
   if (error instanceof ServiceConfigurationError) return NextResponse.json({ error: error.message, service: "postgres" }, { status: 503 });
   console.error(error);
   return NextResponse.json({ error: "AMACS service failed." }, { status: 500 });
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+    await resolveExchangeActor(request);
+    const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
     if (q.length < 2) return NextResponse.json({ candidates: [] });
     return NextResponse.json({ candidates: await searchActiveAmacsConcepts(q) });
   } catch (error) {
@@ -21,15 +25,15 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const actor = await resolveExchangeActor(request);
     const payload = await request.json() as { organizationId?: unknown; text?: unknown };
-    const organizationId = typeof payload.organizationId === "string" ? payload.organizationId.trim() : "";
+    const requestedOrganizationId = typeof payload.organizationId === "string" ? payload.organizationId.trim() : actor.organizationId;
     const text = typeof payload.text === "string" ? payload.text.trim() : "";
-    const userId = request.headers.get("x-rfxchange-user-id")?.trim() || undefined;
-    if (!UUID.test(organizationId)) throw new CapabilityServiceError(400, "organizationId must be a UUID.");
+    if (!UUID.test(requestedOrganizationId)) throw new CapabilityServiceError(400, "organizationId must be a UUID.");
+    if (requestedOrganizationId !== actor.organizationId) throw new CapabilityServiceError(403, "The requested organization does not match the active organization session.");
     if (text.length < 4) throw new CapabilityServiceError(400, "Capability text is required for interpretation.");
-    await assertOrganizationMembership(userId, organizationId);
 
     const interpretationUrl = process.env.AMACS_INTERPRETATION_URL?.trim();
     if (!interpretationUrl) {
