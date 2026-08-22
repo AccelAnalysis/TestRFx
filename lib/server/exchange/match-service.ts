@@ -15,6 +15,18 @@ export interface GovernedMatchResult {
   requirements: Array<{ key: string; label: string; state: "aligned" | "missing" | "uncertain"; mandatory: boolean; amacsConceptId?: string }>;
 }
 
+type RfxRequirementRow = {
+  rfx_record_id: string;
+  exchange_record_id: string;
+  public_id: string;
+  title: string;
+  organization: string;
+  requirement_key: string | null;
+  label: string | null;
+  mandatory: boolean | null;
+  metadata: unknown;
+};
+
 function structuredAmacsConcept(metadata: unknown) {
   if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return undefined;
   const record = metadata as Record<string, unknown>;
@@ -53,17 +65,7 @@ export async function requestGovernedMatch(input: { actor: ExchangeServerActor; 
   `;
   const conceptIds = new Set(capabilityConcepts.map((item) => item.concept_id));
 
-  const rfxRows = await sql<{
-    rfx_record_id: string;
-    exchange_record_id: string;
-    public_id: string;
-    title: string;
-    organization: string;
-    requirement_key: string | null;
-    label: string | null;
-    mandatory: boolean | null;
-    metadata: unknown;
-  }[]>`
+  const queriedRows = await sql<RfxRequirementRow[]>`
     SELECT rr.id::text AS rfx_record_id,
            er.id::text AS exchange_record_id,
            er.public_id,
@@ -81,8 +83,9 @@ export async function requestGovernedMatch(input: { actor: ExchangeServerActor; 
       AND COALESCE(rr.lifecycle_status, 'open') IN ('open', 'issued', 'active')
     ORDER BY er.updated_at DESC, er.public_id, req.sort_order, req.requirement_key
   `;
+  const rfxRows: RfxRequirementRow[] = Array.from(queriedRows);
 
-  const grouped = new Map<string, typeof rfxRows>();
+  const grouped = new Map<string, RfxRequirementRow[]>();
   for (const row of rfxRows) {
     const list = grouped.get(row.exchange_record_id) ?? [];
     list.push(row);
@@ -92,6 +95,7 @@ export async function requestGovernedMatch(input: { actor: ExchangeServerActor; 
   const results: GovernedMatchResult[] = [];
   for (const rows of grouped.values()) {
     const head = rows[0];
+    if (!head) continue;
     const requirements = rows
       .filter((row) => row.requirement_key && row.label)
       .map((row) => {
