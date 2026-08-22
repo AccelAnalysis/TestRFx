@@ -10,7 +10,7 @@ export interface CapabilityClaim { id: string; name: string; description: string
 export interface CapabilityGap { id: string; label: string; reason: string; suggestedSearch: string; }
 export interface CapabilityRfxMatch { id: string; title: string; issuer: string; coverage: CapabilityMatchCoverage; summary: string; }
 export interface CapabilityOrganizationProfile {
-  exchangeRecordId: string; organizationName: string; summary: string; geography: string; serviceAreas: string[]; keywords: string[];
+  exchangeRecordId: string; organizationId?: string; organizationName: string; summary: string; geography: string; serviceAreas: string[]; keywords: string[];
   capabilities: CapabilityClaim[]; profileStrength: number; gaps: CapabilityGap[]; rfxMatches: CapabilityRfxMatch[];
   location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean;
   cardMedia?: ExchangeCardMedia; organizationMedia?: ExchangeCardOrganizationMedia;
@@ -22,7 +22,7 @@ export function capabilityProfileToExchangeRecord(profile: CapabilityOrganizatio
   const mapped = capabilityMappedCount(profile); const evidence = capabilityEvidenceCount(profile);
   const searchableCapabilityTerms = profile.capabilities.flatMap((capability) => [capability.name, capability.amacsNodeId ?? "", capability.amacsLabel ?? "", ...capability.specialties]);
   return {
-    id: profile.exchangeRecordId, type: "capability", title: leadCapability, organization: profile.ownedByViewer ? "Accel Analysis" : profile.organizationName, summary: profile.summary, geography: profile.geography,
+    id: profile.exchangeRecordId, type: "capability", title: leadCapability, organization: profile.organizationName, summary: profile.summary, geography: profile.geography,
     metadata: [...searchableCapabilityTerms, ...profile.keywords, ...profile.serviceAreas, `${mapped} AMACS mapped`, `${evidence} evidence items`].filter(Boolean),
     location: profile.location, ownedByViewer: profile.ownedByViewer, featured: profile.featured, saved: profile.saved,
     card: {

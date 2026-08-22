@@ -1,9 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   acceptAmacsMapping,
   addCapabilityEvidence,
   archiveCapabilityClaim,
-  assertOrganizationMembership,
   CapabilityServiceError,
   deleteCapabilityEvidence,
   getCapabilityEnrichmentSnapshot,
@@ -15,19 +14,12 @@ import {
 import { saveOrganizationProfileContext } from "@/lib/server/organization-profile-context-repository";
 import { ServiceConfigurationError } from "@/lib/server/postgres";
 import type { CapabilityEvidenceKind } from "@/lib/onboarding/capability-enrichment";
+import { ExchangeForbiddenError, ExchangeUnauthorizedError, resolveExchangeActor } from "@/lib/server/exchange/actor";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EVIDENCE_KINDS = new Set<CapabilityEvidenceKind>(["certification", "license", "case-study", "supporting-document"]);
 const TERM_FIELDS = new Set(["tags", "keywords", "specialties"]);
 const PROFILE_LIST_FIELDS = new Set(["industries", "service_offerings"]);
-
-function actorUserId(request: Request) {
-  return request.headers.get("x-rfxchange-user-id")?.trim() || undefined;
-}
-
-function organizationIdFromUrl(request: Request) {
-  return new URL(request.url).searchParams.get("organizationId")?.trim() ?? "";
-}
 
 function requiredString(value: unknown, label: string) {
   if (typeof value !== "string" || !value.trim()) throw new CapabilityServiceError(400, `${label} is required.`);
@@ -51,29 +43,38 @@ function stringArray(value: unknown, label: string) {
 
 function jsonError(error: unknown) {
   if (error instanceof CapabilityServiceError) return NextResponse.json({ error: error.message }, { status: error.status });
+  if (error instanceof ExchangeUnauthorizedError) return NextResponse.json({ error: error.message }, { status: 401 });
+  if (error instanceof ExchangeForbiddenError) return NextResponse.json({ error: error.message }, { status: 403 });
   if (error instanceof ServiceConfigurationError) return NextResponse.json({ error: error.message, service: "postgres" }, { status: 503 });
   console.error(error);
   return NextResponse.json({ error: "Capability Enrichment service failed." }, { status: 500 });
 }
 
-export async function GET(request: Request) {
+function assertRequestedOrganization(value: unknown, activeOrganizationId: string) {
+  if (value === undefined || value === null || value === "") return activeOrganizationId;
+  const requested = requireUuid(value, "organizationId");
+  if (requested !== activeOrganizationId) throw new CapabilityServiceError(403, "The requested organization does not match the active organization session.");
+  return requested;
+}
+
+export async function GET(request: NextRequest) {
   try {
-    const organizationId = requireUuid(organizationIdFromUrl(request), "organizationId");
-    await assertOrganizationMembership(actorUserId(request), organizationId);
+    const actor = await resolveExchangeActor(request);
+    const requested = request.nextUrl.searchParams.get("organizationId");
+    const organizationId = assertRequestedOrganization(requested, actor.organizationId);
     return NextResponse.json(await getCapabilityEnrichmentSnapshot(organizationId));
   } catch (error) {
     return jsonError(error);
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const actor = await resolveExchangeActor(request);
     const payload = await request.json() as Record<string, unknown>;
     const action = requiredString(payload.action, "action");
-    const organizationId = requireUuid(payload.organizationId, "organizationId");
-    const userId = actorUserId(request);
-    await assertOrganizationMembership(userId, organizationId);
-    if (!userId) throw new CapabilityServiceError(401, "Authenticated user context is required.");
+    const organizationId = assertRequestedOrganization(payload.organizationId, actor.organizationId);
+    const userId = actor.userId;
 
     if (action === "save-profile-list") {
       const field = requiredString(payload.field, "field");
