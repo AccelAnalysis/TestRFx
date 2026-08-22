@@ -180,13 +180,16 @@
   cursor: pointer;
 }
 
-.skeletonStack { display: grid; gap: 12px; }
+.skeletonStack { display: grid; gap: 14px; }
 .skeletonCard {
-  height: 136px;
+  height: 330px;
+  overflow: hidden;
   border: 1px solid rgba(37, 41, 50, .1);
   border-radius: 18px;
-  background: linear-gradient(100deg, #f1f0ec 20%, #faf9f6 42%, #f1f0ec 64%);
-  background-size: 220% 100%;
+  background:
+    linear-gradient(to bottom, rgba(229, 230, 226, .94) 0 57%, transparent 57%),
+    linear-gradient(100deg, #f1f0ec 20%, #faf9f6 42%, #f1f0ec 64%);
+  background-size: 100% 100%, 220% 100%;
   animation: drawer-shimmer 1.25s linear infinite;
 }
 
@@ -207,8 +210,8 @@
 .peek :global(.action-rail) { display: none; }
 
 @keyframes drawer-shimmer {
-  from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
+  from { background-position: 0 0, 100% 0; }
+  to { background-position: 0 0, -100% 0; }
 }
 
 @media (min-width: 900px) {
@@ -236,6 +239,7 @@
   .sortControl select { width: 96px; padding-inline: 8px; }
   .filterButton { padding-inline: 9px; }
   .filterPanel { grid-template-columns: 1fr; }
+  .skeletonCard { height: 310px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

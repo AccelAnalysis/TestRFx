@@ -3,70 +3,59 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: 0 12px 10px;
-  padding: 9px 10px;
-  border: 1px solid rgba(101, 112, 122, .24);
-  border-radius: 12px;
-  background: rgba(101, 112, 122, .07);
-  color: #4f5963;
-  font-size: 10px;
+  margin: 0 14px 2px;
+  padding: 1px 0 8px;
+  border: 0;
+  background: transparent;
+  color: #69727c;
+  font-size: 11px;
+  line-height: 1.3;
 }
 
 .cardBanner strong { color: #303841; }
 
-.claimLink,
+.claimLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #244f93;
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.claimLink:hover { text-decoration: underline; }
+
 .detailClaimLink {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 34px;
-  padding: 0 11px;
+  min-height: 38px;
+  padding: 0 12px;
   border: 1px solid rgba(37, 41, 50, .18);
   border-radius: 10px;
   background: white;
   color: #252932;
-  font-size: 10px;
-  font-weight: 800;
+  font-size: 11px;
+  font-weight: 750;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .claimLink:focus-visible,
-.detailClaimLink:focus-visible {
-  outline: 3px solid rgba(46, 94, 170, .3);
-  outline-offset: 2px;
-}
+.detailClaimLink:focus-visible { outline: 3px solid rgba(46, 94, 170, .3); outline-offset: 2px; }
 
-.provenance {
-  margin-top: 18px;
-  padding: 15px;
-  border: 1px solid rgba(101, 112, 122, .2);
-  border-radius: 15px;
-  background: rgba(101, 112, 122, .06);
-}
-
+.provenance { margin-top: 18px; padding: 15px; border: 1px solid rgba(101, 112, 122, .2); border-radius: 15px; background: rgba(101, 112, 122, .06); }
 .provenance h2 { margin: 0 0 8px; font-size: 16px; }
 .provenance p { margin: 5px 0; color: #525d67; font-size: 13px; line-height: 1.5; }
 .provenance a { color: #244f93; }
 
-.claimPanel {
-  margin-top: 18px;
-  padding: 16px;
-  border: 1px solid rgba(214, 162, 58, .3);
-  border-radius: 15px;
-  background: rgba(214, 162, 58, .08);
-}
-
+.claimPanel { margin-top: 18px; padding: 16px; border: 1px solid rgba(214, 162, 58, .3); border-radius: 15px; background: rgba(214, 162, 58, .08); }
 .claimPanel h2 { margin: 0 0 8px; font-size: 17px; }
 .claimPanel p { margin: 0 0 12px; color: #555b64; font-size: 13px; line-height: 1.55; }
-
-.policyNote {
-  display: inline-flex;
-  margin-top: 7px;
-  padding: 5px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, .72);
-  color: #5e4b1a;
-  font-size: 10px;
-  font-weight: 780;
-}
+.policyNote { display: inline-flex; margin-top: 7px; padding: 5px 8px; border-radius: 999px; background: rgba(255, 255, 255, .72); color: #5e4b1a; font-size: 10px; font-weight: 780; }

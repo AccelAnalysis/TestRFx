@@ -35,6 +35,7 @@ export const intelligenceSeed: ExchangeRecord[] = [
     location: { lat: 36.9, lng: -76.71 },
     ownedByViewer: true,
     saved: true,
+    card: { classifications: ["Procurement", "Small Business"], status: { label: "Current", tone: "info" } },
   },
   {
     id: "intel-001",
@@ -46,6 +47,10 @@ export const intelligenceSeed: ExchangeRecord[] = [
     metadata: ["Market signal", "30-day view", "Maritime", "Source: reference Exchange activity"],
     location: { lat: 36.84, lng: -76.32 },
     featured: true,
+    card: {
+      media: { kind: "visualization", label: "Supply signal", src: "/exchange-media/intelligence-maritime-signal.svg", alt: "Illustrated maritime supply-density signal for TestRFx reference intelligence" },
+      classifications: ["Maritime", "Supply Density"], status: { label: "Updated", tone: "info" }, placement: "featured",
+    },
   },
   {
     id: "intel-002",
@@ -55,6 +60,7 @@ export const intelligenceSeed: ExchangeRecord[] = [
     summary: "Reference demand signal demonstrating an intelligence record that remains useful in the result sheet without a map position.",
     geography: "Virginia",
     metadata: ["Demand signal", "60-day view", "Workforce", "Off-map record"],
+    card: { classifications: ["Workforce", "Training"], status: { label: "Current", tone: "info" } },
   },
   {
     id: "intel-003",
@@ -65,46 +71,15 @@ export const intelligenceSeed: ExchangeRecord[] = [
     geography: "South Hampton Roads, VA",
     metadata: ["Capability signal", "60-day view", "Electrical", "Source: deterministic reference dataset"],
     location: { lat: 36.78, lng: -76.42 },
+    card: { classifications: ["Electrical", "Supply Gap"], status: { label: "Current", tone: "warning" } },
   },
 ];
 
 export const intelligenceDetails: Record<string, IntelligenceDetail> = {
-  "intel-own-001": {
-    signalType: "Participant observation",
-    observedPeriod: "90-day reference window",
-    sourceLabel: "Accel Analysis observation",
-    sourceType: "participant-observation",
-    provenance: "Reference-only participant contribution. Production must retain author, organization, timestamps, visibility, evidence, and revision history server-side.",
-    relatedCapabilities: ["Business Intelligence", "Market Analysis"],
-    relatedOrganizations: ["Accel Analysis"],
-  },
-  "intel-001": {
-    signalType: "Market signal",
-    observedPeriod: "30-day reference window",
-    sourceLabel: "Deterministic RFxchange activity fixture",
-    sourceType: "exchange-activity",
-    provenance: "Derived only from deterministic TestRFx fixture data. It is not a census of the market and must not be presented as production market truth.",
-    relatedCapabilities: ["Maritime Services", "Industrial Supply"],
-    relatedOrganizations: ["Tidewater Technical Services", "Atlantic Skills Group"],
-  },
-  "intel-002": {
-    signalType: "Demand signal",
-    observedPeriod: "60-day reference window",
-    sourceLabel: "Deterministic TestRFx fixture",
-    sourceType: "reference-dataset",
-    provenance: "Off-map reference signal used to prove that Intelligence results are not restricted to geolocated records.",
-    relatedCapabilities: ["Training", "Workforce Development"],
-    relatedOrganizations: ["Regional Working Dog Institute"],
-  },
-  "intel-003": {
-    signalType: "Capability signal",
-    observedPeriod: "60-day reference window",
-    sourceLabel: "Deterministic TestRFx fixture",
-    sourceType: "reference-dataset",
-    provenance: "Reference comparison signal only. Production comparison requires governed supply, demand, geography, freshness, and source provenance.",
-    relatedCapabilities: ["Industrial Electrical Installation"],
-    relatedOrganizations: ["Tidewater Technical Services"],
-  },
+  "intel-own-001": { signalType: "Participant observation", observedPeriod: "90-day reference window", sourceLabel: "Accel Analysis observation", sourceType: "participant-observation", provenance: "Reference-only participant contribution. Production must retain author, organization, timestamps, visibility, evidence, and revision history server-side.", relatedCapabilities: ["Business Intelligence", "Market Analysis"], relatedOrganizations: ["Accel Analysis"] },
+  "intel-001": { signalType: "Market signal", observedPeriod: "30-day reference window", sourceLabel: "Deterministic RFxchange activity fixture", sourceType: "exchange-activity", provenance: "Derived only from deterministic TestRFx fixture data. It is not a census of the market and must not be presented as production market truth.", relatedCapabilities: ["Maritime Services", "Industrial Supply"], relatedOrganizations: ["Tidewater Technical Services", "Atlantic Skills Group"] },
+  "intel-002": { signalType: "Demand signal", observedPeriod: "60-day reference window", sourceLabel: "Deterministic TestRFx fixture", sourceType: "reference-dataset", provenance: "Off-map reference signal used to prove that Intelligence results are not restricted to geolocated records.", relatedCapabilities: ["Training", "Workforce Development"], relatedOrganizations: ["Regional Working Dog Institute"] },
+  "intel-003": { signalType: "Capability signal", observedPeriod: "60-day reference window", sourceLabel: "Deterministic TestRFx fixture", sourceType: "reference-dataset", provenance: "Reference comparison signal only. Production comparison requires governed supply, demand, geography, freshness, and source provenance.", relatedCapabilities: ["Industrial Electrical Installation"], relatedOrganizations: ["Tidewater Technical Services"] },
 };
 
 export function getIntelligenceDetail(record: ExchangeRecord): IntelligenceDetail | undefined {
@@ -130,6 +105,7 @@ export function buildParticipantInsight(input: IntelligenceInsightInput): Exchan
     geography: input.geography.trim(),
     metadata: [input.signalType.trim() || "Participant insight", input.observedPeriod.trim() || "Current view", `Source: ${input.sourceLabel.trim() || "Participant observation"}`],
     ownedByViewer: true,
+    card: { classifications: [input.signalType.trim() || "Participant insight"], status: { label: "Current", tone: "info" } },
   };
 }
 
@@ -141,5 +117,6 @@ export function updateParticipantInsight(record: ExchangeRecord, input: Intellig
     summary: input.summary.trim(),
     geography: input.geography.trim(),
     metadata: [input.signalType.trim() || "Participant insight", input.observedPeriod.trim() || "Current view", `Source: ${input.sourceLabel.trim() || "Participant observation"}`],
+    card: { ...record.card, classifications: [input.signalType.trim() || "Participant insight"], status: record.card?.status ?? { label: "Current", tone: "info" } },
   };
 }

@@ -1,176 +1,207 @@
 # RFxchange Record Cards
 
-Record Cards are a shared primitive of the authenticated Exchange chassis. RFx, Resources, Intelligence, and Capabilities provide record content and contextual actions; they do not create separate card systems.
+Record Cards are a shared primitive of the authenticated Exchange chassis. RFx, Resources, Intelligence, and Capabilities provide governed content projections and contextual record actions; they do not create separate card systems.
 
 ## Governing boundary
 
-**Onboarding builds the record. The Exchange renders the record.**
+**Onboarding and domain services build the record. The Exchange renders a governed projection of it.**
 
-Identity and onboarding establish organization identity, geography, profile information, capability enrichment, AMACS alignment, evidence, discoverability metadata, and publication readiness. Once published, domain objects are projected into the shared `ExchangeRecord` contract and rendered by the Exchange card system.
+The normalized `ExchangeRecord` remains the data contract. It is not a mandate to display every available field on the collapsed card.
 
-## Shared card contract
+The collapsed-card hierarchy is now:
 
-The shell owns the stable interaction contract:
+```text
+Media → Identity → Essential context → Record actions → Detail
+```
 
-- canonical record ID and record type
-- organization identity
-- title, summary, geography, and domain metadata
-- optional map coordinates
-- own-organization context
-- saved state
-- card projection for eyebrow, media, classifications, status, relationships, placement, and distance
-- card-to-detail navigation
-- marker/card selection synchronization
-- lightweight star/save/watch/follow control
-- contextual record-action row
+The interaction sequence is:
 
-The optional `card` projection keeps display concerns out of raw domain tables while allowing each domain adapter to provide the content the shared card needs.
+```text
+See → Recognize → Select → Act → Explore
+```
 
-## Interaction hierarchy
+A collapsed card should answer only four questions:
 
-The card deliberately separates four behaviors:
+1. What is this?
+2. Who/where is it?
+3. Why might I care?
+4. What can I do next?
 
-1. **Card body** → opens the shared detail surface for that exact record.
-2. **Star** → saves/watches/follows that record.
-3. **Record Action Row** → performs contextual business actions on that record.
-4. **Metadata chips** → communicate status/classification/context and are not substitutes for action buttons.
+Everything else belongs in Detail.
 
-This separation prevents the lens rail from becoming record-dependent and removes ambiguity such as a generic `View Detail` command before a record has actually been selected.
+## Shared card anatomy
 
-## Record action row
+The shared card owns:
 
-Cards show up to three compact, touch-friendly actions. The primary record action receives modest visual emphasis; secondary actions remain quieter. A detail surface may expose up to four contextual actions when the domain has a legitimate fourth command.
+- one media-first visual region
+- one primary identity
+- an optional short subtitle
+- one concise context line
+- one classification line with no more than two high-value descriptors
+- a lightweight Save/Watch relationship control
+- up to three governed record-specific actions
+- one explicit Detail/Profile affordance
+- selection state and marker synchronization
 
-Current reference actions include:
+The card no longer renders paragraph summaries, unrestricted metadata arrays, relationship lists, or walls of pills.
+
+## Media projection
+
+Media is supplied through the normalized card projection rather than discovered ad hoc by React components.
+
+Supported media kinds are:
+
+- `video`
+- `image`
+- `visualization`
+- `logo`
+- governed type/category fallback
+
+The projection may also provide organization-level hero or logo media. Resolution order is:
+
+1. featured short video
+2. featured record image / visualization
+3. organization hero
+4. organization logo
+5. governed RFxchange type fallback
+
+Media fields may include a poster, image source, video source, alt text, attribution, and ownership/source labeling. Domain services remain responsible for choosing which media asset is featured. The shared card does not search arbitrary organization storage.
+
+Reference assets under `/public/exchange-media/` exist only to make TestRFx previews exercise the media-first states. They are not production provider media.
+
+## Video behavior
+
+Video is explicit-play only.
+
+- posters render before playback
+- no autoplay
+- playback begins muted
+- only one Exchange card video may play at a time
+- starting another card video pauses the prior video
+- scrolling a playing card substantially out of view pauses it
+- video uses `preload="none"`
+- missing/failed media falls back to the governed visual treatment
+- playback does not change drawer height or replace card selection behavior
+
+Production video hosting remains an integration point. The shared card consumes a URL supplied by a governed media projection; it does not create a hosting service.
+
+## Lens-specific presentation adapters
+
+The outer card remains identical while `buildCardPresentation()` reduces each record to the minimum useful scan information.
 
 ### RFx
 
-- External: Respond (when authorized), Team, Share
-- Owned: Manage, Invite Team, Share
-
-Watch is handled by the card star. Detail is opened by the card body.
-
-### Resources
-
-- External: Request (when applicable/authorized), Share
-- Owned: Edit, Archive, Share
-
-A viewer who is not a Resource Provider does not gain provider-side record commands merely by entering Resources.
-
-### Intelligence
-
-- External: Add Note, Compare, Share
-- Owned contributor: Edit, Compare, Share
-
-### Capabilities
-
-- External: Match RFx, Refer, Share
-- Owned manager: Manage, AI → AMACS, Evidence, with Gaps available in detail
-
-Record actions are resolved from the active lens, the record relationship, and `ExchangeViewerContext`. Production must source viewer/organization eligibility and permissions from authenticated server policy rather than client assumptions.
-
-## Lens variants
-
-### RFx
-
-Typical content includes solicitation type, issuer, geography, due date, status, capability match, response/team relationship state, and watch/save state.
+- identity: RFx title
+- subtitle: issuer
+- context: due date + geography/distance
+- classification: up to two procurement/capability descriptors
 
 ### Resources
 
-Typical content includes offer/request context, provider, availability, category, geography, saved state, and sponsored placement when applicable.
+- identity: Resource title
+- subtitle: provider
+- context: availability + geography/distance
+- classification: up to two Resource descriptors
 
 ### Intelligence
 
-Typical content includes signal/insight type, source or contributor, geography, market/capability classification, recency, and tracking/following state. Intelligence may be geographic without representing a single point marker.
+- identity: insight/signal title
+- context: geography + recency/current state
+- classification: up to two signal/market descriptors
 
 ### Capabilities
 
-Typical discovery content includes organization identity, published AMACS-aligned capabilities, evidence/publication state, geography/service area, specialties, and discovery relationships such as following or referral state.
+- identity: organization
+- subtitle: lead capability
+- context: geography/distance
+- classification: up to two high-value capability descriptors
 
-**Profile completeness is not a discovery-card attribute.** A completeness percentage measures internal profile-management progress; it must not be displayed or indexed as if it were qualification, verification, match strength, or market quality. Completeness belongs in onboarding and the signed-in organization's capability-management surfaces.
+`AMACS Mapped` is not repeated as discovery-card decoration when more useful capability descriptors are available. Evidence and complete capability sets remain Detail concerns.
 
-## Self organization versus lens records
+## Record actions versus lens controls
 
-The signed-in organization is persistent Exchange context, not a synthetic lens result.
+The four-slot rail above the drawer is reserved for lens-level/general controls.
 
-- The organization may remain visible as a visually distinct map anchor even when it has no RFx, Resource, Intelligence, or published Capability record matching the current lens.
-- The map anchor does not increment the result count and does not create a drawer card.
-- RFx results contain actual RFx records.
-- Resources results contain actual Resource offers/requests/listings.
-- Intelligence results contain actual insights/signals/observations.
-- Capabilities discovery contains actual published/discoverable capability profiles.
-- `My Capabilities` may still lead to the organization's management surface when nothing is published; that management state is not inserted into ordinary discovery results.
+Each card separately receives `recordActions()` from the existing lens/action registry. Those actions preserve:
 
-Owned records use the organization's actual identity and a consistent visual ownership treatment. Cards should not repeat textual labels such as `Your Organization`, `Owned by you`, or `Your capability profile` merely to establish ownership.
+- visibility
+- applicability
+- authorization
+- operational readiness
+- ownership
+- progressive availability
 
-The current visual grammar uses a restrained RF Gold edge/accent for owned records. The same ownership language can be extended to the organization's map anchor and future logo/media treatment without adding explanatory pills.
+The card shows up to three governed record actions plus the shell-owned Detail/Profile affordance.
 
-## Card information roles
+No card invents independent business logic. If an action is not operational, the existing governed disabled/unavailable behavior remains authoritative.
 
-Each presentation element has one job:
+## Save / Watch
 
-- **Eyebrow** → record kind, such as `RFx`, `Resource Offer`, `Market Signal`, or `Organization capability profile`.
-- **Status** → lifecycle/current state, such as `Draft`, `Open`, `Published`, `Closing soon`, or `Available`.
-- **Classification chips** → what the record is about.
-- **Ownership treatment** → whose record it is; visual rather than repeated text.
-- **Star** → the viewer's Save/Watch/Follow relationship.
+The star remains visually available over the media region.
 
-The same value should not be repeated in multiple roles. For example, `Draft` should not appear simultaneously as an eyebrow, status pill, and metadata pill.
+Current persistence boundaries are unchanged:
 
-## Text-density rule
+- RFx Watch uses the existing RFx workspace persistence path.
+- Other reference Save states remain the existing TestRFx integration seam until authenticated relationship persistence is connected.
 
-The card should not become a wall of pills. The reference implementation limits visible classification, metadata, and relationship tokens and restores real buttons for actions. Additional metadata belongs in detail rather than being promoted into pseudo-controls. The shared card also suppresses legacy ownership strings and metadata that merely duplicates the current status.
+The media-first refinement does not pretend a new persistence service exists.
 
-## Located and off-map records
+## Seeded and unclaimed Resource Providers
 
-The drawer is authoritative. A record with coordinates participates in marker/card synchronization; a record without coordinates remains a first-class drawer result and opens the same detail surface. Product domains must not discard valid results merely because they have no point location.
+Unclaimed listings remain governed by the provider/claim system.
 
-The signed-in organization's self anchor is separate from this rule: it is map context, not a result record.
+The collapsed card uses a restrained `Unclaimed listing · Claim` line rather than a provenance paragraph. Full source, classification, participation policy, and claim explanation remain in Resource Detail.
 
-## Sponsored records
+Claim state is not sponsorship, verification, or recommendation.
 
-Sponsorship is a placement treatment on a normal Exchange record, not a separate record identity. Sponsored cards remain clearly labeled and route to the same canonical detail destination as their underlying record.
+## Selection and Detail
 
-## Own versus other organization
+The media region and identity region both open the existing shared Detail controller.
 
-`ownedByViewer` is the current chassis projection for own-organization context. Production implementations should resolve ownership and authorization from authenticated organization membership on the server. Ownership affects the card's visual treatment and record actions, not the four lens-level controls above the list and not ordinary relevance ranking except as a possible tie-breaker.
+Selection behavior is unchanged:
 
-## Interaction rules
+- card focus/selection updates `selectedRecordId`
+- card selection highlights the corresponding marker when one exists
+- marker selection reveals/selects the card
+- drawer state is promoted when needed
+- Detail opens without unmounting the Exchange
+- closing Detail restores the existing lens/search/map/drawer/list context
 
-- Selecting a map marker selects and reveals its card when the marker represents a lens record.
-- The persistent self-organization map anchor is context and does not fabricate a selected result.
-- Selecting/focusing a card updates shared selection state.
-- Opening the card launches the shared detail surface without unmounting the Exchange.
-- Returning from detail preserves lens, search, map, drawer, selection, and list context.
-- Save/watch/follow is a lightweight record-local star control.
-- Record business workflows live in the card action row and detail surface.
-- The four-slot rail above the cards remains lens-wide and does not change when selection changes.
-- Long-press or gesture-only behavior must never be required for a primary workflow.
+Selection does not turn the card into a mini-detail page.
+
+## Performance and accessibility
+
+Media-first cards preserve Exchange browsing performance through:
+
+- lazy image loading
+- async image decoding
+- poster-first video
+- `preload="none"` video
+- offscreen video pause/cleanup
+- media error fallback
+- unchanged drawer incremental loading
+
+Accessibility requirements include meaningful media alt text, accessible play/pause and Save labels, keyboard focus, visible focus treatment, sufficient overlay contrast, explicit pause controls, and no important state encoded by color alone.
 
 ## Production integration points
 
-The reference chassis keeps most save state in memory; RFx Watch uses its workspace service. Production should connect relationships to authenticated repositories. Domain services should emit normalized `ExchangeRecord` projections and resolved action policy rather than allowing React components to infer authority from arbitrary table data.
+Production domain adapters should populate the governed media projection from canonical organization/domain media services.
 
-The authenticated viewer/organization adapter should also provide the active organization's canonical name, logo/media when available, and map location independently of lens-result records. That allows the Exchange to keep a self anchor without polluting search results.
-
-Recommended flow:
+The shared card should remain stable as storage and media systems mature:
 
 ```text
-Authenticated viewer + active organization
-                    ↓
-Domain object → Domain service / policy
-                    ↓
-ExchangeRecord + card projection + permitted record actions
-                    ↓
-Search / results API
-                    ↓
+Domain object + canonical organization
+                 ↓
+Domain service / media policy / authorization
+                 ↓
+ExchangeRecord + card/media projection + record actions
+                 ↓
 Shared RecordCard
-        ├── card body → detail
-        ├── star → relationship
-        └── action row → domain workflow
-
-Active organization identity ──→ persistent map self anchor
-                              └─→ not part of result count
+  ├── MediaRegion
+  ├── Identity / essential context
+  ├── Save / Watch
+  ├── governed RecordActionRow
+  └── Detail/Profile
 ```
 
-The card component should remain stable as domain workflows mature. New business behavior plugs into domain adapters, the action registry, relationship services, and detail content rather than forking the shared card shell.
+New business behavior plugs into domain services, the action registry, relationship persistence, and Detail rather than expanding collapsed-card text density or forking card implementations.

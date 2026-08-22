@@ -15,7 +15,7 @@ export type MapControlRoute = "root" | "view" | "basemap" | "layers" | "geograph
 export type GeolocationStatus = "idle" | "requesting" | "located" | "denied" | "unavailable";
 export type RecordRelationshipFilter = "all" | "mine" | "others";
 export type ExchangeCardPlacement = "organic" | "featured" | "sponsored";
-export type ExchangeCardMediaKind = "category" | "logo" | "image" | "visualization";
+export type ExchangeCardMediaKind = "category" | "logo" | "image" | "visualization" | "video";
 export type ExchangeStatusTone = "neutral" | "info" | "success" | "warning" | "critical";
 export type ExchangeRelationshipState = "saved" | "watched" | "following" | "referred" | "responded" | "teamed" | "requested" | "connected" | "owned";
 export type LensActionTrigger = "detail" | "modal" | "menu" | "direct" | "workflow";
@@ -35,9 +35,28 @@ export interface MapLayerVisibility { records: boolean; lensOverlay: boolean; }
 export interface MapGeographyOption { id: string; label: string; center?: Coordinates; bounds?: MapBounds; recordCount: number; }
 export interface MapViewState { camera: MapCamera; geography: MapGeographyContext; style: MapStyleId; layers: MapLayerVisibility; currentBounds?: MapBounds; queriedBounds?: MapBounds; }
 export interface DrawerQueryState { sort: DrawerSort; location: DrawerLocationFilter; ownership: DrawerOwnershipFilter; savedOnly: boolean; featuredOnly: boolean; }
-export interface ExchangeCardMedia { kind: ExchangeCardMediaKind; label: string; src?: string; alt?: string; }
+export interface ExchangeCardMedia {
+  kind: ExchangeCardMediaKind;
+  label: string;
+  src?: string;
+  poster?: string;
+  videoSrc?: string;
+  alt?: string;
+  attribution?: string;
+  ownerLabel?: string;
+}
+export interface ExchangeCardOrganizationMedia { hero?: ExchangeCardMedia; logo?: ExchangeCardMedia; }
 export interface ExchangeCardStatus { label: string; tone?: ExchangeStatusTone; }
-export interface ExchangeCardProjection { eyebrow?: string; media?: ExchangeCardMedia; classifications?: string[]; status?: ExchangeCardStatus; relationships?: ExchangeRelationshipState[]; placement?: ExchangeCardPlacement; distance?: string; }
+export interface ExchangeCardProjection {
+  eyebrow?: string;
+  media?: ExchangeCardMedia;
+  organizationMedia?: ExchangeCardOrganizationMedia;
+  classifications?: string[];
+  status?: ExchangeCardStatus;
+  relationships?: ExchangeRelationshipState[];
+  placement?: ExchangeCardPlacement;
+  distance?: string;
+}
 export interface ResourceProjection {
   category: string;
   availability: ResourceAvailabilityState;
