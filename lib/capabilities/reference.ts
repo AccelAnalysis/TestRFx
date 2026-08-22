@@ -11,6 +11,12 @@ export const capabilityProfiles: CapabilityOrganizationProfile[] = [
     keywords: ["industrial electrical", "field service", "preventive maintenance", "facilities"],
     profileStrength: 88,
     location: { lat: 36.84, lng: -76.34 },
+    cardMedia: {
+      kind: "image",
+      label: "Electrical capability",
+      src: "/exchange-media/capability-electrical.svg",
+      alt: "Illustrated electrical system preview for the TestRFx capability reference",
+    },
     capabilities: [
       {
         id: "industrial-electrical",
@@ -115,6 +121,14 @@ export const capabilityProfiles: CapabilityOrganizationProfile[] = [
     serviceAreas: ["Virginia", "Mid-Atlantic"],
     keywords: ["K-9", "working dog", "handler training", "curriculum", "kennel operations"],
     profileStrength: 74,
+    organizationMedia: {
+      logo: {
+        kind: "logo",
+        label: "Organization mark",
+        src: "/exchange-media/organization-rwdi-mark.svg",
+        alt: "Reference organization mark for Regional Working Dog Institute",
+      },
+    },
     capabilities: [
       {
         id: "k9-training",
