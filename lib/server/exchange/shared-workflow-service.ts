@@ -193,9 +193,10 @@ export async function createSharedLink(input: { actor: ExchangeServerActor; reco
   const record = await resolveRecord(input.recordPublicId);
   const token = randomBytes(24).toString("base64url");
   const tokenHash = createHash("sha256").update(token).digest("hex");
+  const audience = JSON.parse(JSON.stringify(input.audience ?? {}));
   const rows = await sql<{ id: string }[]>`
     INSERT INTO share_links (exchange_record_id, created_by_user_id, token_hash, audience)
-    VALUES (${record.id}::uuid, ${input.actor.userId}::uuid, ${tokenHash}, ${sql.json(input.audience ?? {})})
+    VALUES (${record.id}::uuid, ${input.actor.userId}::uuid, ${tokenHash}, ${sql.json(audience)})
     RETURNING id::text
   `;
   return { id: rows[0]?.id, token, recordId: record.public_id, deepLink: `/exchange/${sourceLens(record.record_type)}/${record.public_id}` };
