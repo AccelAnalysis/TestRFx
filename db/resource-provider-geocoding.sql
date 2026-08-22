@@ -51,6 +51,78 @@ CREATE TABLE IF NOT EXISTS resource_location_geocodes (
 CREATE INDEX IF NOT EXISTS resource_location_geocodes_status_idx
   ON resource_location_geocodes(status, geocoded_at DESC);
 
+-- If geocoding occurs before promotion, promotion creates the canonical
+-- Location from the accepted candidate coordinates. Copy the accepted geocoder
+-- audit record at that handoff so mapped points never lose provenance.
+CREATE OR REPLACE FUNCTION copy_accepted_candidate_geocode_to_canonical_location()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  canonical_location_id uuid;
+BEGIN
+  IF NEW.candidate_state <> 'promoted'
+     OR NEW.promoted_exchange_record_id IS NULL
+     OR NEW.geocode_status <> 'accepted'
+     OR NEW.latitude IS NULL
+     OR NEW.longitude IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT er.location_id
+  INTO canonical_location_id
+  FROM exchange_records er
+  WHERE er.id = NEW.promoted_exchange_record_id;
+
+  IF canonical_location_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO resource_location_geocodes (
+    location_id, provider, benchmark, status, match_type, requested_address,
+    matched_address, latitude, longitude, response_payload, geocoded_at, verified_at
+  ) VALUES (
+    canonical_location_id,
+    COALESCE(NEW.geocode_provider, 'unknown'),
+    NEW.geocode_benchmark,
+    'accepted',
+    NEW.geocode_match_type,
+    jsonb_build_object(
+      'addressLine1', COALESCE(NEW.address_line_1, ''),
+      'locality', COALESCE(NEW.locality, ''),
+      'region', COALESCE(NEW.region, ''),
+      'postalCode', NEW.postal_code
+    ),
+    NEW.geocode_matched_address,
+    NEW.latitude,
+    NEW.longitude,
+    COALESCE(NEW.geocode_payload, '{}'::jsonb),
+    COALESCE(NEW.geocoded_at, now()),
+    NEW.geocode_verified_at
+  )
+  ON CONFLICT (location_id) DO UPDATE SET
+    provider = EXCLUDED.provider,
+    benchmark = EXCLUDED.benchmark,
+    status = EXCLUDED.status,
+    match_type = EXCLUDED.match_type,
+    requested_address = EXCLUDED.requested_address,
+    matched_address = EXCLUDED.matched_address,
+    latitude = EXCLUDED.latitude,
+    longitude = EXCLUDED.longitude,
+    response_payload = EXCLUDED.response_payload,
+    geocoded_at = EXCLUDED.geocoded_at,
+    verified_at = EXCLUDED.verified_at;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS resource_ingestion_candidates_copy_geocode_on_promotion ON resource_ingestion_candidates;
+CREATE TRIGGER resource_ingestion_candidates_copy_geocode_on_promotion
+AFTER UPDATE OF candidate_state, promoted_exchange_record_id, geocode_status ON resource_ingestion_candidates
+FOR EACH ROW
+EXECUTE FUNCTION copy_accepted_candidate_geocode_to_canonical_location();
+
 -- `public-location` means there is a real point the shared map can render.
 -- An address-only canonical Location is not enough; retain service-area/off-map
 -- behavior until a reviewed coordinate exists.
