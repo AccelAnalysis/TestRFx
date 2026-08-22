@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import Stripe from "stripe";
 import { FOUNDING_PRICE_LOOKUP_KEY } from "@/lib/membership/catalog";
 import { MembershipServiceError, type MembershipActorContext, type MembershipPlanCode } from "@/lib/membership/contracts";
@@ -10,15 +10,16 @@ import {
 
 let stripeClient: Stripe | null = null;
 
+export class StripeMembershipConfigurationError extends MembershipServiceError {
+  constructor(message = "Stripe Billing is not configured for this RFxchange runtime.") {
+    super("STRIPE_NOT_CONFIGURED", message, 503);
+    this.name = "StripeMembershipConfigurationError";
+  }
+}
+
 function getStripe(): Stripe {
   const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
-  if (!secretKey) {
-    throw new MembershipServiceError(
-      "STRIPE_NOT_CONFIGURED",
-      "Stripe Billing is not configured for this RFxchange runtime.",
-      503,
-    );
-  }
+  if (!secretKey) throw new StripeMembershipConfigurationError();
   if (!stripeClient) {
     stripeClient = new Stripe(secretKey, { apiVersion: "2026-07-29.dahlia" });
   }
@@ -158,6 +159,27 @@ export function constructStripeWebhook(payload: string, signature: string): Stri
     throw new MembershipServiceError("STRIPE_WEBHOOK_NOT_CONFIGURED", "Stripe webhook verification is not configured.", 503);
   }
   return getStripe().webhooks.constructEvent(payload, signature, secret);
+}
+
+export function verifyStripeWebhookSignature(
+  payload: string,
+  signatureHeader: string,
+  webhookSecret: string,
+  toleranceSeconds = 300,
+): boolean {
+  const parts = signatureHeader.split(",").map((part) => part.trim());
+  const timestampPart = parts.find((part) => part.startsWith("t="));
+  const signatures = parts.filter((part) => part.startsWith("v1=")).map((part) => part.slice(3));
+  const timestamp = timestampPart ? Number(timestampPart.slice(2)) : Number.NaN;
+  if (!Number.isFinite(timestamp) || signatures.length === 0 || !webhookSecret) return false;
+  if (Math.abs(Math.floor(Date.now() / 1000) - timestamp) > toleranceSeconds) return false;
+
+  const expected = createHmac("sha256", webhookSecret).update(`${timestamp}.${payload}`).digest("hex");
+  const expectedBuffer = Buffer.from(expected, "utf8");
+  return signatures.some((signature) => {
+    const actualBuffer = Buffer.from(signature, "utf8");
+    return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer);
+  });
 }
 
 export function retrieveCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session> {
