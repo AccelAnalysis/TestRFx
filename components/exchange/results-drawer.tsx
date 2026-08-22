@@ -18,12 +18,13 @@ export interface ResultsDrawerProps {
   query: DrawerQueryState; onQueryChange: (query: DrawerQueryState) => void; onSelect: (id: string) => void;
   onOpen: (id: string) => void; onToggleSave: (id: string) => void; resultStatus?: DrawerResultStatus;
   hasMore?: boolean; loadingMore?: boolean; onLoadMore?: () => void; onRetry?: () => void;
+  onOpenWorkflowHierarchy?: () => void;
 }
 
 export function ResultsDrawer({
   state, onStateChange, lens, lensLabel, records, totalAvailableCount, selectedRecordId, actions, activeActionIds = [], getRecordActions, onAction,
   emptyMessage, resultContext, query, onQueryChange, onSelect, onOpen, onToggleSave, resultStatus = "ready", hasMore = false,
-  loadingMore = false, onLoadMore, onRetry,
+  loadingMore = false, onLoadMore, onRetry, onOpenWorkflowHierarchy,
 }: ResultsDrawerProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
@@ -70,7 +71,10 @@ export function ResultsDrawer({
         aria-label={stateLabel[state]} aria-controls={listId} aria-expanded={state !== "peek"}><span /></button>
       <div className={styles.header}>
         <div className={styles.headingBlock}><h2>{resultHeading}</h2><p className={styles.resultContext} aria-live="polite">{resultContext ?? `${breakdown.mapped} mapped · ${breakdown.offMap} off-map`}{resultStatus === "refreshing" ? " · Refreshing…" : ""}</p></div>
-        <div className={styles.headerActions}><label className={styles.sortControl}><span className="sr-only">Sort results</span><select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results"><option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option></select></label></div>
+        <div className={styles.headerActions}>
+          {onOpenWorkflowHierarchy ? <button className={styles.filterButton} type="button" onClick={onOpenWorkflowHierarchy}>Workflows</button> : null}
+          <label className={styles.sortControl}><span className="sr-only">Sort results</span><select value={query.sort} onChange={(event) => onQueryChange({ ...query, sort: event.target.value as DrawerQueryState["sort"] })} aria-label="Sort results"><option value="relevance">Sort: Relevance</option><option value="title">Sort: Title</option><option value="organization">Sort: Organization</option><option value="geography">Sort: Geography</option></select></label>
+        </div>
       </div>
       <ActionRail actions={actions} activeActionIds={activeActionIds} onAction={(action) => onAction?.(action)} label={`${lensLabel} lens controls`} />
       <div className={styles.list} id={listId} ref={listRef} role="feed" aria-busy={resultStatus === "loading" || resultStatus === "refreshing" || loadingMore} onScroll={(event) => { scrollByLens.current[lens] = event.currentTarget.scrollTop; }}>
