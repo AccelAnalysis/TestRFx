@@ -32,13 +32,13 @@ const tree: RfxWorkflowNode = {
   id: "create",
   label: "Create RFx",
   description: "Create",
-  kind: "sequence",
+  kind: "group",
   children: [
     {
       id: "define-need",
       label: "Define need",
       description: "Need",
-      kind: "sequence",
+      kind: "group",
       children: [
         { id: "need", label: "Need", description: "Need", kind: "form", fields: [{ id: "need.text", label: "Need", type: "textarea", required: true }] },
         { id: "select-rfx-type", label: "Type", description: "Type", kind: "decision", fields: [{ id: "need.type", label: "Type", type: "select", required: true, options: ["RFP", "RFQ"] }] },
@@ -107,7 +107,7 @@ describe("RFx mobile experience adapter", () => {
       id: "respond",
       label: "Respond",
       description: "Respond",
-      kind: "sequence",
+      kind: "group",
       children: [
         { id: "plan-response", label: "Plan", description: "Plan", kind: "form", fields: [{ id: "plan", label: "Plan", type: "text", required: true }] },
         { id: "draft", label: "Draft", description: "Draft", kind: "form", fields: [{ id: "draft", label: "Draft", type: "textarea", required: true }] },
