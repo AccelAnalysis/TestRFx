@@ -5,7 +5,8 @@ import type { ExchangeCardPlacement, ExchangeCardStatus, ExchangeRecord } from "
 import type { ResolvedExchangeCardMedia } from "@/lib/exchange/card-presentation";
 import styles from "./card-media.module.css";
 
-let activeExchangeCardVideo: HTMLVideoElement | null = null;
+type ActiveExchangeCardVideo = { video: HTMLVideoElement; stop: () => void };
+let activeExchangeCardVideo: ActiveExchangeCardVideo | null = null;
 
 const fallbackGlyph: Record<ExchangeRecord["type"], string> = {
   rfx: "⌁",
@@ -29,10 +30,9 @@ const statusTone: Record<NonNullable<ExchangeCardStatus["tone"]>, string> = {
   critical: styles.statusCritical,
 };
 
-function safePause(video?: HTMLVideoElement | null) {
+function pauseElement(video?: HTMLVideoElement | null) {
   if (!video) return;
   try { video.pause(); } catch {}
-  if (activeExchangeCardVideo === video) activeExchangeCardVideo = null;
 }
 
 export function CardMedia({
@@ -59,16 +59,31 @@ export function CardMedia({
   const playableVideo = media.kind === "video" && Boolean(media.videoSrc && visualSrc) && !mediaFailed;
   const showFallback = media.fallback || mediaFailed || !visualSrc;
 
+  function stopPlayback() {
+    const video = videoRef.current;
+    pauseElement(video);
+    setPlaying(false);
+    if (video && activeExchangeCardVideo?.video === video) activeExchangeCardVideo = null;
+  }
+
   useEffect(() => {
     if (!playing) return;
     const video = videoRef.current;
     if (!video) return;
-    if (activeExchangeCardVideo && activeExchangeCardVideo !== video) safePause(activeExchangeCardVideo);
-    activeExchangeCardVideo = video;
+
+    if (activeExchangeCardVideo && activeExchangeCardVideo.video !== video) activeExchangeCardVideo.stop();
+    const active: ActiveExchangeCardVideo = {
+      video,
+      stop: () => {
+        pauseElement(video);
+        setPlaying(false);
+        if (activeExchangeCardVideo?.video === video) activeExchangeCardVideo = null;
+      },
+    };
+    activeExchangeCardVideo = active;
     video.muted = true;
     void video.play().catch(() => {
-      safePause(video);
-      setPlaying(false);
+      active.stop();
       setMediaFailed(true);
     });
   }, [playing]);
@@ -77,20 +92,16 @@ export function CardMedia({
     const root = rootRef.current;
     if (!root || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => {
-      if (!entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.28)) {
-        safePause(videoRef.current);
-        setPlaying(false);
-      }
+      if (!entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.28)) stopPlayback();
     }, { threshold: [0, 0.28, 0.6] });
     observer.observe(root);
     return () => observer.disconnect();
   }, []);
 
-  useEffect(() => () => safePause(videoRef.current), []);
+  useEffect(() => () => stopPlayback(), []);
 
   function failMedia() {
-    safePause(videoRef.current);
-    setPlaying(false);
+    stopPlayback();
     setMediaFailed(true);
   }
 
@@ -103,11 +114,6 @@ export function CardMedia({
     if (!playableVideo) return;
     onSelect();
     setPlaying(true);
-  }
-
-  function pauseVideo() {
-    safePause(videoRef.current);
-    setPlaying(false);
   }
 
   return (
@@ -134,7 +140,7 @@ export function CardMedia({
             muted
             playsInline
             preload="none"
-            onEnded={() => setPlaying(false)}
+            onEnded={stopPlayback}
             onError={failMedia}
             aria-label={media.alt || `${record.title} video preview`}
           />
@@ -155,7 +161,7 @@ export function CardMedia({
         )}
       </button>
 
-      <div className={styles.topBadges} aria-hidden="true">
+      <div className={styles.topBadges}>
         {status ? <span className={`${styles.status} ${statusTone[status.tone ?? "neutral"]}`}>{status.label}</span> : null}
         {placement !== "organic" ? <span className={styles.placement}>{placement === "sponsored" ? "Sponsored" : "Featured"}</span> : null}
       </div>
@@ -168,7 +174,7 @@ export function CardMedia({
         </button>
       ) : null}
       {playing ? (
-        <button type="button" className={styles.play} onClick={pauseVideo} aria-label={`Pause video preview for ${record.title}`}>
+        <button type="button" className={styles.play} onClick={stopPlayback} aria-label={`Pause video preview for ${record.title}`}>
           <span aria-hidden>Ⅱ</span>
         </button>
       ) : null}
