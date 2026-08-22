@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Cybersecurity procurement preview</title>
+  <desc id="desc">Abstract network nodes and shield motif used only as TestRFx reference media.</desc>
+  <rect width="960" height="540" fill="#17345f"/>
+  <rect x="54" y="54" width="852" height="432" rx="30" fill="#234a82"/>
+  <g stroke="#93b4e4" stroke-width="5" opacity=".8"><path d="M170 330L330 210 475 315 640 180 790 292" fill="none"/><path d="M330 210L430 125M475 315L535 410M640 180L735 110" fill="none"/></g>
+  <g fill="#e9f1ff" stroke="#17345f" stroke-width="8"><circle cx="170" cy="330" r="22"/><circle cx="330" cy="210" r="22"/><circle cx="475" cy="315" r="22"/><circle cx="640" cy="180" r="22"/><circle cx="790" cy="292" r="22"/><circle cx="430" cy="125" r="18"/><circle cx="535" cy="410" r="18"/><circle cx="735" cy="110" r="18"/></g>
+  <path d="M477 156l74 27v67c0 53-31 93-74 116-43-23-74-63-74-116v-67z" fill="#f7f3ea" opacity=".95"/>
+  <path d="M447 250l22 22 42-49" fill="none" stroke="#2e5eaa" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="76" y="104" fill="#f7f3ea" font-family="Arial, sans-serif" font-size="27" font-weight="700" letter-spacing="3">CYBERSECURITY · PROCUREMENT</text>
+  <text x="76" y="455" fill="#d8e5f8" font-family="Arial, sans-serif" font-size="20">TestRFx reference media · not issuer-supplied content</text>
+</svg>

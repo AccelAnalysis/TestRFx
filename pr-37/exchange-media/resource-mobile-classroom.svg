@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Mobile classroom resource preview</title>
+  <desc id="desc">Illustrated mobile classroom trailer used only as TestRFx reference media.</desc>
+  <rect width="960" height="540" fill="#edf3ee"/>
+  <rect x="76" y="88" width="808" height="364" rx="36" fill="#f9fbf8" stroke="#c8d7cd" stroke-width="6"/>
+  <rect x="180" y="182" width="560" height="184" rx="24" fill="#3b7b57"/>
+  <rect x="222" y="218" width="108" height="82" rx="10" fill="#dcebe1"/><rect x="352" y="218" width="108" height="82" rx="10" fill="#dcebe1"/><rect x="482" y="218" width="108" height="82" rx="10" fill="#dcebe1"/>
+  <rect x="612" y="218" width="76" height="148" rx="10" fill="#f7f3ea"/>
+  <circle cx="290" cy="380" r="42" fill="#252932"/><circle cx="290" cy="380" r="20" fill="#aeb5bd"/><circle cx="640" cy="380" r="42" fill="#252932"/><circle cx="640" cy="380" r="20" fill="#aeb5bd"/>
+  <path d="M740 310h58l40 34h-98z" fill="#d6a23a"/>
+  <text x="104" y="136" fill="#2f6748" font-family="Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="2">MOBILE TRAINING CLASSROOM</text>
+  <text x="104" y="428" fill="#667168" font-family="Arial, sans-serif" font-size="20">Illustrated TestRFx reference media · not provider photography</text>
+</svg>
