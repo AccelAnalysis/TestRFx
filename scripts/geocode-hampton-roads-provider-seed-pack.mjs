@@ -38,14 +38,16 @@ const [candidateText, locationText] = await Promise.all([
 ]);
 const candidates = parseCsv(candidateText);
 const locations = parseCsv(locationText);
-const candidateKeys = new Set(candidates.map((candidate) => candidate.seed_key));
+const candidateBySeedKey = new Map(candidates.map((candidate) => [candidate.seed_key, candidate]));
 const seen = new Set();
 const ready = [];
 for (const location of locations) {
-  if (!candidateKeys.has(location.seed_key) || seen.has(location.seed_key)) continue;
+  const candidate = candidateBySeedKey.get(location.seed_key);
+  if (!candidate || seen.has(location.seed_key)) continue;
   if (location.location_status !== "candidate" || !location.address1 || !location.city || !location.state) continue;
+  if (!candidate.primary_source_id) throw new Error(`Missing primary_source_id for ${candidate.seed_key}.`);
   seen.add(location.seed_key);
-  ready.push(location.seed_key);
+  ready.push({ sourceRecordId: candidate.seed_key, sourceKey: candidate.primary_source_id });
 }
 const locationReview = [...new Set(locations.filter((location) => location.location_status !== "candidate").map((location) => location.seed_key))];
 const noReadyAddress = candidates.map((candidate) => candidate.seed_key).filter((seedKey) => !seen.has(seedKey) && !locationReview.includes(seedKey));
@@ -55,6 +57,7 @@ if (dryRun) {
     marketKey: "hampton-roads-va",
     candidates: candidates.length,
     readyForAutomatedGeocoding: ready.length,
+    sourceScopedRequests: ready.length,
     locationReview,
     noReadyAddress,
     automaticPromotion: false,
@@ -64,21 +67,21 @@ if (dryRun) {
 
 const summary = { accepted: 0, review: 0, failed: 0 };
 const results = [];
-for (const [index, sourceRecordId] of ready.entries()) {
+for (const [index, request] of ready.entries()) {
   const response = await fetch(`${baseUrl}/api/resources/providers/geocode`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-rfxchange-ingestion-token": token,
     },
-    body: JSON.stringify({ action: "geocode", marketKey: "hampton-roads-va", sourceRecordId }),
+    body: JSON.stringify({ action: "geocode", marketKey: "hampton-roads-va", ...request }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(`Geocode failed for ${sourceRecordId}: ${response.status} ${JSON.stringify(body)}`);
+  if (!response.ok) throw new Error(`Geocode failed for ${request.sourceRecordId}: ${response.status} ${JSON.stringify(body)}`);
   const status = body?.result?.status;
   if (status === "accepted" || status === "review" || status === "failed") summary[status] += 1;
   results.push(body);
-  console.log(`[${index + 1}/${ready.length}] ${sourceRecordId}: ${status ?? "unknown"}`);
+  console.log(`[${index + 1}/${ready.length}] ${request.sourceRecordId}: ${status ?? "unknown"}`);
 }
 
 console.log(JSON.stringify({
