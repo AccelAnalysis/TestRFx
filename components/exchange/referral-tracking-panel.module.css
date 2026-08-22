@@ -1,3 +1,16 @@
-.panel { display: grid; gap: 10px; margin: 0 0 18px; padding: 14px; border: 1px solid rgba(59,123,87,.2); border-radius: 16px; background: rgba(59,123,87,.06); }
-.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.header h3 { margin: 0; font-size: 15px; }.header button { min-height: 34px; padding: 0 10px; border: 1px solid rgba(37,41,50,.14); border-radius: 10px; background: white; font-size: 11px; font-weight: 760; cursor: pointer; }
-.status { margin: 0; color: #626771; font-size: 12px; line-height: 1.45; }.list { display: grid; gap: 8px; }.item { padding: 11px; border: 1px solid rgba(37,41,50,.12); border-radius: 12px; background: white; }.itemTop { display: flex; justify-content: space-between; gap: 10px; }.itemTop strong { font-size: 12px; }.badge { flex: 0 0 auto; padding: 3px 6px; border-radius: 999px; background: rgba(214,162,58,.13); color: #745312; font-size: 9px; font-weight: 800; text-transform: uppercase; }.item p { margin: 6px 0 0; color: #60656e; font-size: 11px; line-height: 1.4; }.meta { display: flex; flex-wrap: wrap; gap: 5px 9px; margin-top: 7px; color: #747981; font-size: 9px; }.error { color: #7a3333; }
+.panel { margin-top: 6px; }
+.header { min-height: 44px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid rgba(37,41,50,.1); }
+.header h3 { margin: 0; font-size: 13px; font-weight: 700; }
+.header button { min-height: 34px; padding: 0 7px; border: 0; background: transparent; color: #506278; font-size: 11px; font-weight: 700; cursor: pointer; }
+.status { margin: 18px 2px; color: #70757d; font-size: 12px; }
+.error { color: #7a3333; }
+.list { border-bottom: 1px solid rgba(37,41,50,.1); }
+.item { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 9px 2px; border-bottom: 1px solid rgba(37,41,50,.08); }
+.item:last-child { border-bottom: 0; }
+.item > div:first-child { min-width: 0; display: grid; gap: 3px; }
+.item strong, .item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.item strong { font-size: 13px; font-weight: 650; }
+.item > div:first-child span { color: #747981; font-size: 11px; }
+.trailing { flex: 0 0 auto; display: grid; justify-items: end; gap: 3px; }
+.trailing span { color: #5b626d; font-size: 10px; font-weight: 700; }
+.trailing time { color: #8b8f95; font-size: 9px; }
