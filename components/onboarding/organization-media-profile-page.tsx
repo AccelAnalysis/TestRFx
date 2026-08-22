@@ -1,22 +1,32 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { OrganizationMediaEditor } from "./organization-media-editor";
 import styles from "./organization-media-profile-page.module.css";
 
-export function OrganizationMediaProfilePage({
-  organizationId,
-  organizationName = "Organization",
-  returnTo,
-}: {
+type MediaRouteContext = {
   organizationId?: string;
   organizationName?: string;
   returnTo?: string;
-}) {
-  const params = new URLSearchParams();
-  if (organizationId) params.set("organization", organizationId);
-  if (returnTo) params.set("returnTo", returnTo);
-  const backHref = `/onboarding/organization-profile/organization-details${params.size ? `?${params.toString()}` : ""}`;
+};
+
+export function OrganizationMediaProfilePage() {
+  const [context, setContext] = useState<MediaRouteContext | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setContext({
+      organizationId: params.get("organization")?.trim() || undefined,
+      organizationName: params.get("name")?.trim() || undefined,
+      returnTo: params.get("returnTo")?.trim() || undefined,
+    });
+  }, []);
+
+  const backParams = new URLSearchParams();
+  if (context?.organizationId) backParams.set("organization", context.organizationId);
+  if (context?.returnTo) backParams.set("returnTo", context.returnTo);
+  const backHref = `/onboarding/organization-profile/organization-details${backParams.size ? `?${backParams.toString()}` : ""}`;
 
   return (
     <main className={styles.shell}>
@@ -26,13 +36,13 @@ export function OrganizationMediaProfilePage({
         <span aria-hidden />
       </header>
       <section className={styles.content}>
-        {!organizationId ? (
+        {!context ? null : !context.organizationId ? (
           <div className={styles.empty}>
             <h2>Choose an organization first</h2>
             <Link href="/onboarding/organization">Continue</Link>
           </div>
         ) : (
-          <OrganizationMediaEditor organizationId={organizationId} organizationName={organizationName} />
+          <OrganizationMediaEditor organizationId={context.organizationId} organizationName={context.organizationName} />
         )}
       </section>
     </main>
