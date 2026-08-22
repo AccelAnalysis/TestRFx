@@ -109,7 +109,12 @@ async function geocode(location) {
   };
 }
 
-const locations = parseCsv(await readFile(resolve(packRoot, "locations.csv"), "utf8"));
+const [candidateText, locationText] = await Promise.all([
+  readFile(resolve(packRoot, "candidates.csv"), "utf8"),
+  readFile(resolve(packRoot, "locations.csv"), "utf8"),
+]);
+const candidates = parseCsv(candidateText);
+const locations = parseCsv(locationText);
 const seen = new Set();
 const primaryLocations = locations.filter((row) => {
   if (row.location_status !== "candidate" || !row.address1 || seen.has(row.seed_key)) return false;
@@ -140,6 +145,26 @@ for (const [index, location] of primaryLocations.entries()) {
   await sleep(120);
 }
 
+const accepted = {};
+const unresolved = {};
+for (const [seedKey, result] of Object.entries(results)) {
+  const { seedKey: _seedKey, requestedAddress: _requestedAddress, addressComponents: _addressComponents, ...portable } = result;
+  if (result.status === "accepted") {
+    accepted[seedKey] = portable;
+  } else {
+    unresolved[seedKey] = portable;
+  }
+}
+
+const locationReview = new Set(locations.filter((location) => location.location_status !== "candidate").map((location) => location.seed_key));
+const heldOut = candidates
+  .map((candidate) => candidate.seed_key)
+  .filter((seedKey) => !seen.has(seedKey))
+  .map((seedKey) => ({
+    seedKey,
+    reason: locationReview.has(seedKey) ? "source_location_needs_review" : "no_ready_sourced_street_address",
+  }));
+
 const summary = Object.values(results).reduce((acc, item) => {
   acc[item.status] = (acc[item.status] ?? 0) + 1;
   return acc;
@@ -151,7 +176,9 @@ const manifest = {
   generatedAt: new Date().toISOString(),
   policy: "Only a single Census match with matching state and ZIP is accepted automatically. Structured address lookup is attempted first, then Census onelineaddress. Review/failed results remain off-map.",
   summary,
-  results,
+  accepted,
+  unresolved,
+  heldOut,
 };
 await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-console.log(JSON.stringify({ output, candidates: primaryLocations.length, summary }, null, 2));
+console.log(JSON.stringify({ output, candidates: primaryLocations.length, summary, heldOut: heldOut.length }, null, 2));
