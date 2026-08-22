@@ -252,6 +252,32 @@ export function buildExchangeReadiness(facts: AuthoritativeReadinessFacts): Exch
   });
 }
 
+/**
+ * Static GitHub Pages preview compatibility only. It deliberately returns a
+ * blocked snapshot so a static host never fabricates authenticated readiness.
+ * Production routes use loadAuthoritativeReadiness() instead.
+ */
+export function getReferenceExchangeReadiness(): ExchangeReadinessSnapshot {
+  return buildExchangeReadiness({
+    accountVerified: false,
+    organizationEstablished: false,
+    organizationAffiliation: false,
+    organizationId: "preview-unavailable",
+    organizationName: "Sign in to evaluate your organization",
+    geographyEstablished: false,
+    organizationProfileComplete: false,
+    visibilitySelected: false,
+    mapPresence: "off_map",
+    capabilityProfileComplete: false,
+    capabilitySummary: [],
+    acceptedAmacsCount: 0,
+    evidenceCount: 0,
+    discoverabilityTermCount: 0,
+    entitlementResolved: false,
+    entitlementSummary: "Runtime session required",
+  });
+}
+
 const exchangeDestinationPattern = /^\/exchange(?:\/(?:rfx|resources|intelligence|capabilities)(?:\/[A-Za-z0-9._-]+)?)?$/;
 
 export function resolveExchangeDestination(candidate?: string | null) {
