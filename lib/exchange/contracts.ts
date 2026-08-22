@@ -1,4 +1,5 @@
 export type ExchangeLens = "rfx" | "resources" | "intelligence" | "capabilities";
+export type ExchangeLensIconId = "opportunity-document" | "resource-ecosystem" | "intelligence-signal" | "capability-stack";
 export type DrawerState = "peek" | "mid" | "expanded";
 export type DrawerResultStatus = "ready" | "loading" | "refreshing" | "error" | "offline";
 export type DrawerSort = "relevance" | "title" | "organization" | "geography";
@@ -105,7 +106,7 @@ export interface LensAction {
   requiresRecord?: boolean; toggle?: LensActionToggle; unavailableReason?: string;
 }
 export interface ExchangeLensDefinition {
-  id: ExchangeLens; label: string; icon: string; searchPlaceholder: string; emptyMessage: string;
+  id: ExchangeLens; label: string; icon: ExchangeLensIconId; searchPlaceholder: string; emptyMessage: string;
   actions: (viewer: ExchangeViewerContext) => LensAction[];
   recordActions: (record: ExchangeRecord, viewer: ExchangeViewerContext) => LensAction[];
 }

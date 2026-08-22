@@ -43,17 +43,27 @@
 
 .nav button.active {
   color: #244f93;
-  background: rgba(46, 94, 170, .07);
+  background: transparent;
   font-weight: 650;
 }
 
 .icon {
+  width: 32px;
+  height: 28px;
   display: grid;
-  min-height: 22px;
   place-items: center;
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 1;
+  border-radius: 10px;
+  transition: background 180ms ease;
+}
+
+.icon svg {
+  width: 23px;
+  height: 23px;
+  display: block;
+}
+
+.nav button.active .icon {
+  background: rgba(46, 94, 170, .09);
 }
 
 @media (min-width: 900px) {
@@ -73,5 +83,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nav button { transition: none; }
+  .nav button,
+  .icon { transition: none; }
 }

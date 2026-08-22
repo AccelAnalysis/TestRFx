@@ -49,10 +49,15 @@
 }
 
 .icon {
+  min-width: 20px;
+  min-height: 20px;
+  display: grid;
+  place-items: center;
   font-size: 19px;
   font-weight: 650;
   line-height: 1;
 }
+.icon svg { display: block; }
 
 .label {
   max-width: 100%;

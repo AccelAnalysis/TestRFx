@@ -14,6 +14,7 @@ import {
   type MenuSectionId,
   type MenuViewerContext,
 } from "@/lib/exchange/menu";
+import { ExchangeIcon, isExchangeUiIconId } from "./exchange-nav-icon";
 import styles from "./menu-surface.module.css";
 
 const sectionGroups: { label: string; ids: MenuSectionId[] }[] = [
@@ -22,6 +23,10 @@ const sectionGroups: { label: string; ids: MenuSectionId[] }[] = [
   { label: "Membership & data", ids: ["billing", "privacy"] },
   { label: "Support", ids: ["support", "about"] },
 ];
+
+function menuIcon(node: MenuNode) {
+  return isExchangeUiIconId(node.icon) ? <ExchangeIcon icon={node.icon} size={19} /> : node.icon;
+}
 
 function scopeLabel(scope: string) {
   if (scope === "cross-lens") return "Cross-lens";
@@ -162,7 +167,7 @@ export function MenuSurface({
                       const section = menuSectionById[id];
                       return (
                         <button className={styles.sectionButton} type="button" key={section.id} onClick={() => navigate(section)}>
-                          <span className={styles.icon} aria-hidden>{section.icon}</span>
+                          <span className={styles.icon} aria-hidden>{menuIcon(section)}</span>
                           <span className={styles.sectionCopy}>
                             <strong>{section.label}</strong>
                             <small>{section.description}</small>
@@ -176,7 +181,7 @@ export function MenuSurface({
               ))}
 
               <button className={styles.signOutButton} type="button" onClick={() => navigate(menuSignOutNode)}>
-                <span className={styles.icon} aria-hidden>{menuSignOutNode.icon}</span>
+                <span className={styles.icon} aria-hidden>{menuIcon(menuSignOutNode)}</span>
                 <span className={styles.sectionCopy}>
                   <strong>{menuSignOutNode.label}</strong>
                   <small>{menuSignOutNode.description}</small>
@@ -210,7 +215,7 @@ export function MenuSurface({
                       key={child.id}
                       onClick={() => navigate(child)}
                     >
-                      <span className={styles.icon} aria-hidden>{child.icon}</span>
+                      <span className={styles.icon} aria-hidden>{menuIcon(child)}</span>
                       <span className={styles.actionCopy}>
                         <strong>{child.label}</strong>
                         <small>{child.description}</small>
@@ -224,7 +229,7 @@ export function MenuSurface({
               ) : (
                 <div className={styles.destinationCard}>
                   <div className={styles.destinationHeading}>
-                    <span className={styles.icon} aria-hidden>{activeNode.icon}</span>
+                    <span className={styles.icon} aria-hidden>{menuIcon(activeNode)}</span>
                     <div>
                       <span className={styles.scope}>{kindLabel(activeNode)}</span>
                       <h3>{activeNode.label}</h3>

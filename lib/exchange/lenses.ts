@@ -5,7 +5,7 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
   rfx: {
     id: "rfx",
     label: "RFx",
-    icon: "⌁",
+    icon: "opportunity-document",
     searchPlaceholder: "Search RFx, agencies, opportunities, requirements…",
     emptyMessage: "No RFx records match this view.",
     actions: (viewer) => resolveLensActions("rfx", viewer),
@@ -14,7 +14,7 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
   resources: {
     id: "resources",
     label: "Resources",
-    icon: "◫",
+    icon: "resource-ecosystem",
     searchPlaceholder: "Search resources, suppliers, equipment, services…",
     emptyMessage: "No resources match this view.",
     actions: (viewer) => resolveLensActions("resources", viewer),
@@ -23,7 +23,7 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
   intelligence: {
     id: "intelligence",
     label: "Intelligence",
-    icon: "◉",
+    icon: "intelligence-signal",
     searchPlaceholder: "Search markets, industries, organizations, insights…",
     emptyMessage: "No intelligence records match this view.",
     actions: (viewer) => resolveLensActions("intelligence", viewer),
@@ -32,7 +32,7 @@ export const lensDefinitions: Record<ExchangeLens, ExchangeLensDefinition> = {
   capabilities: {
     id: "capabilities",
     label: "Capabilities",
-    icon: "◇",
+    icon: "capability-stack",
     searchPlaceholder: "Search companies, capabilities, AMACS categories…",
     emptyMessage: "No capabilities match this view.",
     actions: (viewer) => resolveLensActions("capabilities", viewer),

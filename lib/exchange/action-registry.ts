@@ -50,7 +50,7 @@ function lensSpecs(activeLens: ExchangeLens, viewer: ExchangeViewerContext): Act
     return viewer.canIssueRfx
       ? [
           lens("create-rfx", "Create RFx", "+", "workflow"),
-          lens("show-mine", "My RFx", "◉"),
+          lens("show-mine", "My RFx", "my-records"),
           lens("show-saved", "Watched", "☆"),
           lens("show-all", "All", "≡"),
         ]
@@ -61,7 +61,7 @@ function lensSpecs(activeLens: ExchangeLens, viewer: ExchangeViewerContext): Act
     return viewer.canOfferResources
       ? [
           lens("offer-resource", "Offer", "+", "modal"),
-          lens("show-mine", "My Listings", "◉"),
+          lens("show-mine", "My Listings", "my-records"),
           lens("show-saved", "Saved", "☆"),
           lens("show-all", "All", "≡"),
         ]
@@ -81,7 +81,7 @@ function lensSpecs(activeLens: ExchangeLens, viewer: ExchangeViewerContext): Act
 
   return viewer.canManageCapabilities
     ? [
-        lens("show-mine", "My Capabilities", "◉"),
+        lens("show-mine", "My Capabilities", "my-records"),
         lens("manage-capability-profile", "Manage", "✎", "workflow"),
         lens("show-saved", "Following", "☆"),
         lens("show-all", "All", "≡"),
@@ -146,7 +146,7 @@ function recordSpecs(activeLens: ExchangeLens, item: ExchangeRecord, viewer: Exc
   }
 
   return [
-    record("match-rfx", "Match RFx", "◇", "workflow"),
+    record("match-rfx", "Match RFx", "match-rfx", "workflow"),
     record("refer", "Refer", "↗", "workflow"),
     record("share", "Share", "⇧", "direct"),
   ];
