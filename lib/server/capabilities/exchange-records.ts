@@ -2,6 +2,7 @@ import "server-only";
 
 import { neon } from "@neondatabase/serverless";
 import type { ExchangeRecord } from "@/lib/exchange/contracts";
+import { organizationCardMedia } from "@/lib/server/exchange/organization-card-media";
 
 export class CapabilityCatalogUnavailableError extends Error {}
 
@@ -46,11 +47,22 @@ export async function listCanonicalCapabilityExchangeRecords(): Promise<Exchange
             l.label AS location_label,
             l.address,
             CASE WHEN l.point IS NULL THEN NULL ELSE ST_Y(l.point::geometry) END AS lat,
-            CASE WHEN l.point IS NULL THEN NULL ELSE ST_X(l.point::geometry) END AS lng
+            CASE WHEN l.point IS NULL THEN NULL ELSE ST_X(l.point::geometry) END AS lng,
+            op.logo_url,
+            om.source_type AS media_source_type,
+            om.provider AS media_provider,
+            om.provider_video_id AS media_provider_video_id,
+            om.poster_url AS media_poster_url,
+            om.playback_url AS media_playback_url,
+            om.status AS media_status
        FROM exchange_records er
        JOIN organizations o ON o.id = er.organization_id
        JOIN capabilities c ON c.exchange_record_id = er.id
        LEFT JOIN locations l ON l.id = er.location_id
+       LEFT JOIN organization_profiles op ON op.organization_id = o.id
+       LEFT JOIN organization_media om
+         ON om.organization_id = o.id
+        AND om.media_role = 'intro_video'
       WHERE er.record_type = 'capability'
         AND er.status = 'active'
       ORDER BY er.updated_at DESC, er.public_id ASC`,
@@ -64,15 +76,27 @@ export async function listCanonicalCapabilityExchangeRecords(): Promise<Exchange
     if (evidenceCount) metadata.push(`${evidenceCount} evidence item${evidenceCount === 1 ? "" : "s"}`);
     const lat = typeof row.lat === "number" ? row.lat : row.lat === null || row.lat === undefined ? undefined : Number(row.lat);
     const lng = typeof row.lng === "number" ? row.lng : row.lng === null || row.lng === undefined ? undefined : Number(row.lng);
+    const organizationName = String(row.organization_name ?? "Organization");
+    const organizationMedia = organizationCardMedia({
+      logo_url: typeof row.logo_url === "string" ? row.logo_url : undefined,
+      media_source_type: row.media_source_type === "linked" || row.media_source_type === "uploaded" ? row.media_source_type : undefined,
+      media_provider: row.media_provider === "youtube" || row.media_provider === "vimeo" || row.media_provider === "rfxchange" ? row.media_provider : undefined,
+      media_provider_video_id: typeof row.media_provider_video_id === "string" ? row.media_provider_video_id : undefined,
+      media_poster_url: typeof row.media_poster_url === "string" ? row.media_poster_url : undefined,
+      media_playback_url: typeof row.media_playback_url === "string" ? row.media_playback_url : undefined,
+      media_status: row.media_status === "pending" || row.media_status === "ready" || row.media_status === "rejected" ? row.media_status : undefined,
+    }, organizationName);
+
     return {
       id: String(row.public_id),
       type: "capability" as const,
       title: String(row.title ?? "Capability"),
-      organization: String(row.organization_name ?? "Organization"),
+      organization: organizationName,
       summary: String(row.summary ?? ""),
       geography: geographyLabel(row.location_label, row.address),
       metadata: [...new Set(metadata)],
       location: Number.isFinite(lat) && Number.isFinite(lng) ? { lat: lat as number, lng: lng as number } : undefined,
+      card: organizationMedia ? { organizationMedia } : undefined,
     };
   });
 }
