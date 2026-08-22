@@ -8,6 +8,13 @@ on:
       - scripts/build-hampton-roads-geocode-manifest.mjs
       - data/seed-packs/hampton-roads-va/locations.csv
       - .github/workflows/geocode-seed-pack.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/build-hampton-roads-geocode-manifest.mjs
+      - data/seed-packs/hampton-roads-va/locations.csv
+      - .github/workflows/geocode-seed-pack.yml
 
 permissions:
   contents: read
