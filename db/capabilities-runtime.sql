@@ -1,5 +1,6 @@
 -- RFxchange Capabilities Exchange projection.
--- Apply after db/schema.sql, db/capability-enrichment.sql, and db/shared-workflows.sql.
+-- Apply after db/schema.sql, db/capability-enrichment.sql, db/shared-workflows.sql,
+-- and db/organization-media.sql.
 --
 -- Canonical capability assertions remain organization_capability_claims/evidence/profile.
 -- This migration adds only Exchange publication state to the existing capabilities projection.
@@ -15,6 +16,17 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE INDEX IF NOT EXISTS capabilities_publication_idx
   ON capabilities(publication_status, published_at DESC);
+
+-- Existing active capability projections predate explicit publication state. Preserve
+-- their current Exchange visibility during migration rather than unexpectedly hiding them.
+UPDATE capabilities c
+SET publication_status = 'published',
+    published_at = COALESCE(c.published_at, er.updated_at, now()),
+    updated_at = now()
+FROM exchange_records er
+WHERE er.id = c.exchange_record_id
+  AND er.status = 'active'
+  AND c.publication_status = 'draft';
 
 COMMENT ON COLUMN capabilities.publication_status IS
   'Exchange publication state only. Canonical claims, AMACS mapping decisions, and evidence remain in organization_capability_* tables.';
