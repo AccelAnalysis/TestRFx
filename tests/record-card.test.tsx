@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExchangeRecord, LensAction } from "@/lib/exchange/contracts";
 import { resolveRecordActions } from "@/lib/exchange/action-registry";
@@ -33,6 +33,13 @@ describe("RecordCard media-first rendering", () => {
     expect(screen.getByText("Mobile Welding Unit")).toBeTruthy(); expect(screen.getByText("Hampton Roads Fabrication")).toBeTruthy();
     expect(screen.getByText("Available now · Suffolk, VA · 8 mi")).toBeTruthy(); expect(screen.getByText("Equipment · Field Support")).toBeTruthy();
     expect(screen.queryByText(/This long paragraph belongs in Detail/)).toBeNull(); expect(screen.queryByText("Secondary detail")).toBeNull();
+  });
+
+  it("keeps lifecycle status and sponsored placement exposed to assistive technology", () => {
+    const { container } = renderCard(baseRecord({ featured: true, card: { media: { kind: "image", label: "Resource preview", src: "/preview.svg", alt: "Preview" }, classifications: ["Equipment"], status: { label: "Available", tone: "success" }, placement: "sponsored" } }));
+    expect(screen.getByText("Available")).toBeTruthy(); expect(screen.getByText("Sponsored")).toBeTruthy();
+    expect(container.querySelector('[aria-hidden="true"]')?.textContent).not.toContain("Available");
+    expect(container.textContent).toContain("Sponsored");
   });
 
   it("renders a video poster without a play control when no governed video source exists", () => {
@@ -73,13 +80,16 @@ describe("RecordCard media-first rendering", () => {
     expect(resolveRecordActions("resources", baseRecord({ id: "res-own", ownedByViewer: true }), viewer).map((item) => item.label)).toEqual(["Edit", "Archive", "Share"]);
   });
 
-  it("keeps only one card video playing at a time", async () => {
+  it("keeps only one card video playing at a time and restores the prior card to Play state", async () => {
     const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined); const pauseSpy = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
     const first = baseRecord({ id: "video-1", title: "First video", card: { media: { kind: "video", label: "Video", poster: "/one.svg", videoSrc: "/one.mp4", alt: "First poster" }, classifications: ["Equipment"] } });
     const second = baseRecord({ id: "video-2", title: "Second video", card: { media: { kind: "video", label: "Video", poster: "/two.svg", videoSrc: "/two.mp4", alt: "Second poster" }, classifications: ["Equipment"] } });
-    render(<><RecordCard record={first} selected={false} actions={[]} onSelect={vi.fn()} onOpen={vi.fn()} onToggleSave={vi.fn()} onAction={vi.fn()} /><RecordCard record={second} selected={false} actions={[]} onSelect={vi.fn()} onOpen={vi.fn()} onToggleSave={vi.fn()} onAction={vi.fn()} /></>);
+    const { container } = render(<><RecordCard record={first} selected={false} actions={[]} onSelect={vi.fn()} onOpen={vi.fn()} onToggleSave={vi.fn()} onAction={vi.fn()} /><RecordCard record={second} selected={false} actions={[]} onSelect={vi.fn()} onOpen={vi.fn()} onToggleSave={vi.fn()} onAction={vi.fn()} /></>);
     fireEvent.click(screen.getByRole("button", { name: "Play video preview for First video" })); await waitFor(() => expect(playSpy).toHaveBeenCalledTimes(1));
-    const firstVideo = document.querySelector('video[src="/one.mp4"]') as HTMLVideoElement;
+    const firstVideo = container.querySelector('video[src="/one.mp4"]') as HTMLVideoElement;
     fireEvent.click(screen.getByRole("button", { name: "Play video preview for Second video" })); await waitFor(() => expect(playSpy).toHaveBeenCalledTimes(2)); expect(pauseSpy.mock.instances).toContain(firstVideo);
+    const firstCard = container.querySelector('[data-record-id="video-1"]') as HTMLElement;
+    await waitFor(() => expect(within(firstCard).getByRole("button", { name: "Play video preview for First video" })).toBeTruthy());
+    expect(within(firstCard).queryByRole("button", { name: "Pause video preview for First video" })).toBeNull();
   });
 });
