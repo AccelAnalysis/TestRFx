@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Reference organization mark</title>
+  <desc id="desc">Typographic organization mark used only for the fictional TestRFx reference organization.</desc>
+  <rect width="960" height="540" fill="#f7f3ea"/>
+  <rect x="190" y="92" width="580" height="356" rx="64" fill="#ffffff" stroke="#cfd4da" stroke-width="8"/>
+  <circle cx="350" cy="270" r="104" fill="#252932"/>
+  <path d="M305 288c26-68 64-103 114-103-4 76-38 129-104 158z" fill="#d6a23a"/>
+  <text x="492" y="255" fill="#252932" font-family="Arial, sans-serif" font-size="76" font-weight="800" letter-spacing="6">RWDI</text>
+  <text x="492" y="305" fill="#6c737c" font-family="Arial, sans-serif" font-size="22">REFERENCE ORGANIZATION</text>
+  <text x="492" y="342" fill="#6c737c" font-family="Arial, sans-serif" font-size="18">TestRFx preview fixture</text>
+</svg>
