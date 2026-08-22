@@ -215,7 +215,7 @@ export async function activateAuthoritativeReadiness(
         ${context.userId}::uuid,
         'exchange_active',
         ${activation.destination},
-        ${tx.json(readiness)},
+        ${tx.json(JSON.parse(JSON.stringify(readiness)))},
         ${activation.activatedAt}::timestamptz,
         now()
       )
