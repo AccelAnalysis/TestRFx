@@ -46,4 +46,33 @@
 .matchPartial { color: #745312; }
 .matchGap { color: #9c3d3d; }
 .boundary { margin-top: 18px; padding: 14px; border-radius: 14px; background: rgba(214,162,58,.1); color: #624b1c; font-size: 12px; line-height: 1.5; }
-@media (max-width: 560px) { .metricGrid { grid-template-columns: 1fr; } .mediaLead { max-width: 72%; } }
+.workflowLayout { display: grid; grid-template-columns: minmax(190px, 230px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.workflowMain { min-width: 0; }
+.tree { display: grid; gap: 8px; position: sticky; top: 8px; }
+.treeBranch { border: 1px solid var(--border); border-radius: 14px; background: rgba(247,243,234,.65); overflow: hidden; }
+.treeBranch summary { padding: 11px 12px; cursor: pointer; font-size: 12px; font-weight: 800; }
+.treeRoot, .treeChildren { margin: 0; padding: 0 8px 8px; list-style: none; display: grid; gap: 4px; }
+.treeChildren { padding: 4px 0 0 10px; border-left: 1px solid rgba(37,41,50,.1); }
+.treeItem { min-width: 0; }
+.treeButton { width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; border: 0; border-radius: 9px; background: transparent; color: #565c65; font-size: 11px; text-align: left; cursor: pointer; }
+.treeButton:hover { background: rgba(37,41,50,.05); }
+.treeButton:disabled { opacity: .35; cursor: not-allowed; }
+.treeActive { background: rgba(46,94,170,.1); color: #244f93; font-weight: 800; }
+.operationCard, .policyCard { padding: 15px; border: 1px solid var(--border); border-radius: 15px; background: rgba(255,255,255,.76); }
+.operationCard strong, .policyCard strong { display: block; margin-bottom: 6px; }
+.operationCard p, .policyCard p { margin: 0; color: #60666e; font-size: 12px; line-height: 1.5; }
+.policyCard small { display: block; margin-top: 8px; color: #6b7078; }
+.primaryAction, .primaryLink { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 12px; padding: 0 14px; border: 1px solid #0b0b0d; border-radius: 12px; background: #0b0b0d; color: #fff; font-size: 12px; font-weight: 800; text-decoration: none; cursor: pointer; }
+.primaryAction:disabled { opacity: .5; cursor: not-allowed; }
+.operationMessage { margin: 12px 0 0; padding: 10px 12px; border-radius: 11px; background: rgba(46,94,170,.08); color: #364d70; font-size: 12px; }
+.operationForm { display: grid; gap: 11px; }
+.operationForm label { display: grid; gap: 6px; color: #50565f; font-size: 11px; font-weight: 760; }
+.operationForm input, .operationForm textarea { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 11px; background: #fff; font: inherit; }
+.operationForm textarea { min-height: 88px; resize: vertical; }
+.organizationOptions { display: grid; gap: 6px; }
+.organizationOptions button { display: flex; justify-content: space-between; gap: 10px; padding: 10px 11px; border: 1px solid var(--border); border-radius: 11px; background: #fff; text-align: left; cursor: pointer; }
+.organizationOptions span { color: #6b7078; font-size: 10px; }
+.actionChoice { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
+.actionChoice button { min-height: 44px; border: 1px solid var(--border); border-radius: 12px; background: #fff; font-weight: 760; cursor: pointer; }
+@media (max-width: 760px) { .workflowLayout { grid-template-columns: 1fr; } .tree { position: static; } .treeBranch:not([open]) { display: block; } }
+@media (max-width: 560px) { .metricGrid { grid-template-columns: 1fr; } .mediaLead { max-width: 72%; } .actionChoice { grid-template-columns: 1fr; } }
