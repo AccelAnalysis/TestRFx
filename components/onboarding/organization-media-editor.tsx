@@ -12,6 +12,7 @@ import type { OrganizationIntroVideo } from "@/lib/onboarding/organization-profi
 import styles from "./organization-media-editor.module.css";
 
 type MediaSnapshot = {
+  organizationName: string;
   logoUrl: string;
   introVideo: OrganizationIntroVideo | null;
   linkedVideo: { providers: readonly ["youtube", "vimeo"]; maxSeconds: number };
@@ -20,10 +21,10 @@ type MediaSnapshot = {
 
 export function OrganizationMediaEditor({
   organizationId,
-  organizationName,
+  organizationName = "Organization",
 }: {
   organizationId?: string;
-  organizationName: string;
+  organizationName?: string;
 }) {
   const [snapshot, setSnapshot] = useState<MediaSnapshot | null>(null);
   const [logoUrl, setLogoUrl] = useState("");
@@ -32,6 +33,7 @@ export function OrganizationMediaEditor({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const displayName = snapshot?.organizationName || organizationName;
   const parsedDraft = useMemo(() => parseApprovedVideoUrl(videoUrl), [videoUrl]);
   const intro = snapshot?.introVideo ?? null;
   const linkedEmbed = intro?.source === "linked"
@@ -146,7 +148,7 @@ export function OrganizationMediaEditor({
         </div>
         <div className={styles.logoRow}>
           <div className={styles.logoPreview}>
-            {logoUrl ? <img src={logoUrl} alt={`${organizationName} logo`} /> : <span>{organizationName.slice(0, 2).toUpperCase()}</span>}
+            {logoUrl ? <img src={logoUrl} alt={`${displayName} logo`} /> : <span>{displayName.slice(0, 2).toUpperCase()}</span>}
           </div>
           <label>
             <span>Logo URL</span>
@@ -166,7 +168,7 @@ export function OrganizationMediaEditor({
           <div className={styles.videoPreview}>
             <iframe
               src={linkedEmbed}
-              title={`${organizationName} introduction video`}
+              title={`${displayName} introduction video`}
               allow="encrypted-media; picture-in-picture"
               allowFullScreen
               referrerPolicy="strict-origin-when-cross-origin"
