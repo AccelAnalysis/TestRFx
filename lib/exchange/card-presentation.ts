@@ -4,6 +4,7 @@ import type {
   ExchangeCardPlacement,
   ExchangeCardStatus,
   ExchangeRecord,
+  ExchangeVideoProvider,
 } from "./contracts";
 
 export interface ResolvedExchangeCardMedia {
@@ -12,6 +13,8 @@ export interface ResolvedExchangeCardMedia {
   src?: string;
   poster?: string;
   videoSrc?: string;
+  videoProvider?: ExchangeVideoProvider;
+  providerVideoId?: string;
   alt: string;
   attribution?: string;
   ownerLabel?: string;
@@ -55,7 +58,9 @@ function unique(items: string[]) {
 }
 
 function hasVisualSource(media?: ExchangeCardMedia) {
-  return Boolean(media?.src || media?.poster);
+  if (!media) return false;
+  if (media.kind === "video" && (media.videoSrc || (media.videoProvider && media.providerVideoId))) return true;
+  return Boolean(media.src || media.poster);
 }
 
 function mediaAlt(record: ExchangeRecord, media?: ExchangeCardMedia) {
@@ -87,6 +92,8 @@ function resolvedMedia(record: ExchangeRecord): ResolvedExchangeCardMedia {
       src: media.src,
       poster: media.poster,
       videoSrc: media.videoSrc,
+      videoProvider: media.videoProvider,
+      providerVideoId: media.providerVideoId,
       alt: mediaAlt(record, media),
       attribution: media.attribution,
       ownerLabel: media.ownerLabel,
