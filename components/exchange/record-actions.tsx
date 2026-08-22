@@ -2,7 +2,13 @@
 
 import type { LensAction } from "@/lib/exchange/contracts";
 import { getLensActionUnavailableReason, isLensActionEnabled } from "@/lib/exchange/action-registry";
+import { ExchangeIcon } from "./exchange-nav-icon";
 import styles from "./record-actions.module.css";
+
+function actionIcon(action: LensAction) {
+  if (action.id === "match-rfx") return <ExchangeIcon icon="match-rfx" size={14} />;
+  return action.icon;
+}
 
 export function RecordActionRow({
   actions,
@@ -38,7 +44,7 @@ export function RecordActionRow({
             aria-label={accessibleLabel}
             onClick={() => onAction(action)}
           >
-            <span className={styles.icon} aria-hidden>{action.icon}</span>
+            <span className={styles.icon} aria-hidden>{actionIcon(action)}</span>
             <span>{action.label}</span>
           </button>
         );
