@@ -1,3 +1,10 @@
+import {
+  ORGANIZATION_LINKED_VIDEO_MAX_SECONDS,
+  ORGANIZATION_UPLOAD_VIDEO_MAX_SECONDS,
+  parseApprovedVideoUrl,
+  type ApprovedVideoProvider,
+} from "@/lib/media/approved-video";
+
 export type OrganizationClaimMode = "claimed" | "created" | "selected";
 
 export const ORGANIZATION_TYPE_OPTIONS = [
@@ -39,6 +46,27 @@ export type OrganizationGoal =
   | "find_resources"
   | "explore_network";
 
+export type OrganizationIntroVideoStatus = "pending" | "ready";
+export type OrganizationIntroVideo =
+  | {
+      source: "linked";
+      provider: ApprovedVideoProvider;
+      videoId: string;
+      canonicalUrl: string;
+      posterUrl?: string;
+      durationSeconds?: number;
+      status: OrganizationIntroVideoStatus;
+    }
+  | {
+      source: "uploaded";
+      provider: "rfxchange";
+      storageKey: string;
+      playbackUrl?: string;
+      posterUrl?: string;
+      durationSeconds: number;
+      status: OrganizationIntroVideoStatus;
+    };
+
 export type OrganizationProfileContext = {
   organizationId?: string;
   organizationName?: string;
@@ -64,6 +92,7 @@ export type OrganizationProfileSubmission = {
   contactPhone: string;
   brandName: string;
   logoUrl: string;
+  introVideo: OrganizationIntroVideo | null;
   searchable: boolean;
   mapVisible: boolean;
   publicContact: boolean;
@@ -81,6 +110,7 @@ export type OrganizationProfileField =
   | "contactName"
   | "contactEmail"
   | "logoUrl"
+  | "introVideo"
   | "goals"
   | "form";
 
@@ -254,6 +284,66 @@ function sanitizedArray<T extends string>(value: unknown, supported: Set<T>): T[
   return [...new Set(value.filter((item): item is T => typeof item === "string" && supported.has(item as T)))];
 }
 
+function duration(value: unknown) {
+  const number = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.round(number) : undefined;
+}
+
+function sanitizeIntroVideo(value: unknown, errors: OrganizationProfileFieldErrors): OrganizationIntroVideo | null {
+  if (!isRecord(value)) return null;
+  const source = clean(value.source, 24);
+  const durationSeconds = duration(value.durationSeconds);
+  const posterUrl = clean(value.posterUrl, 500);
+  if (posterUrl && !validHttpUrl(posterUrl)) errors.introVideo = "Use a valid video thumbnail URL.";
+
+  if (source === "linked") {
+    const parsed = parseApprovedVideoUrl(clean(value.canonicalUrl, 500));
+    if (!parsed) {
+      errors.introVideo = "Use a YouTube or Vimeo video link.";
+      return null;
+    }
+    if (durationSeconds && durationSeconds > ORGANIZATION_LINKED_VIDEO_MAX_SECONDS) {
+      errors.introVideo = `Introduction videos must be ${ORGANIZATION_LINKED_VIDEO_MAX_SECONDS} seconds or less.`;
+      return null;
+    }
+    return {
+      source: "linked",
+      provider: parsed.provider,
+      videoId: parsed.videoId,
+      canonicalUrl: parsed.canonicalUrl,
+      posterUrl: posterUrl || parsed.thumbnailUrl,
+      durationSeconds,
+      status: value.status === "ready" ? "ready" : "pending",
+    };
+  }
+
+  if (source === "uploaded") {
+    const storageKey = clean(value.storageKey, 500);
+    if (!storageKey || !durationSeconds) {
+      errors.introVideo = "Uploaded introduction video metadata is incomplete.";
+      return null;
+    }
+    if (durationSeconds > ORGANIZATION_UPLOAD_VIDEO_MAX_SECONDS) {
+      errors.introVideo = `Uploaded introduction videos must be ${ORGANIZATION_UPLOAD_VIDEO_MAX_SECONDS} seconds or less.`;
+      return null;
+    }
+    const playbackUrl = clean(value.playbackUrl, 500);
+    if (playbackUrl && !validHttpUrl(playbackUrl)) errors.introVideo = "Uploaded video playback URL is invalid.";
+    return {
+      source: "uploaded",
+      provider: "rfxchange",
+      storageKey,
+      playbackUrl: playbackUrl || undefined,
+      posterUrl: posterUrl || undefined,
+      durationSeconds,
+      status: value.status === "ready" ? "ready" : "pending",
+    };
+  }
+
+  errors.introVideo = "Choose an approved introduction video source.";
+  return null;
+}
+
 export function organizationProfileContextFromSearchParams(params: SearchParamsLike): OrganizationProfileContext {
   const organizationId = clean(single(params.organization));
   const organizationName = clean(single(params.name));
@@ -302,6 +392,7 @@ export function validateOrganizationProfilePayload(value: unknown, requireComple
   };
 
   const errors: OrganizationProfileFieldErrors = {};
+  const introVideo = sanitizeIntroVideo(value.introVideo, errors);
   if (!context.organizationId) errors.organization = "A resolved organization is required before the profile can be saved.";
   if (website && !validHttpUrl(website)) errors.website = "Enter a valid http or https website URL.";
   if (logoUrl && !validHttpUrl(logoUrl)) errors.logoUrl = "Enter a valid http or https logo URL.";
@@ -339,6 +430,7 @@ export function validateOrganizationProfilePayload(value: unknown, requireComple
       contactPhone,
       brandName,
       logoUrl,
+      introVideo,
       searchable,
       mapVisible,
       publicContact,
