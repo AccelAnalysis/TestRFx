@@ -77,8 +77,7 @@ export function CardMedia({
   useEffect(() => {
     if (!playing) return;
     if (activeExchangeCardPlayback && activeExchangeCardPlayback.key !== playbackKey) activeExchangeCardPlayback.stop();
-    const active: ActiveExchangeCardPlayback = { key: playbackKey, stop: stopPlayback };
-    activeExchangeCardPlayback = active;
+    activeExchangeCardPlayback = { key: playbackKey, stop: stopPlayback };
 
     if (directVideo) {
       const video = videoRef.current;
@@ -127,53 +126,56 @@ export function CardMedia({
       data-media-fallback={showFallback ? "true" : "false"}
       data-video-playing={playing ? "true" : "false"}
     >
-      <button
-        type="button"
-        className={styles.open}
-        onClick={openRecord}
-        onFocus={onSelect}
-        aria-label={`Open ${record.title} details`}
-      >
-        {playing && externalEmbedUrl ? (
+      {playing && externalEmbedUrl ? (
+        <div className={styles.embedFrame}>
           <iframe
-            className={styles.visual}
             src={externalEmbedUrl}
             title={media.alt || `${record.title} video`}
             allow="autoplay; encrypted-media; picture-in-picture"
             allowFullScreen
             referrerPolicy="strict-origin-when-cross-origin"
           />
-        ) : playing && directVideo ? (
-          <video
-            ref={videoRef}
-            className={styles.visual}
-            src={media.videoSrc}
-            poster={visualSrc}
-            muted
-            playsInline
-            preload="none"
-            onEnded={stopPlayback}
-            onError={failMedia}
-            aria-label={media.alt || `${record.title} video preview`}
-          />
-        ) : !showFallback && visualSrc ? (
-          <img
-            className={`${styles.visual}${media.kind === "logo" ? ` ${styles.logoVisual}` : ""}`}
-            src={visualSrc}
-            alt={media.alt}
-            loading="lazy"
-            decoding="async"
-            onError={failMedia}
-          />
-        ) : (
-          <span className={`${styles.fallback} ${fallbackTone[record.type]}`} aria-hidden="true">
-            <span className={styles.fallbackGlyph}>
-              <ExchangeIcon icon={fallbackIcon[record.type]} size={52} strokeWidth={1.7} />
+        </div>
+      ) : (
+        <button
+          type="button"
+          className={styles.open}
+          onClick={openRecord}
+          onFocus={onSelect}
+          aria-label={`Open ${record.title} details`}
+        >
+          {playing && directVideo ? (
+            <video
+              ref={videoRef}
+              className={styles.visual}
+              src={media.videoSrc}
+              poster={visualSrc}
+              muted
+              playsInline
+              preload="none"
+              onEnded={stopPlayback}
+              onError={failMedia}
+              aria-label={media.alt || `${record.title} video preview`}
+            />
+          ) : !showFallback && visualSrc ? (
+            <img
+              className={`${styles.visual}${media.kind === "logo" ? ` ${styles.logoVisual}` : ""}`}
+              src={visualSrc}
+              alt={media.alt}
+              loading="lazy"
+              decoding="async"
+              onError={failMedia}
+            />
+          ) : (
+            <span className={`${styles.fallback} ${fallbackTone[record.type]}`} aria-hidden="true">
+              <span className={styles.fallbackGlyph}>
+                <ExchangeIcon icon={fallbackIcon[record.type]} size={52} strokeWidth={1.7} />
+              </span>
+              <span className={styles.fallbackLabel}>{media.label}</span>
             </span>
-            <span className={styles.fallbackLabel}>{media.label}</span>
-          </span>
-        )}
-      </button>
+          )}
+        </button>
+      )}
 
       <div className={styles.topBadges}>
         {status ? <span className={`${styles.status} ${statusTone[status.tone ?? "neutral"]}`}>{status.label}</span> : null}
