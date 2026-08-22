@@ -5,6 +5,7 @@ import { deriveReferenceViewerContext } from "@/lib/exchange/action-registry";
 import { lensDefinitions } from "@/lib/exchange/lenses";
 import { scopeMapRecordsToBounds } from "@/lib/exchange/map-service";
 import { searchExchangeRecords, searchStateFromParams } from "@/lib/exchange/search";
+import { CapabilityCatalogUnavailableError, listCanonicalCapabilityExchangeRecords } from "@/lib/server/capabilities/exchange-records";
 import { DatabaseServiceUnavailableError } from "@/lib/server/database";
 import { listSeededResourceProviderRecords } from "@/lib/server/resources/provider-ingestion-service";
 
@@ -21,6 +22,10 @@ function boundsFromRequest(request: NextRequest): MapBounds | undefined {
 }
 
 async function recordsForLens(lens: ExchangeLens) {
+  if (lens === "capabilities") {
+    const records = await listCanonicalCapabilityExchangeRecords();
+    return { records, catalogMode: "database" as const };
+  }
   if (lens !== "resources") return { records: exchangeSeed, catalogMode: "reference" as const };
   try {
     const seeded = await listSeededResourceProviderRecords();
@@ -38,12 +43,21 @@ export async function GET(request: NextRequest) {
   if (!lenses.has(lensParam as ExchangeLens)) return NextResponse.json({ error: "Unsupported lens" }, { status: 400 });
   const lens = lensParam as ExchangeLens;
   const state = searchStateFromParams(request.nextUrl.searchParams);
-  const catalog = await recordsForLens(lens);
+
+  let catalog;
+  try {
+    catalog = await recordsForLens(lens);
+  } catch (error) {
+    if (error instanceof CapabilityCatalogUnavailableError) return NextResponse.json({ error: error.message, catalogMode: "unavailable" }, { status: 503 });
+    throw error;
+  }
+
   const response = searchExchangeRecords(catalog.records, lens, state);
   const bounds = boundsFromRequest(request);
   const records = scopeMapRecordsToBounds(response.results.map((result) => result.record), bounds);
   const mapped = records.filter((record) => record.location).length;
   const viewer = deriveReferenceViewerContext(catalog.records);
+  const visibleResults = response.results.filter((result) => records.some((record) => record.id === result.record.id));
 
   return NextResponse.json({
     lens,
@@ -51,7 +65,11 @@ export async function GET(request: NextRequest) {
     bounds,
     catalogMode: catalog.catalogMode,
     records,
-    matches: response.results.filter((result) => records.some((record) => record.id === result.record.id)).map((result) => ({ id: result.record.id, ...result.match })),
+    // Compatibility projection for bounded consumers such as the RFx mobile
+    // market preview. It contains the same canonical records and match data;
+    // it is not a second search implementation.
+    results: visibleResults,
+    matches: visibleResults.map((result) => ({ id: result.record.id, ...result.match })),
     summary: { total: records.length, mapped, offMap: records.length - mapped },
     actions: lensDefinitions[lens].actions(viewer),
   });
