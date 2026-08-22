@@ -3,6 +3,7 @@ import type { ExchangeRecord, ResourceProjection } from "@/lib/exchange/contract
 import type { ResourceDraft, ResourceRequestDraft } from "@/lib/exchange/resources";
 import { resourceMetadata } from "@/lib/exchange/resources";
 import { getDatabase } from "@/lib/server/database";
+import { organizationCardMedia } from "@/lib/server/exchange/organization-card-media";
 import {
   assertExchangeWrite,
   ExchangeForbiddenError,
@@ -43,6 +44,13 @@ type ResourceRow = {
   lng: number | string | null;
   saved: boolean;
   following: boolean;
+  logo_url: string | null;
+  media_source_type: "linked" | "uploaded" | null;
+  media_provider: "youtube" | "vimeo" | "rfxchange" | null;
+  media_provider_video_id: string | null;
+  media_poster_url: string | null;
+  media_playback_url: string | null;
+  media_status: "pending" | "ready" | "rejected" | null;
 };
 
 type ResourceIdentity = {
@@ -70,6 +78,7 @@ function toExchangeRecord(row: ResourceRow, actor: ExchangeServerActor): Exchang
   if (row.saved) relationships.push("saved");
   if (row.following) relationships.push("following");
   if (row.organization_id === actor.organizationId) relationships.push("owned");
+  const organizationMedia = organizationCardMedia(row, row.organization_name);
 
   return {
     id: row.public_id,
@@ -89,6 +98,7 @@ function toExchangeRecord(row: ResourceRow, actor: ExchangeServerActor): Exchang
       status: { label: resource.availabilityLabel, tone: resource.availability === "available" ? "success" : "info" },
       relationships,
       placement: row.sponsored ? "sponsored" : "organic",
+      organizationMedia,
     },
     resource,
   };
@@ -115,6 +125,13 @@ async function resourceRows(actor: ExchangeServerActor, publicId?: string) {
       r.sponsored,
       CASE WHEN l.point IS NULL THEN NULL ELSE ST_Y(l.point::geometry) END AS lat,
       CASE WHEN l.point IS NULL THEN NULL ELSE ST_X(l.point::geometry) END AS lng,
+      op.logo_url,
+      om.source_type AS media_source_type,
+      om.provider AS media_provider,
+      om.provider_video_id AS media_provider_video_id,
+      om.poster_url AS media_poster_url,
+      om.playback_url AS media_playback_url,
+      om.status AS media_status,
       EXISTS (
         SELECT 1 FROM record_relationships rr
         WHERE rr.user_id = ${actor.userId}::uuid
@@ -131,6 +148,10 @@ async function resourceRows(actor: ExchangeServerActor, publicId?: string) {
     JOIN organizations o ON o.id = er.organization_id
     JOIN resources r ON r.exchange_record_id = er.id
     LEFT JOIN locations l ON l.id = er.location_id
+    LEFT JOIN organization_profiles op ON op.organization_id = o.id
+    LEFT JOIN organization_media om
+      ON om.organization_id = o.id
+     AND om.media_role = 'intro_video'
     WHERE er.record_type = 'resource'
       AND (${publicId ?? null}::text IS NULL OR er.public_id = ${publicId ?? null})
     ORDER BY r.sponsored DESC, er.updated_at DESC, er.title
