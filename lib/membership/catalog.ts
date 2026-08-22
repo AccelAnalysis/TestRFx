@@ -4,6 +4,11 @@ export const FOUNDING_PLAN_CODE = "founding" as const;
 export const FOUNDING_PRICE_LOOKUP_KEY =
   process.env.RFXCHANGE_FOUNDING_PRICE_LOOKUP_KEY?.trim() || "rfxchange_founding_monthly";
 
+export const foundingMembership = {
+  code: FOUNDING_PLAN_CODE,
+  capacity: { limit: 250 },
+} as const;
+
 export const creditPolicy: CreditPolicy = {
   usdValuePerCredit: 1,
   expirationMonths: 12,
