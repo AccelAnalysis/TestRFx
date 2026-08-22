@@ -29,6 +29,11 @@ describe("buildCardPresentation", () => {
     expect(presentation.media.kind).toBe("logo"); expect(presentation.media.src).toBe("/logo.svg");
   });
 
+  it("skips source-less featured media so an available organization visual can render", () => {
+    const presentation = buildCardPresentation(record({ card: { media: { kind: "visualization", label: "Signal" }, organizationMedia: { logo: { kind: "logo", label: "Organization logo", src: "/logo.svg" } } } }));
+    expect(presentation.media.kind).toBe("logo"); expect(presentation.media.src).toBe("/logo.svg"); expect(presentation.media.fallback).toBe(false);
+  });
+
   it("uses a governed category fallback when no media exists", () => {
     const presentation = buildCardPresentation(record({ card: undefined }));
     expect(presentation.media.kind).toBe("category"); expect(presentation.media.fallback).toBe(true); expect(presentation.media.label).toBe("Resource listing");
