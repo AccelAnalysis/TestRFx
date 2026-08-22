@@ -39,8 +39,8 @@ The same canonical RFx object remains underneath all three experience depths.
 ### Adaptive paths
 
 - **Quick**: defined need, scope, requirements, timing, preview, publish.
-- **Guided**: adds deliverables, response instructions, and validation.
-- **Formal**: adds evaluation, governance, approvals, and publication readiness.
+- **Guided**: adds market context, deliverables, response instructions, package assembly, and validation.
+- **Formal**: exposes the complete source workflow, including evaluation, governance, approvals, and publication readiness.
 
 The issuer moves through visual chapters and micro-tasks. A responder preview and publication preflight appear before the final publish commitment.
 
@@ -59,12 +59,12 @@ After Pursue, the Response Home provides:
 
 - readiness percentage;
 - deadline countdown;
-- next best action / resume;
+- next best action / exact resume;
 - blockers;
 - chapter progress;
 - direct Review & Submit entry.
 
-RFx requirements remain the authority for response planning, compliance, reuse confirmation, collaboration, Q&A/addenda, review, and submission.
+RFx requirements remain the authority for response planning, compliance, reuse confirmation, collaboration, Q&A/addenda, review, and submission. Capability or Resource gap handoffs save the RFx workspace before changing lens so returning work is not lost.
 
 ## Mobile-native input
 
@@ -75,13 +75,14 @@ The Task Canvas provides:
 - boolean switches;
 - quantity steppers;
 - native date inputs;
-- speech recognition when the browser supports the Web Speech API;
+- speech recognition when the browser supports the Web Speech API plus keyboard-dictation fallback;
 - camera and file capture;
 - device-persistent attachment blobs through IndexedDB;
-- interruption-safe autosave and exact path resume;
-- reduced-motion support.
+- interruption-safe debounced autosave and exact path resume;
+- immediate save before navigation, completion, handoff, publish, and submit;
+- reduced-motion and safe-area support.
 
-Device attachment persistence is a real offline/mobile capability. A production hosted submission still requires the selected server-side object-storage policy before device attachments can become authoritative shared attachments.
+Device attachment persistence is a real offline/mobile capability. A production hosted submission still requires the selected server-side object-storage policy before device attachment bytes can become authoritative shared attachments. The workflow never labels a device-only blob as an uploaded shared attachment.
 
 ## Market preview
 
@@ -92,11 +93,28 @@ The Market Preview requests currently visible Capability results from the Exchan
 - profiles in service geography;
 - profiles with sufficient visible readiness context.
 
-When the search service is unavailable, the interface does not invent counts. It falls back to available structured match context or explains that the live preview is unavailable while preserving the RFx draft.
+When the search service is unavailable, the interface does not invent counts. It explains that live market preview is unavailable while preserving the RFx draft.
+
+Market preview and Match remain discovery aids. Neither is qualification, eligibility, endorsement, or a probability-of-award prediction.
 
 ## Publication
 
-Publication uses a preflight rather than a generic completion button. Required checks adapt to the selected Quick, Guided, or Formal path. Modeled blockers prevent publication. The final commitment explains that publishing activates discovery, matching, and the response timeline, then creates a publication event in the durable workspace.
+Publication uses a preflight rather than a generic completion button. Required checks adapt to the selected Quick, Guided, or Formal path. Modeled blockers prevent publication.
+
+The browser does **not** declare publication successful. The final action calls `/api/rfx/transactions`, where the server:
+
+1. resolves the signed-in participant from the HttpOnly `rfx_session`;
+2. resolves and verifies the active organization membership;
+3. requires RFx write authority;
+4. verifies issuer ownership for an existing RFx, or permits the authenticated organization to promote its local create draft;
+5. reloads the organization-scoped shared workspace;
+6. reruns publication preflight server-side;
+7. rejects a stale client version while newer edits are still syncing;
+8. creates or updates canonical `exchange_records` and `rfx_records`;
+9. records an activity event;
+10. returns the committed publication receipt/timestamp.
+
+Only after that commit does the Task Canvas show **Your RFx is live**.
 
 ## Submission
 
@@ -106,12 +124,12 @@ Hosted submission requires:
 
 - modeled response preflight readiness;
 - explicit submitter-authority confirmation;
-- a locked workspace version;
-- timestamp;
-- generated receipt identifier;
-- submitted pursuit state.
+- authenticated participant and active organization;
+- organization membership with RFx response authority;
+- an RFxchange-hosted RFx that is currently accepting responses;
+- a synchronized shared-workspace version.
 
-The receipt is displayed as a calm, unmistakable success state.
+The server reruns preflight and then atomically updates the canonical `rfx_responses` and `rfx_pursuits` state and records the activity event. The response receipt/timestamp displayed by the client is returned from that committed transaction; a local button click cannot manufacture it.
 
 ### External issuer system
 
@@ -119,38 +137,48 @@ External submission is deliberately different:
 
 1. RFxchange validates the prepared package.
 2. The participant opens the authoritative issuer channel when a governed URL exists.
-3. The participant records the external confirmation/reference and time.
-4. RFxchange stores the state as **externally submitted — self-reported**.
-5. A later permitted integration may promote that state to verified.
+3. If no authoritative URL is stored, RFxchange says so rather than inventing one.
+4. The participant records the external confirmation/reference and submitted date/time and explicitly confirms the self-report.
+5. The server verifies the RFx is external/external-submission-required and records the canonical response state as **external-submitted-self-reported**.
+6. A later permitted integration may promote that state to verified.
 
-RFxchange never creates a hosted receipt or claims formal submission merely because the response was prepared here.
+RFxchange never creates an RFxchange-hosted submission receipt or claims formal issuer-system submission merely because a response was prepared here.
 
-## Persistence and security
+## Persistence, identity, and isolation
 
-The Task Canvas uses the existing RFx workspace service:
+The Task Canvas uses two truthful persistence modes:
 
-- Postgres JSONB workspace plus append-only events behind the trusted service boundary;
-- durable local-device fallback for static/offline clients;
-- debounced autosave plus immediate save on navigation, completion, handoff, publish, and submit;
-- persisted nested path for exact resume.
+- **Authenticated shared workspace**: Postgres JSONB state plus append-only workspace events.
+- **Local-device workspace**: browser `localStorage` state plus IndexedDB attachment blobs for static preview, offline work, or temporarily unavailable runtime services.
 
-The client never treats a disabled button or a reference actor as authorization. Final production publication and hosted submission must continue to revalidate the verified user, active organization, role, RFx authority, and workflow state server-side.
+The shared workspace service is authorized by the existing production identity-session boundary, not by browser-supplied user/organization IDs. It resolves `rfx_session`, then verifies `organization_memberships`.
+
+Workspace identity is:
+
+`record_id + perspective + active organization`
+
+This is essential because multiple responder organizations can work against the same RFx without seeing or overwriting one another’s response workspace. Workspace events also record organization and actor user IDs.
+
+If an authenticated participant has meaningful newer local work when shared persistence becomes available, the client reconciles that local draft into the participant’s organization-scoped shared workspace instead of silently replacing it with an empty remote state.
+
+Client-side disabled controls are never treated as authorization. Publication and submission always revalidate participant, active organization, role/permissions, RFx ownership/source/state, workspace version, and preflight server-side.
 
 ## Accessibility and responsive behavior
 
 The experience targets:
 
+- full `100dvh` phone composition;
 - 360px-wide phones without horizontal scrolling;
-- 44–52px controls;
+- 44–54px controls;
 - 16px task input text;
 - visible focus states;
 - screen-reader labels;
 - native mobile input modes;
 - reduced motion;
-- safe-area padding;
+- iOS/Android safe-area padding;
 - no horizontal procurement tables.
 
-Desktop and tablet retain the same task model inside a centered focused canvas; they do not become separate applications.
+Tablet and desktop retain the same task model inside a centered focused canvas; they do not become separate applications.
 
 ## Acceptance criteria
 
@@ -160,7 +188,10 @@ The implementation is not complete until:
 - a responder can understand fit and choose Pursue / Watch / Decline quickly;
 - every required response item can be reached at 360px width;
 - closing and reopening restores the exact task and draft;
-- modeled blockers prevent hosted publication/submission;
+- local work reconciles to the authenticated organization workspace without cross-organization leakage;
+- modeled blockers prevent hosted publication/submission on both client and server;
+- only a canonical server commit can produce a hosted publication/submission success state;
 - hosted and external submission states cannot be confused;
+- external submission remains explicitly self-reported unless verified by a permitted integration;
 - device attachments, dictation fallback, autosave, and offline/device persistence communicate their real state;
-- keyboard, screen-reader, focus, zoom, contrast, and reduced-motion behavior remain usable.
+- keyboard, screen-reader, focus, zoom, contrast, reduced-motion, and safe-area behavior remain usable.
