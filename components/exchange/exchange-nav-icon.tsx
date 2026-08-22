@@ -45,6 +45,10 @@ const iconComponents = {
   watching: Eye,
 } satisfies Record<ExchangeUiIconId, LucideIcon>;
 
+export function isExchangeUiIconId(value: string): value is ExchangeUiIconId {
+  return value in iconComponents;
+}
+
 export function ExchangeIcon({
   icon,
   size = 23,
