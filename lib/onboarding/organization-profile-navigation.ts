@@ -35,7 +35,7 @@ export const ORGANIZATION_PROFILE_TREE: readonly OrganizationProfileNavigationNo
       { id: "industry-codes", label: "Industry & Codes", description: "Industry and classification codes." },
       { id: "certifications", label: "Certifications", description: "Continue to the capability evidence and certification workflow." },
       { id: "description", label: "Description", description: "Maintain the organization overview used across the Exchange." },
-      { id: "logo-branding", label: "Logo & Branding", description: "Maintain the public brand name and logo URL." },
+      { id: "logo-branding", label: "Logo & Media", description: "Manage your logo and short organization introduction video." },
     ],
   },
   { id: "verified-information", label: "Verified Information", description: "Read the organization facts that have been independently verified." },

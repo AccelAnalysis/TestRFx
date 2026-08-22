@@ -24,6 +24,47 @@ describe("buildCardPresentation", () => {
     expect(presentation.media.kind).toBe("video"); expect(presentation.media.poster).toBe("/poster.svg"); expect(presentation.media.videoSrc).toBeUndefined();
   });
 
+  it("uses an approved organization intro video when record media is absent", () => {
+    const presentation = buildCardPresentation(record({
+      type: "capability",
+      resource: undefined,
+      card: {
+        organizationMedia: {
+          hero: {
+            kind: "video",
+            label: "Organization introduction",
+            poster: "/intro.jpg",
+            videoProvider: "youtube",
+            providerVideoId: "abcDEF_1234",
+          },
+        },
+      },
+    }));
+    expect(presentation.media.kind).toBe("video");
+    expect(presentation.media.videoProvider).toBe("youtube");
+    expect(presentation.media.providerVideoId).toBe("abcDEF_1234");
+    expect(presentation.media.fallback).toBe(false);
+  });
+
+  it("keeps RFx or Resource media ahead of organization intro media", () => {
+    const presentation = buildCardPresentation(record({
+      card: {
+        media: { kind: "image", label: "Resource photo", src: "/resource.jpg" },
+        organizationMedia: {
+          hero: {
+            kind: "video",
+            label: "Organization introduction",
+            poster: "/intro.jpg",
+            videoProvider: "vimeo",
+            providerVideoId: "123456789",
+          },
+        },
+      },
+    }));
+    expect(presentation.media.kind).toBe("image");
+    expect(presentation.media.src).toBe("/resource.jpg");
+  });
+
   it("falls back to an organization logo after record and organization hero media", () => {
     const presentation = buildCardPresentation(record({ card: { organizationMedia: { logo: { kind: "logo", label: "Organization logo", src: "/logo.svg" } } } }));
     expect(presentation.media.kind).toBe("logo"); expect(presentation.media.src).toBe("/logo.svg");

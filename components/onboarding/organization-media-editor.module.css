@@ -1,0 +1,33 @@
+.editor { display: grid; gap: 26px; max-width: 820px; }
+.section { padding-top: 22px; border-top: 1px solid var(--border); }
+.section:first-child { padding-top: 0; border-top: 0; }
+.sectionTitle { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.sectionTitle h2 { margin: 0 0 4px; font-size: 19px; letter-spacing: -.02em; }
+.sectionTitle p { margin: 0; color: #73777f; font-size: 12px; line-height: 1.4; }
+.sectionTitle > span { flex: 0 0 auto; color: #6e7279; font-size: 11px; font-weight: 700; }
+.logoRow, .linkRow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: 12px; }
+.logoPreview { width: 76px; height: 76px; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: white; }
+.logoPreview img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
+.logoPreview span { color: #70757d; font-size: 18px; font-weight: 750; }
+.logoRow label, .linkRow label { display: grid; gap: 6px; color: #3f454e; font-size: 11px; font-weight: 700; }
+.logoRow input, .linkRow input { width: 100%; min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: 11px; background: white; color: var(--exchange-black); font: inherit; outline: none; }
+.logoRow input:focus, .linkRow input:focus { border-color: var(--signal-blue); box-shadow: 0 0 0 3px rgba(46,94,170,.1); }
+.logoRow button, .linkRow button, .future > button, .videoPreview button { min-height: 42px; padding: 0 14px; border: 1px solid var(--border); border-radius: 11px; background: #252932; color: white; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+.logoRow button:disabled, .linkRow button:disabled, .future > button:disabled, .videoPreview button:disabled { background: #e5e3de; color: #8b8f95; cursor: not-allowed; }
+.videoPreview { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(150px, .7fr); gap: 14px; margin: 0 0 14px; }
+.videoPreview iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 14px; background: #16191f; }
+.videoPreview > div { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 7px; }
+.videoPreview strong { font-size: 13px; }
+.videoPreview span { color: #747880; font-size: 11px; }
+.videoPreview button { margin-top: 5px; background: transparent; color: #7b342d; border-color: rgba(151,55,45,.22); }
+.inlineError, .error, .notice { margin: 9px 0 0; font-size: 11px; }
+.inlineError, .error { color: #8a382f; }
+.notice { color: #2f6748; }
+.future { opacity: .72; }
+.future > button { background: transparent; color: #858990; }
+@media (max-width: 720px) {
+  .logoRow, .linkRow, .videoPreview { grid-template-columns: 1fr; }
+  .logoPreview { width: 68px; height: 68px; }
+  .logoRow button, .linkRow button { width: 100%; }
+  .sectionTitle { align-items: baseline; }
+}

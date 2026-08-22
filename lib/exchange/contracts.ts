@@ -17,6 +17,7 @@ export type GeolocationStatus = "idle" | "requesting" | "located" | "denied" | "
 export type RecordRelationshipFilter = "all" | "mine" | "others";
 export type ExchangeCardPlacement = "organic" | "featured" | "sponsored";
 export type ExchangeCardMediaKind = "category" | "logo" | "image" | "visualization" | "video";
+export type ExchangeVideoProvider = "youtube" | "vimeo" | "rfxchange";
 export type ExchangeStatusTone = "neutral" | "info" | "success" | "warning" | "critical";
 export type ExchangeRelationshipState = "saved" | "watched" | "following" | "referred" | "responded" | "teamed" | "requested" | "connected" | "owned";
 export type LensActionTrigger = "detail" | "modal" | "menu" | "direct" | "workflow";
@@ -42,6 +43,8 @@ export interface ExchangeCardMedia {
   src?: string;
   poster?: string;
   videoSrc?: string;
+  videoProvider?: ExchangeVideoProvider;
+  providerVideoId?: string;
   alt?: string;
   attribution?: string;
   ownerLabel?: string;
