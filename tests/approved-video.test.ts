@@ -8,7 +8,7 @@ import {
 
 describe("approved organization video providers", () => {
   it("normalizes common YouTube URLs", () => {
-    expect(parseApprovedVideoUrl("https://www.youtube.com/watch?v=abcDEF_1234"))?.toMatchObject({
+    expect(parseApprovedVideoUrl("https://www.youtube.com/watch?v=abcDEF_1234")).toMatchObject({
       provider: "youtube",
       videoId: "abcDEF_1234",
       canonicalUrl: "https://www.youtube.com/watch?v=abcDEF_1234",
@@ -18,7 +18,7 @@ describe("approved organization video providers", () => {
   });
 
   it("normalizes Vimeo URLs", () => {
-    expect(parseApprovedVideoUrl("https://vimeo.com/123456789"))?.toMatchObject({
+    expect(parseApprovedVideoUrl("https://vimeo.com/123456789")).toMatchObject({
       provider: "vimeo",
       videoId: "123456789",
       canonicalUrl: "https://vimeo.com/123456789",
@@ -27,9 +27,9 @@ describe("approved organization video providers", () => {
   });
 
   it("rejects arbitrary or spoofed providers", () => {
-    expect(parseApprovedVideoUrl("https://example.com/video/123"))?.toBeUndefined();
-    expect(parseApprovedVideoUrl("https://youtube.com.example.com/watch?v=abcDEF_1234"))?.toBeUndefined();
-    expect(parseApprovedVideoUrl("http://youtu.be/abcDEF_1234"))?.toBeUndefined();
+    expect(parseApprovedVideoUrl("https://example.com/video/123")).toBeUndefined();
+    expect(parseApprovedVideoUrl("https://youtube.com.example.com/watch?v=abcDEF_1234")).toBeUndefined();
+    expect(parseApprovedVideoUrl("http://youtu.be/abcDEF_1234")).toBeUndefined();
   });
 
   it("builds embeds only for valid provider identifiers", () => {
