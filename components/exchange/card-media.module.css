@@ -4,17 +4,24 @@
   background: #ecebe7;
 }
 
-.open {
+.open,
+.embedFrame {
   width: 100%;
   aspect-ratio: 16 / 9;
   max-height: 260px;
   display: block;
   overflow: hidden;
+}
+
+.open {
   padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
 }
+
+.embedFrame { background: #11151b; }
+.embedFrame iframe { width: 100%; height: 100%; display: block; border: 0; }
 
 .open:focus-visible {
   outline: 3px solid rgba(46, 94, 170, .34);
@@ -129,7 +136,7 @@
 .play:focus-visible { outline: 3px solid rgba(255, 255, 255, .84); outline-offset: 3px; }
 
 @media (max-width: 430px) {
-  .open { max-height: 196px; }
+  .open, .embedFrame { max-height: 196px; }
   .topBadges { top: 10px; left: 10px; }
   .mediaKind { left: 10px; bottom: 10px; }
   .play { width: 48px; height: 48px; }
