@@ -1,1 +1,1 @@
-export { RfxMobileTaskCanvas as RfxWorkflowSurface } from "./rfx-mobile-task-canvas";
+export { RfxMobileCreationEntry as RfxWorkflowSurface } from "./rfx-mobile-create-entry";
