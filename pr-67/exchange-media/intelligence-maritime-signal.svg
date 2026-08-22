@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Maritime supplier signal visualization</title>
+  <desc id="desc">Abstract supply-density visualization used only as TestRFx reference intelligence media.</desc>
+  <rect width="960" height="540" fill="#252932"/>
+  <path d="M0 392c120-76 220-42 330-88s205-110 330-71 186 24 300-36v343H0z" fill="#31495b"/>
+  <g fill="#d6a23a"><rect x="110" y="292" width="78" height="122" rx="8"/><rect x="228" y="244" width="78" height="170" rx="8"/><rect x="346" y="190" width="78" height="224" rx="8"/><rect x="464" y="146" width="78" height="268" rx="8"/><rect x="582" y="112" width="78" height="302" rx="8"/><rect x="700" y="76" width="78" height="338" rx="8"/></g>
+  <path d="M112 260c118-18 168-96 275-76s177-76 286-62 133-56 190-76" fill="none" stroke="#f7f3ea" stroke-width="7" stroke-linecap="round"/>
+  <g fill="#f7f3ea"><circle cx="112" cy="260" r="9"/><circle cx="387" cy="184" r="9"/><circle cx="673" cy="122" r="9"/><circle cx="863" cy="46" r="9"/></g>
+  <text x="62" y="74" fill="#f7f3ea" font-family="Arial, sans-serif" font-size="29" font-weight="700" letter-spacing="2">MARITIME SUPPLY SIGNAL</text>
+  <text x="62" y="476" fill="#c7ced5" font-family="Arial, sans-serif" font-size="20">Reference visualization · illustrative, not production market truth</text>
+</svg>
