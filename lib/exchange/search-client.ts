@@ -1,0 +1,12 @@
+import type { ExchangeLens, ExchangeSearchResponse, ExchangeSearchState, SavedSearch, SearchLibrary } from "./contracts";
+import { searchStateToParams } from "./search";
+
+export class SearchClientError extends Error { constructor(public readonly status:number,message:string){super(message);this.name="SearchClientError";} }
+async function request<T>(url:string,init?:RequestInit):Promise<T>{const response=await fetch(url,{...init,credentials:"same-origin",cache:"no-store",headers:{"content-type":"application/json",...(init?.headers??{})}});const payload=await response.json().catch(()=>({})) as T&{error?:string};if(!response.ok)throw new SearchClientError(response.status,payload.error??"Universal Search failed.");return payload;}
+export function searchExchangeThroughService(lens:ExchangeLens,state:ExchangeSearchState,cursor?:string,limit=30){const params=searchStateToParams(state);params.set("lens",lens);params.set("limit",String(limit));if(cursor)params.set("cursor",cursor);return request<ExchangeSearchResponse&{records:ExchangeSearchResponse["results"][number]["record"][]}>(`/api/exchange/results?${params.toString()}`);}
+export function loadSearchLibrary(lens:ExchangeLens){return request<SearchLibrary>(`/api/exchange/searches?lens=${encodeURIComponent(lens)}`);}
+export function createSavedSearchThroughService(name:string,lens:ExchangeLens,state:ExchangeSearchState,alertEnabled=false){return request<{saved:SavedSearch}>("/api/exchange/searches",{method:"POST",body:JSON.stringify({name,lens,state,alertEnabled})});}
+export function updateSavedSearchThroughService(id:string,patch:{name?:string;state?:ExchangeSearchState;alertEnabled?:boolean}){return request<{saved:SavedSearch}>(`/api/exchange/searches/${encodeURIComponent(id)}`,{method:"PATCH",body:JSON.stringify(patch)});}
+export function deleteSavedSearchThroughService(id:string){return request<{deleted:true}>(`/api/exchange/searches/${encodeURIComponent(id)}`,{method:"DELETE"});}
+export function recordRecentSearchThroughService(lens:ExchangeLens,state:ExchangeSearchState,resultCount:number){return request<{recorded:true}>("/api/exchange/searches/recent",{method:"POST",body:JSON.stringify({lens,state,resultCount})});}
+export function runSavedSearchAlertsThroughService(){return request<{evaluations:Array<{id:string;changed:boolean;resultCount:number}>}>("/api/exchange/searches/alerts/run",{method:"POST",body:"{}"});}
