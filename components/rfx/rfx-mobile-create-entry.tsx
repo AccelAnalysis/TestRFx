@@ -47,7 +47,7 @@ export function RfxMobileCreationEntry(props: RfxTaskCanvasProps) {
   const [dictating, setDictating] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
-  const recognition = useRef<Recognition>();
+  const recognition = useRef<Recognition | undefined>(undefined);
 
   useEffect(() => {
     if (props.entry !== "create-rfx") return;
