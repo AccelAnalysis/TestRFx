@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { IntelligenceInsightInput } from "@/lib/exchange/intelligence-runtime";
 import { resolveExchangeActor } from "@/lib/server/exchange/actor";
-import { getIntelligenceDetail } from "@/lib/server/exchange/intelligence-service";
+import { getIntelligenceDetail, updateIntelligence } from "@/lib/server/exchange/intelligence-service";
 import { intelligenceErrorResponse } from "@/lib/server/exchange/intelligence-http";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,18 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
     const actor = await resolveExchangeActor(request);
     const { recordId } = await params;
     const detail = await getIntelligenceDetail(actor, recordId);
+    return NextResponse.json({ detail, record: detail.record, persistence: "postgresql" });
+  } catch (error) {
+    return intelligenceErrorResponse(error);
+  }
+}
+
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
+  try {
+    const actor = await resolveExchangeActor(request);
+    const { recordId } = await params;
+    const input = await request.json() as IntelligenceInsightInput;
+    const detail = await updateIntelligence(actor, recordId, input);
     return NextResponse.json({ detail, record: detail.record, persistence: "postgresql" });
   } catch (error) {
     return intelligenceErrorResponse(error);
