@@ -150,12 +150,15 @@ export async function POST(request: NextRequest) {
     for (const [index, item] of listFromJson(source.requirements).entries()) items.push({ id: `reused-requirement-${index}-${crypto.randomUUID()}`, nodeId: "requirements", label: item.label, note: item.note, status: "reused-draft", createdAt: now });
     workspace = { ...workspace, items, version: workspace.version + 1, updatedAt: now };
 
-    for (const nodeId of ["need", "starting-point", "select-rfx-type"]) workspace = completeWorkspaceNode(workspace, nodeId);
+    // The copied request type is intentionally NOT marked complete. The next
+    // screen asks the issuer to review/confirm that the old type still fits
+    // the new need before the new RFx proceeds.
+    for (const nodeId of ["need", "starting-point"]) workspace = completeWorkspaceNode(workspace, nodeId);
     if (sourceScope) workspace = completeWorkspaceNode(workspace, "scope");
     if (items.some((item) => item.nodeId === "deliverables")) workspace = completeWorkspaceNode(workspace, "deliverables");
     if (items.some((item) => item.nodeId === "requirements")) workspace = completeWorkspaceNode(workspace, "requirements");
     if (responseInstructions) workspace = completeWorkspaceNode(workspace, "response-instructions");
-    workspace = { ...workspace, activePath: ["create"], version: workspace.version + 1, updatedAt: now };
+    workspace = { ...workspace, activePath: ["create", "define-need", "select-rfx-type"], version: workspace.version + 1, updatedAt: now };
 
     const saved = await savePostgresRfxWorkspace(workspace, actor);
     return NextResponse.json({ workspace: saved, persistence: "postgres", source: publicRecord(source), copied: { dates: false, lifecycle: false, responses: false, acknowledgements: false, awardState: false } });
