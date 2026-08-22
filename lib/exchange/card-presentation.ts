@@ -59,7 +59,9 @@ function unique(items: string[]) {
 
 function hasVisualSource(media?: ExchangeCardMedia) {
   if (!media) return false;
-  if (media.kind === "video" && (media.videoSrc || (media.videoProvider && media.providerVideoId))) return true;
+  if (media.kind === "video") {
+    return Boolean(media.videoSrc || (media.videoProvider && media.providerVideoId) || media.poster || media.src);
+  }
   return Boolean(media.src || media.poster);
 }
 
