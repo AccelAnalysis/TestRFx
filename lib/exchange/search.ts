@@ -1,157 +1,45 @@
-import type {
-  ExchangeLens,
-  ExchangeRecord,
-  ExchangeSearchFilters,
-  ExchangeSearchResponse,
-  ExchangeSearchState,
-  SearchSuggestion,
-} from "./contracts";
+import type { Coordinates, ExchangeLens, ExchangeRecord, ExchangeSearchFilters, ExchangeSearchResponse, ExchangeSearchState, MapBounds, SearchGeographyMode, SearchSuggestion } from "./contracts";
 
-export const typeByLens: Record<ExchangeLens, ExchangeRecord["type"]> = {
-  rfx: "rfx",
-  resources: "resource",
-  intelligence: "intelligence",
-  capabilities: "capability",
-};
+export const typeByLens: Record<ExchangeLens, ExchangeRecord["type"]> = { rfx: "rfx", resources: "resource", intelligence: "intelligence", capabilities: "capability" };
+export const defaultSearchFilters: ExchangeSearchFilters = { geography: "", geographyMode: "exchange", location: "all", ownership: "all", metadata: [], facets: {} };
+export function defaultSearchState(query = ""): ExchangeSearchState { return { query, filters: { ...defaultSearchFilters, metadata: [], facets: {} }, sort: "relevance" }; }
+function normalized(value: string) { return value.trim().toLowerCase(); }
+function validBounds(value: unknown): MapBounds | undefined { if (!value || typeof value !== "object" || Array.isArray(value)) return undefined; const row = value as Record<string, unknown>; const north = Number(row.north), south = Number(row.south), east = Number(row.east), west = Number(row.west); if (![north,south,east,west].every(Number.isFinite) || north < south) return undefined; return { north, south, east, west }; }
+function validCenter(value: unknown): Coordinates | undefined { if (!value || typeof value !== "object" || Array.isArray(value)) return undefined; const row = value as Record<string, unknown>; const lat = Number(row.lat), lng = Number(row.lng); if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) return undefined; return { lat, lng }; }
+function geographyMode(value: unknown): SearchGeographyMode { return value === "place" || value === "viewport" || value === "radius" || value === "service-area" || value === "performance-area" ? value : "exchange"; }
+function facets(value: unknown) { if (!value || typeof value !== "object" || Array.isArray(value)) return {} as Record<string,string[]>; return Object.fromEntries(Object.entries(value as Record<string,unknown>).map(([key, selected]) => [key, Array.isArray(selected) ? selected.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0,20) : []]).filter(([,selected]) => selected.length)) as Record<string,string[]>; }
 
-export const defaultSearchFilters: ExchangeSearchFilters = {
-  geography: "",
-  location: "all",
-  ownership: "all",
-  metadata: [],
-};
-
-export function defaultSearchState(query = ""): ExchangeSearchState {
-  return { query, filters: { ...defaultSearchFilters }, sort: "relevance" };
-}
-
-function normalized(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function searchableFields(record: ExchangeRecord) {
-  const cardTerms = [
-    record.card?.eyebrow,
-    record.card?.status?.label,
-    ...(record.card?.classifications ?? []),
-    ...(record.card?.relationships ?? []),
-  ].filter((value): value is string => Boolean(value));
-  return [
-    { name: "title", value: record.title, weight: 5 },
-    { name: "organization", value: record.organization, weight: 4 },
-    { name: "summary", value: record.summary, weight: 3 },
-    { name: "geography", value: record.geography, weight: 2 },
-    ...record.metadata.map((value) => ({ name: "metadata", value, weight: 2 })),
-    ...cardTerms.map((value) => ({ name: "card", value, weight: 2 })),
-  ];
-}
-
-function matchRecord(record: ExchangeRecord, query: string) {
-  const terms = normalized(query).split(/\s+/).filter(Boolean);
-  if (!terms.length) return { matches: true, score: 0, matchedFields: [] as string[] };
-  const fields = searchableFields(record);
-  const matchedFields = new Set<string>();
-  let score = 0;
-  for (const term of terms) {
-    let termMatched = false;
-    for (const field of fields) {
-      const value = normalized(field.value);
-      if (!value.includes(term)) continue;
-      termMatched = true;
-      matchedFields.add(field.name);
-      score += field.weight + (value === term ? 3 : value.startsWith(term) ? 1 : 0);
-    }
-    if (!termMatched) return { matches: false, score: 0, matchedFields: [] as string[] };
-  }
-  return { matches: true, score, matchedFields: [...matchedFields] };
-}
-
-function passesFilters(record: ExchangeRecord, filters: ExchangeSearchFilters) {
-  const geography = normalized(filters.geography);
-  if (geography && !normalized(record.geography).includes(geography)) return false;
-  if (filters.location === "mapped" && !record.location) return false;
-  if (filters.location === "off-map" && record.location) return false;
-  if (filters.ownership === "mine" && !record.ownedByViewer) return false;
-  if (filters.ownership === "others" && record.ownedByViewer) return false;
-  if (filters.metadata.length) {
-    const metadata = [...record.metadata, ...(record.card?.classifications ?? []), ...(record.card?.relationships ?? [])].map(normalized);
-    if (!filters.metadata.every((tag) => metadata.some((value) => value.includes(normalized(tag))))) return false;
-  }
-  return true;
-}
-
-export function searchExchangeRecords(records: ExchangeRecord[], lens: ExchangeLens, state: ExchangeSearchState): ExchangeSearchResponse {
-  const results = records
-    .filter((record) => record.type === typeByLens[lens])
-    .filter((record) => passesFilters(record, state.filters))
-    .map((record) => ({ record, match: matchRecord(record, state.query) }))
-    .filter((result) => result.match.matches)
-    .map(({ record, match }) => ({ record, match: { score: match.score, matchedFields: match.matchedFields } }));
-  results.sort((left, right) => {
-    if (state.sort === "title") return left.record.title.localeCompare(right.record.title);
-    if (state.sort === "geography") return left.record.geography.localeCompare(right.record.geography) || left.record.title.localeCompare(right.record.title);
-    return right.match.score - left.match.score || Number(Boolean(right.record.featured)) - Number(Boolean(left.record.featured)) || left.record.title.localeCompare(right.record.title);
-  });
+export function normalizeSearchState(value: unknown): ExchangeSearchState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return defaultSearchState();
+  const row = value as Record<string, unknown>; const filterRow = row.filters && typeof row.filters === "object" && !Array.isArray(row.filters) ? row.filters as Record<string, unknown> : {};
+  const location = filterRow.location; const ownership = filterRow.ownership; const sort = row.sort;
+  const radius = Number(filterRow.radiusMiles);
   return {
-    lens,
-    state,
-    results,
-    total: results.length,
-    mapped: results.filter((result) => Boolean(result.record.location)).length,
-    offMap: results.filter((result) => !result.record.location).length,
-  };
-}
-
-export function getSearchSuggestions(records: ExchangeRecord[], lens: ExchangeLens, query: string, limit = 8): SearchSuggestion[] {
-  const typed = normalized(query);
-  const lensRecords = records.filter((record) => record.type === typeByLens[lens]);
-  const suggestions = new Map<string, SearchSuggestion>();
-  function add(kind: SearchSuggestion["kind"], label: string, description: string) {
-    const key = `${kind}:${normalized(label)}`;
-    if (suggestions.has(key)) return;
-    if (typed && !normalized(`${label} ${description}`).includes(typed)) return;
-    suggestions.set(key, { id: key, kind, label, description, query: label });
-  }
-  for (const record of lensRecords) {
-    add("record", record.title, `${record.organization} · ${record.geography}`);
-    add("organization", record.organization, `Organization · ${record.geography}`);
-    add("geography", record.geography, "Geography");
-    for (const metadata of [...record.metadata, ...(record.card?.classifications ?? [])]) add("metadata", metadata, `${record.organization} · ${record.type}`);
-  }
-  return [...suggestions.values()].slice(0, limit);
-}
-
-export function searchStateFromParams(params: URLSearchParams): ExchangeSearchState {
-  const location = params.get("location");
-  const ownership = params.get("ownership");
-  const sort = params.get("sort");
-  return {
-    query: params.get("q") ?? "",
+    query: typeof row.query === "string" ? row.query.slice(0,500) : "",
     filters: {
-      geography: params.get("geo") ?? "",
+      geography: typeof filterRow.geography === "string" ? filterRow.geography.slice(0,240) : "",
+      geographyMode: geographyMode(filterRow.geographyMode),
+      bounds: validBounds(filterRow.bounds),
+      center: validCenter(filterRow.center),
+      radiusMiles: Number.isFinite(radius) && radius > 0 ? Math.min(radius, 500) : undefined,
       location: location === "mapped" || location === "off-map" ? location : "all",
       ownership: ownership === "mine" || ownership === "others" ? ownership : "all",
-      metadata: params.getAll("tag").filter(Boolean),
+      metadata: Array.isArray(filterRow.metadata) ? filterRow.metadata.filter((item): item is string => typeof item === "string").map((item) => item.trim()).filter(Boolean).slice(0,30) : [],
+      facets: facets(filterRow.facets),
     },
-    sort: sort === "title" || sort === "geography" ? sort : "relevance",
+    sort: sort === "recent" || sort === "title" || sort === "geography" ? sort : "relevance",
   };
 }
 
-export function searchStateToParams(state: ExchangeSearchState) {
-  const params = new URLSearchParams();
-  if (state.query.trim()) params.set("q", state.query.trim());
-  if (state.filters.geography.trim()) params.set("geo", state.filters.geography.trim());
-  if (state.filters.location !== "all") params.set("location", state.filters.location);
-  if (state.filters.ownership !== "all") params.set("ownership", state.filters.ownership);
-  for (const tag of state.filters.metadata) if (tag.trim()) params.append("tag", tag.trim());
-  if (state.sort !== "relevance") params.set("sort", state.sort);
-  return params;
-}
+function searchableFields(record: ExchangeRecord) { const cardTerms = [record.card?.eyebrow, record.card?.status?.label, ...(record.card?.classifications ?? []), ...(record.card?.relationships ?? [])].filter((value): value is string => Boolean(value)); return [{ name:"title", value:record.title, weight:5 },{ name:"organization", value:record.organization, weight:4 },{ name:"summary", value:record.summary, weight:3 },{ name:"geography", value:record.geography, weight:2 },...record.metadata.map((value)=>({ name:"metadata",value,weight:2 })),...cardTerms.map((value)=>({ name:"card",value,weight:2 }))]; }
+function matchRecord(record: ExchangeRecord, query: string) { const terms = normalized(query).split(/\s+/).filter(Boolean); if (!terms.length) return { matches:true,score:0,matchedFields:[] as string[] }; const fields=searchableFields(record); const matchedFields=new Set<string>(); let score=0; for(const term of terms){let termMatched=false;for(const field of fields){const value=normalized(field.value);if(!value.includes(term))continue;termMatched=true;matchedFields.add(field.name);score+=field.weight+(value===term?3:value.startsWith(term)?1:0);}if(!termMatched)return{matches:false,score:0,matchedFields:[] as string[]};}return{matches:true,score,matchedFields:[...matchedFields]}; }
+function passesFilters(record: ExchangeRecord, filters: ExchangeSearchFilters) { const geography=normalized(filters.geography); if(geography && (filters.geographyMode??"exchange")!=="viewport" && !normalized(record.geography).includes(geography)) return false; if(filters.location==="mapped"&&!record.location)return false;if(filters.location==="off-map"&&record.location)return false;if(filters.ownership==="mine"&&!record.ownedByViewer)return false;if(filters.ownership==="others"&&record.ownedByViewer)return false;if(filters.metadata.length){const metadata=[...record.metadata,...(record.card?.classifications??[]),...(record.card?.relationships??[])].map(normalized);if(!filters.metadata.every((tag)=>metadata.some((value)=>value.includes(normalized(tag)))))return false;}return true; }
+export function searchExchangeRecords(records: ExchangeRecord[], lens: ExchangeLens, rawState: ExchangeSearchState): ExchangeSearchResponse { const state=normalizeSearchState(rawState); const results=records.filter((record)=>record.type===typeByLens[lens]).filter((record)=>passesFilters(record,state.filters)).map((record)=>({record,match:matchRecord(record,state.query)})).filter((result)=>result.match.matches).map(({record,match})=>({record,match:{score:match.score,matchedFields:match.matchedFields}})); results.sort((left,right)=>state.sort==="title"?left.record.title.localeCompare(right.record.title):state.sort==="geography"?left.record.geography.localeCompare(right.record.geography)||left.record.title.localeCompare(right.record.title):right.match.score-left.match.score||Number(Boolean(right.record.featured))-Number(Boolean(left.record.featured))||left.record.title.localeCompare(right.record.title)); return{lens,state,results,total:results.length,mapped:results.filter((result)=>Boolean(result.record.location)).length,offMap:results.filter((result)=>!result.record.location).length}; }
+export function getSearchSuggestions(records: ExchangeRecord[], lens: ExchangeLens, query: string, limit=8): SearchSuggestion[]{const typed=normalized(query);const lensRecords=records.filter((record)=>record.type===typeByLens[lens]);const suggestions=new Map<string,SearchSuggestion>();function add(kind:SearchSuggestion["kind"],label:string,description:string){const key=`${kind}:${normalized(label)}`;if(suggestions.has(key))return;if(typed&&!normalized(`${label} ${description}`).includes(typed))return;suggestions.set(key,{id:key,kind,label,description,query:label});}for(const record of lensRecords){add("record",record.title,`${record.organization} · ${record.geography}`);add("organization",record.organization,`Organization · ${record.geography}`);add("geography",record.geography,"Geography");for(const metadata of [...record.metadata,...(record.card?.classifications??[])])add("metadata",metadata,`${record.organization} · ${record.type}`);}return[...suggestions.values()].slice(0,limit);}
 
-export function activeFilterCount(state: ExchangeSearchState) {
-  return Number(Boolean(state.filters.geography.trim()))
-    + Number(state.filters.location !== "all")
-    + Number(state.filters.ownership !== "all")
-    + state.filters.metadata.length
-    + Number(state.sort !== "relevance");
+export function searchStateFromParams(params: URLSearchParams): ExchangeSearchState {
+  const tags=params.getAll("tag").filter(Boolean); const facetParams=params.getAll("facet"); const parsedFacets:Record<string,string[]>={}; for(const entry of facetParams){const index=entry.indexOf(":");if(index<=0)continue;const key=entry.slice(0,index),value=entry.slice(index+1);if(!value)continue;(parsedFacets[key]??=[]).push(value);} const bounds = ["north","south","east","west"].every((key)=>params.has(key)) ? validBounds(Object.fromEntries(["north","south","east","west"].map((key)=>[key,params.get(key)]))) : undefined; const center=params.has("lat")&&params.has("lng")?validCenter({lat:params.get("lat"),lng:params.get("lng")}):undefined;
+  return normalizeSearchState({query:params.get("q")??"",sort:params.get("sort")??"relevance",filters:{geography:params.get("geo")??"",geographyMode:params.get("geoMode")??"exchange",bounds,center,radiusMiles:params.get("radius")??undefined,location:params.get("location")??"all",ownership:params.get("ownership")??"all",metadata:tags,facets:parsedFacets}});
 }
+export function searchStateToParams(rawState: ExchangeSearchState){const state=normalizeSearchState(rawState);const params=new URLSearchParams();if(state.query.trim())params.set("q",state.query.trim());if(state.filters.geography.trim())params.set("geo",state.filters.geography.trim());if((state.filters.geographyMode??"exchange")!=="exchange")params.set("geoMode",state.filters.geographyMode!);if(state.filters.bounds){for(const [key,value] of Object.entries(state.filters.bounds))params.set(key,String(value));}if(state.filters.center){params.set("lat",String(state.filters.center.lat));params.set("lng",String(state.filters.center.lng));}if(state.filters.radiusMiles)params.set("radius",String(state.filters.radiusMiles));if(state.filters.location!=="all")params.set("location",state.filters.location);if(state.filters.ownership!=="all")params.set("ownership",state.filters.ownership);for(const tag of state.filters.metadata)if(tag.trim())params.append("tag",tag.trim());for(const [key,values] of Object.entries(state.filters.facets??{}))for(const value of values)params.append("facet",`${key}:${value}`);if(state.sort!=="relevance")params.set("sort",state.sort);return params;}
+export function activeFilterCount(rawState:ExchangeSearchState){const state=normalizeSearchState(rawState);return Number(Boolean(state.filters.geography.trim()))+Number((state.filters.geographyMode??"exchange")!=="exchange")+Number(state.filters.location!=="all")+Number(state.filters.ownership!=="all")+state.filters.metadata.length+Object.values(state.filters.facets??{}).reduce((total,values)=>total+values.length,0)+Number(state.sort!=="relevance");}
