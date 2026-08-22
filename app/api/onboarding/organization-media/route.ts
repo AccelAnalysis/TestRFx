@@ -9,6 +9,7 @@ import {
   getOrganizationMedia,
   removeOrganizationIntroVideo,
   saveLinkedOrganizationIntroVideo,
+  saveOrganizationLogo,
 } from "@/lib/server/onboarding/organization-media-service";
 
 export const runtime = "nodejs";
@@ -20,7 +21,7 @@ function errorResponse(error: unknown) {
   if (error instanceof OnboardingUnauthorizedError) return NextResponse.json({ error: error.message }, { status: 401 });
   if (error instanceof OnboardingForbiddenError) return NextResponse.json({ error: error.message }, { status: 403 });
   const message = error instanceof Error ? error.message : "Organization media could not be updated.";
-  const status = /YouTube|Vimeo|video link/i.test(message) ? 400 : 500;
+  const status = /YouTube|Vimeo|video link|logo URL/i.test(message) ? 400 : 500;
   if (status === 500) console.error("Organization media service failure", error);
   return NextResponse.json({ error: message }, { status });
 }
@@ -28,6 +29,15 @@ function errorResponse(error: unknown) {
 function organizationFromRequest(request: NextRequest) {
   const organizationId = request.nextUrl.searchParams.get("organization")?.trim();
   return organizationId && uuidPattern.test(organizationId) ? organizationId : undefined;
+}
+
+async function jsonBody(request: NextRequest) {
+  try {
+    const payload = await request.json();
+    return payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
+  } catch {
+    return undefined;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -41,14 +51,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function PUT(request: NextRequest) {
-  let body: Record<string, unknown>;
+export async function PATCH(request: NextRequest) {
+  const body = await jsonBody(request);
+  if (!body) return NextResponse.json({ error: "Logo details must be valid JSON." }, { status: 400 });
+  const organizationId = typeof body.organizationId === "string" && uuidPattern.test(body.organizationId) ? body.organizationId : undefined;
+  const logoUrl = typeof body.logoUrl === "string" ? body.logoUrl : "";
+  if (!organizationId) return NextResponse.json({ error: "A valid organization identifier is required." }, { status: 400 });
   try {
-    const payload = await request.json();
-    body = payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
-  } catch {
-    return NextResponse.json({ error: "Video details must be valid JSON." }, { status: 400 });
+    const actor = await resolveOnboardingActor(request, organizationId);
+    return NextResponse.json(await saveOrganizationLogo(actor, logoUrl));
+  } catch (error) {
+    return errorResponse(error);
   }
+}
+
+export async function PUT(request: NextRequest) {
+  const body = await jsonBody(request);
+  if (!body) return NextResponse.json({ error: "Video details must be valid JSON." }, { status: 400 });
   const organizationId = typeof body.organizationId === "string" && uuidPattern.test(body.organizationId) ? body.organizationId : undefined;
   const videoUrl = typeof body.videoUrl === "string" ? body.videoUrl.trim() : "";
   if (!organizationId) return NextResponse.json({ error: "A valid organization identifier is required." }, { status: 400 });
