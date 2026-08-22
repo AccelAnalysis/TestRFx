@@ -6,17 +6,18 @@ const packRoot = resolve(root, "data/seed-packs/hampton-roads-va");
 const output = process.argv.find((arg) => arg.startsWith("--output="))?.slice(9)
   ?? resolve(packRoot, "geocodes.generated.json");
 const benchmark = process.env.CENSUS_GEOCODER_BENCHMARK || "Public_AR_Current";
-const endpoint = "https://geocoding.geo.census.gov/geocoder/locations/address";
+const structuredEndpoint = "https://geocoding.geo.census.gov/geocoder/locations/address";
+const oneLineEndpoint = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress";
 
 function parseCsv(text) {
   const rows = [];
   let row = [];
   let field = "";
   let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
     if (quoted) {
-      if (char === '"' && text[i + 1] === '"') { field += '"'; i += 1; }
+      if (char === '"' && text[index + 1] === '"') { field += '"'; index += 1; }
       else if (char === '"') quoted = false;
       else field += char;
       continue;
@@ -38,25 +39,42 @@ function stripUnit(address) {
     .trim();
 }
 
+function normalizeLeadingNumberWord(value) {
+  return value.replace(/^one\b/i, "1").replace(/^two\b/i, "2").replace(/^three\b/i, "3");
+}
+
 function sleep(ms) { return new Promise((resolvePromise) => setTimeout(resolvePromise, ms)); }
 
-async function geocode(location) {
-  const params = new URLSearchParams({
-    street: stripUnit(location.address1),
+async function requestMatches(url) {
+  const response = await fetch(url, { headers: { "user-agent": "RFxchange-Hampton-Roads-seed-geocoder/1.0" } });
+  if (!response.ok) throw new Error(`Census geocoder ${response.status}`);
+  const body = await response.json();
+  return Array.isArray(body?.result?.addressMatches) ? body.result.addressMatches : [];
+}
+
+async function censusMatches(location) {
+  const street = normalizeLeadingNumberWord(stripUnit(location.address1));
+  const structured = new URLSearchParams({
+    street,
     city: location.city,
     state: location.state,
     zip: location.postal_code,
     benchmark,
     format: "json",
   });
-  const response = await fetch(`${endpoint}?${params.toString()}`, {
-    headers: { "user-agent": "RFxchange-Hampton-Roads-seed-geocoder/1.0" },
-  });
-  if (!response.ok) throw new Error(`Census geocoder ${response.status} for ${location.location_key}`);
-  const body = await response.json();
-  const matches = Array.isArray(body?.result?.addressMatches) ? body.result.addressMatches : [];
+  let matches = await requestMatches(`${structuredEndpoint}?${structured.toString()}`);
+  if (matches.length) return { matches, lookupForm: "structured" };
+
+  const oneLineAddress = [street, location.city, location.state, location.postal_code].filter(Boolean).join(", ");
+  const oneLine = new URLSearchParams({ address: oneLineAddress, benchmark, format: "json" });
+  matches = await requestMatches(`${oneLineEndpoint}?${oneLine.toString()}`);
+  return { matches, lookupForm: "oneline_fallback" };
+}
+
+async function geocode(location) {
+  const { matches, lookupForm } = await censusMatches(location);
   if (matches.length !== 1) {
-    return { status: matches.length ? "review" : "failed", reason: matches.length ? "multiple_matches" : "no_match", candidateCount: matches.length };
+    return { status: matches.length ? "review" : "failed", reason: matches.length ? "multiple_matches" : "no_match", candidateCount: matches.length, lookupForm };
   }
   const match = matches[0];
   const components = match.addressComponents ?? {};
@@ -71,6 +89,7 @@ async function geocode(location) {
     return {
       status: "review",
       reason: "state_zip_or_coordinate_mismatch",
+      lookupForm,
       matchedAddress: match.matchedAddress,
       latitude: Number.isFinite(latitude) ? latitude : undefined,
       longitude: Number.isFinite(longitude) ? longitude : undefined,
@@ -81,6 +100,7 @@ async function geocode(location) {
     status: "accepted",
     provider: "census",
     benchmark,
+    lookupForm,
     matchType: "single_match_state_zip",
     matchedAddress: match.matchedAddress,
     latitude,
@@ -129,7 +149,7 @@ const manifest = {
   provider: "census",
   benchmark,
   generatedAt: new Date().toISOString(),
-  policy: "Only a single Census match with matching state and ZIP is accepted automatically. Review/failed results remain off-map.",
+  policy: "Only a single Census match with matching state and ZIP is accepted automatically. Structured address lookup is attempted first, then Census onelineaddress. Review/failed results remain off-map.",
   summary,
   results,
 };
