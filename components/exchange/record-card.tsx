@@ -1,8 +1,11 @@
 "use client";
 
 import type { ExchangeRecord, ExchangeRelationshipState, ExchangeStatusTone, LensAction } from "@/lib/exchange/contracts";
+import { getResourceProviderListing } from "@/lib/resources/provider-listing";
+import { resourceProviderClaimHref } from "@/lib/resources/claim-handoff";
 import { RecordActionRow } from "./record-actions";
 import styles from "./record-card.module.css";
+import providerStyles from "./resource-provider-listing.module.css";
 
 const mediaLabels: Record<ExchangeRecord["type"], string> = {
   rfx: "RFx",
@@ -58,6 +61,8 @@ export function RecordCard({
 }) {
   const placement = record.card?.placement ?? (record.featured ? "featured" : "organic");
   const status = record.card?.status;
+  const provider = getResourceProviderListing(record);
+  const claimHref = provider?.claimState === "unclaimed" ? resourceProviderClaimHref(record) : undefined;
   const relationships = new Set<ExchangeRelationshipState>((record.card?.relationships ?? []).filter((item) => item !== "owned"));
   if (record.saved) relationships.add("saved");
   const visibleMetadata = record.metadata.filter((item) => {
@@ -74,6 +79,7 @@ export function RecordCard({
       data-record-type={record.type}
       data-selected={selected ? "true" : "false"}
       data-owned={record.ownedByViewer ? "true" : "false"}
+      data-claim-state={provider?.claimState}
     >
       <button
         className={styles.main}
@@ -136,6 +142,13 @@ export function RecordCard({
           ) : null}
         </div>
       </button>
+
+      {provider?.claimState === "unclaimed" ? (
+        <div className={providerStyles.cardBanner}>
+          <span><strong>Unclaimed listing</strong> · Source: {provider.source.sourceName}</span>
+          {claimHref ? <a className={providerStyles.claimLink} href={claimHref}>Claim listing</a> : null}
+        </div>
+      ) : null}
 
       <div className={styles.actionDock}>
         <RecordActionRow

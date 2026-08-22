@@ -8,6 +8,7 @@ import type {
   MapViewState,
 } from "./contracts";
 import { MAP_ZOOM_LIMITS } from "./map-model";
+import { isUnclaimedResourceProvider } from "../resources/provider-listing";
 
 export interface ExchangeMapFeature {
   type: "Feature";
@@ -20,6 +21,7 @@ export interface ExchangeMapFeature {
     owned: boolean;
     sponsored: boolean;
     featured: boolean;
+    unclaimed: boolean;
     color: string;
   };
 }
@@ -52,6 +54,7 @@ function recordIsSponsored(record: ExchangeRecord) {
 function recordColor(record: ExchangeRecord, lens: ExchangeLens) {
   if (record.ownedByViewer) return "#d6a23a";
   if (recordIsSponsored(record)) return "#b86b18";
+  if (isUnclaimedResourceProvider(record)) return "#65707a";
   return lensColors[lens];
 }
 
@@ -89,6 +92,7 @@ export function toExchangeMapFeatureCollection(records: ExchangeRecord[], lens: 
           owned: Boolean(record.ownedByViewer),
           sponsored: recordIsSponsored(record),
           featured: Boolean(record.featured),
+          unclaimed: isUnclaimedResourceProvider(record),
           color: recordColor(record, lens),
         },
       }];

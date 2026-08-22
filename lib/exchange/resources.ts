@@ -54,6 +54,7 @@ const availabilityRank: Record<ResourceAvailabilityState, number> = {
   available: 0,
   limited: 1,
   scheduled: 2,
+  unknown: 3,
 };
 
 export function filterResourceRecords(records: ExchangeRecord[], filters: ResourceFilters, sort: ResourceSort) {
