@@ -182,7 +182,7 @@ export function CardMedia({
         {placement !== "organic" ? <span className={styles.placement}>{placement === "sponsored" ? "Sponsored" : "Featured"}</span> : null}
       </div>
 
-      {media.kind === "video" ? <span className={styles.mediaKind}>Video</span> : media.kind === "visualization" ? <span className={styles.mediaKind}>Insight visual</span> : null}
+      {media.kind === "video" ? <span className={styles.mediaKind}>{playableVideo ? "Video" : "Video preview"}</span> : media.kind === "visualization" ? <span className={styles.mediaKind}>Insight visual</span> : null}
 
       {playableVideo && !playing ? (
         <button type="button" className={styles.play} onClick={startVideo} aria-label={`Play video preview for ${record.title}`}>
