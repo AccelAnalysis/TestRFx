@@ -2,7 +2,7 @@
 
 import type { LensAction } from "@/lib/exchange/contracts";
 import { getLensActionUnavailableReason, isLensActionEnabled } from "@/lib/exchange/action-registry";
-import { ExchangeIcon } from "./exchange-nav-icon";
+import { ExchangeIcon, isExchangeUiIconId } from "./exchange-nav-icon";
 import styles from "./action-rail.module.css";
 
 function statusLabel(action: LensAction, active: boolean) {
@@ -19,7 +19,7 @@ function statusLabel(action: LensAction, active: boolean) {
 }
 
 function actionIcon(action: LensAction, active: boolean) {
-  if (action.id === "show-mine") return <ExchangeIcon icon="my-records" size={19} />;
+  if (isExchangeUiIconId(action.icon)) return <ExchangeIcon icon={action.icon} size={19} />;
   return active && action.toggle ? "★" : action.icon;
 }
 
