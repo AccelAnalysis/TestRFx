@@ -6,7 +6,7 @@ import { acceptProviderGeocode, geocodeProviderCandidate } from "@/lib/server/re
 
 export const dynamic = "force-dynamic";
 
-type GeocodeBody = { action: "geocode"; marketKey: string; sourceRecordId: string };
+type GeocodeBody = { action: "geocode"; marketKey: string; sourceKey: string; sourceRecordId: string };
 type AcceptBody = {
   action: "accept";
   candidateId: string;
@@ -32,10 +32,14 @@ export async function POST(request: NextRequest) {
     assertProviderIngestionAccess(request);
     const body = await request.json() as GeocodeBody | AcceptBody;
     if (body.action === "geocode") {
-      if (!body.marketKey?.trim() || !body.sourceRecordId?.trim()) {
-        throw new ProviderIngestionError("Geocode requests require marketKey and sourceRecordId.");
+      if (!body.marketKey?.trim() || !body.sourceKey?.trim() || !body.sourceRecordId?.trim()) {
+        throw new ProviderIngestionError("Geocode requests require marketKey, sourceKey, and sourceRecordId.");
       }
-      const result = await geocodeProviderCandidate({ marketKey: body.marketKey, sourceRecordId: body.sourceRecordId });
+      const result = await geocodeProviderCandidate({
+        marketKey: body.marketKey,
+        sourceKey: body.sourceKey,
+        sourceRecordId: body.sourceRecordId,
+      });
       return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
     }
     if (body.action === "accept") {
