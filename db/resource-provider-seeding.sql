@@ -94,6 +94,28 @@ CREATE INDEX IF NOT EXISTS resource_ingestion_candidates_domain_idx ON resource_
 CREATE INDEX IF NOT EXISTS resource_ingestion_candidates_name_idx ON resource_ingestion_candidates(normalized_name);
 CREATE INDEX IF NOT EXISTS resource_ingestion_candidates_match_idx ON resource_ingestion_candidates(matched_organization_id) WHERE matched_organization_id IS NOT NULL;
 
+-- Promotion is a terminal ingestion state. A later refresh of the same external
+-- source record must not regress the candidate back to ready/review and make a
+-- second canonical Resource eligible for promotion. The source provenance row
+-- remains the durable place to record later checks of an already-promoted item.
+CREATE OR REPLACE FUNCTION preserve_promoted_resource_ingestion_candidate()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD.candidate_state = 'promoted' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS resource_ingestion_candidates_preserve_promoted_state ON resource_ingestion_candidates;
+CREATE TRIGGER resource_ingestion_candidates_preserve_promoted_state
+BEFORE UPDATE ON resource_ingestion_candidates
+FOR EACH ROW
+EXECUTE FUNCTION preserve_promoted_resource_ingestion_candidate();
+
 CREATE TABLE IF NOT EXISTS external_resource_source_records (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   source_id uuid NOT NULL REFERENCES external_resource_sources(id) ON DELETE CASCADE,
@@ -114,6 +136,6 @@ CREATE INDEX IF NOT EXISTS external_resource_source_records_exchange_idx ON exte
 COMMENT ON TABLE resource_provider_profiles IS
   'Classifies Resource Providers independently from claim, verification, sponsorship, and recommendation state. Community/institutional providers receive free standard participation; commercial providers require commercial participation to publish commercial services.';
 COMMENT ON TABLE resource_ingestion_candidates IS
-  'Staging area for external Resource Provider candidates. No candidate becomes a visible RFxchange listing until dedupe/classification review and explicit promotion create or attach canonical Organization/Location/Resource records.';
+  'Staging area for external Resource Provider candidates. No candidate becomes a visible RFxchange listing until dedupe/classification review and explicit promotion create or attach canonical Organization/Location/Resource records. Promoted rows are terminal and immutable to restaging.';
 COMMENT ON TABLE external_resource_source_records IS
   'Persistent provenance for promoted externally sourced Resource Provider records.';
