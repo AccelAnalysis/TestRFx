@@ -6,6 +6,7 @@ import {
   matchBreakdown,
   mobileTreatmentFor,
   nextIncompletePath,
+  nodeRequiredFieldsComplete,
   publicationPreflight,
   recommendRfxType,
   responsePreflight,
@@ -81,6 +82,18 @@ describe("RFx mobile experience adapter", () => {
     const chapters = chapterSummaries(tree, state);
     expect(chapters[0].percent).toBe(100);
     expect(chapters[0].nextPath).toBeUndefined();
+  });
+
+  it("requires affirmative values for mandatory boolean confirmations", () => {
+    const confirmation: RfxWorkflowNode = {
+      id: "confirm",
+      label: "Confirm",
+      description: "Confirm",
+      kind: "form",
+      fields: [{ id: "confirm.current", label: "I confirm this is current", type: "boolean", required: true }],
+    };
+    expect(nodeRequiredFieldsComplete(confirmation, workspace({ "confirm.current": false }))).toBe(false);
+    expect(nodeRequiredFieldsComplete(confirmation, workspace({ "confirm.current": true }))).toBe(true);
   });
 
   it("blocks publication when modeled mandatory work is missing", () => {
