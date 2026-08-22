@@ -52,9 +52,13 @@ describe("RecordCard media-first rendering", () => {
     expect(screen.getByAltText("Provider logo")).toHaveAttribute("src", "/logo.svg");
   });
 
-  it("renders the governed type fallback and recovers from image errors", () => {
+  it("renders the governed type fallback with the shared SVG identity and recovers from image errors", () => {
     renderCard(baseRecord({ card: { media: { kind: "image", label: "Broken preview", src: "/missing.svg", alt: "Broken image" }, classifications: ["Equipment"] } }));
-    fireEvent.error(screen.getByAltText("Broken image")); expect(screen.getByText("Broken preview")).toBeTruthy(); expect(document.querySelector('[data-media-fallback="true"]')).toBeTruthy();
+    fireEvent.error(screen.getByAltText("Broken image"));
+    expect(screen.getByText("Broken preview")).toBeTruthy();
+    expect(document.querySelector('[data-media-fallback="true"]')).toBeTruthy();
+    expect(document.querySelector('[data-exchange-icon="resource-ecosystem"]')).toBeTruthy();
+    expect(document.body.textContent).not.toMatch(/[⌁◫◉◇]/);
   });
 
   it("keeps long titles in the identity region without adding more explanatory copy", () => {
