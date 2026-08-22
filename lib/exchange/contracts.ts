@@ -6,10 +6,11 @@ export type DrawerSort = "relevance" | "title" | "organization" | "geography";
 export type DrawerLocationFilter = "all" | "mapped" | "off-map";
 export type DrawerOwnershipFilter = "all" | "mine" | "others";
 export type ExchangeRecordType = "rfx" | "resource" | "intelligence" | "capability";
-export type SearchSort = "relevance" | "title" | "geography";
+export type SearchSort = "relevance" | "recent" | "title" | "geography";
 export type SearchLocationMode = "all" | "mapped" | "off-map";
 export type SearchOwnership = "all" | "mine" | "others";
 export type SearchSuggestionKind = "record" | "organization" | "geography" | "metadata";
+export type SearchGeographyMode = "exchange" | "place" | "viewport" | "radius" | "service-area" | "performance-area";
 export type MapDisplayMode = "2d" | "3d";
 export type MapStyleId = "standard" | "bright" | "light" | "dark" | "muted";
 export type MapControlRoute = "root" | "view" | "basemap" | "layers" | "geography";
@@ -37,96 +38,40 @@ export interface MapLayerVisibility { records: boolean; lensOverlay: boolean; }
 export interface MapGeographyOption { id: string; label: string; center?: Coordinates; bounds?: MapBounds; recordCount: number; }
 export interface MapViewState { camera: MapCamera; geography: MapGeographyContext; style: MapStyleId; layers: MapLayerVisibility; currentBounds?: MapBounds; queriedBounds?: MapBounds; }
 export interface DrawerQueryState { sort: DrawerSort; location: DrawerLocationFilter; ownership: DrawerOwnershipFilter; savedOnly: boolean; featuredOnly: boolean; }
-export interface ExchangeCardMedia {
-  kind: ExchangeCardMediaKind;
-  label: string;
-  src?: string;
-  poster?: string;
-  videoSrc?: string;
-  videoProvider?: ExchangeVideoProvider;
-  providerVideoId?: string;
-  alt?: string;
-  attribution?: string;
-  ownerLabel?: string;
-}
+export interface ExchangeCardMedia { kind: ExchangeCardMediaKind; label: string; src?: string; poster?: string; videoSrc?: string; videoProvider?: ExchangeVideoProvider; providerVideoId?: string; alt?: string; attribution?: string; ownerLabel?: string; }
 export interface ExchangeCardOrganizationMedia { hero?: ExchangeCardMedia; logo?: ExchangeCardMedia; }
 export interface ExchangeCardStatus { label: string; tone?: ExchangeStatusTone; }
-export interface ExchangeCardProjection {
-  eyebrow?: string;
-  media?: ExchangeCardMedia;
-  organizationMedia?: ExchangeCardOrganizationMedia;
-  classifications?: string[];
-  status?: ExchangeCardStatus;
-  relationships?: ExchangeRelationshipState[];
-  placement?: ExchangeCardPlacement;
-  distance?: string;
-}
-export interface ResourceProjection {
-  category: string;
-  availability: ResourceAvailabilityState;
-  availabilityLabel: string;
-  capacity?: string;
-  serviceArea?: string;
-  visibility: ResourceVisibility;
-  terms?: string;
-  status: ResourceStatus;
-  sponsored?: boolean;
-}
+export interface ExchangeCardProjection { eyebrow?: string; media?: ExchangeCardMedia; organizationMedia?: ExchangeCardOrganizationMedia; classifications?: string[]; status?: ExchangeCardStatus; relationships?: ExchangeRelationshipState[]; placement?: ExchangeCardPlacement; distance?: string; }
+export interface ResourceProjection { category: string; availability: ResourceAvailabilityState; availabilityLabel: string; capacity?: string; serviceArea?: string; visibility: ResourceVisibility; terms?: string; status: ResourceStatus; sponsored?: boolean; }
 export interface MapHighlight { reason: MapHighlightReason; priority?: number; active?: boolean; }
 
-export interface ExchangeRecord {
-  id: string; type: ExchangeRecordType; title: string; organization: string; summary: string; geography: string; metadata: string[];
-  location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection; resource?: ResourceProjection;
-  mapHighlight?: MapHighlight;
-}
+export interface ExchangeRecord { id: string; type: ExchangeRecordType; title: string; organization: string; summary: string; geography: string; metadata: string[]; location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection; resource?: ResourceProjection; mapHighlight?: MapHighlight; }
+export interface ExchangeOrganizationAnchor { name: string; location?: Coordinates; logoUrl?: string; }
+export interface ExchangeViewerContext { canIssueRfx: boolean; canRespondRfx: boolean; canOfferResources: boolean; canRequestResources: boolean; canContributeIntelligence: boolean; canManageCapabilities: boolean; organization?: ExchangeOrganizationAnchor; }
+export interface LensAction { id: string; position: 1 | 2 | 3 | 4; label: string; icon: string; trigger: LensActionTrigger; scope: LensActionScope; ownership: LensActionOwnership; visible: boolean; applicable: boolean; authorized: boolean; operational: boolean; prerequisitesSatisfied: boolean; requiresRecord?: boolean; toggle?: LensActionToggle; unavailableReason?: string; }
+export interface ExchangeLensDefinition { id: ExchangeLens; label: string; icon: ExchangeLensIconId; searchPlaceholder: string; emptyMessage: string; actions: (viewer: ExchangeViewerContext) => LensAction[]; recordActions: (record: ExchangeRecord, viewer: ExchangeViewerContext) => LensAction[]; }
 
-export interface ExchangeOrganizationAnchor {
-  name: string;
-  location?: Coordinates;
-  logoUrl?: string;
+export interface ExchangeSearchFilters {
+  geography: string;
+  geographyMode?: SearchGeographyMode;
+  bounds?: MapBounds;
+  center?: Coordinates;
+  radiusMiles?: number;
+  location: SearchLocationMode;
+  ownership: SearchOwnership;
+  metadata: string[];
+  facets?: Record<string, string[]>;
 }
-
-/**
- * Viewer/organization capabilities consumed by the Exchange action resolver.
- * Production identity/authorization should supply these as server-authoritative
- * claims. The reference shell can derive conservative defaults from its owned
- * records until that identity seam is connected.
- */
-export interface ExchangeViewerContext {
-  canIssueRfx: boolean;
-  canRespondRfx: boolean;
-  canOfferResources: boolean;
-  canRequestResources: boolean;
-  canContributeIntelligence: boolean;
-  canManageCapabilities: boolean;
-  organization?: ExchangeOrganizationAnchor;
-}
-
-export interface LensAction {
-  id: string; position: 1 | 2 | 3 | 4; label: string; icon: string;
-  trigger: LensActionTrigger; scope: LensActionScope; ownership: LensActionOwnership;
-  visible: boolean; applicable: boolean; authorized: boolean; operational: boolean; prerequisitesSatisfied: boolean;
-  requiresRecord?: boolean; toggle?: LensActionToggle; unavailableReason?: string;
-}
-export interface ExchangeLensDefinition {
-  id: ExchangeLens; label: string; icon: ExchangeLensIconId; searchPlaceholder: string; emptyMessage: string;
-  actions: (viewer: ExchangeViewerContext) => LensAction[];
-  recordActions: (record: ExchangeRecord, viewer: ExchangeViewerContext) => LensAction[];
-}
-
-export interface ExchangeSearchFilters { geography: string; location: SearchLocationMode; ownership: SearchOwnership; metadata: string[]; }
 export interface ExchangeSearchState { query: string; filters: ExchangeSearchFilters; sort: SearchSort; }
-export interface ExchangeSearchMatch { score: number; matchedFields: string[]; }
+export interface ExchangeSearchMatch { score: number; matchedFields: string[]; explanation?: string; }
 export interface ExchangeSearchResult { record: ExchangeRecord; match: ExchangeSearchMatch; }
-export interface ExchangeSearchResponse { lens: ExchangeLens; state: ExchangeSearchState; results: ExchangeSearchResult[]; total: number; mapped: number; offMap: number; }
+export interface ExchangeSearchResponse { lens: ExchangeLens; state: ExchangeSearchState; results: ExchangeSearchResult[]; total: number; mapped: number; offMap: number; hasMore?: boolean; nextCursor?: string; facets?: Record<string, Array<{ value: string; count: number }>>; }
 export interface SearchSuggestion { id: string; kind: SearchSuggestionKind; label: string; description: string; query: string; }
-export interface SavedSearch { id: string; name: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
+export interface SavedSearch { id: string; name: string; lens: ExchangeLens; state: ExchangeSearchState; alertEnabled?: boolean; createdAt: string; updatedAt?: string; }
 export interface RecentSearch { id: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
+export interface SearchLibrary { saved: SavedSearch[]; recent: RecentSearch[]; }
+export interface SearchNavigationNode { id: string; label: string; description: string; children?: SearchNavigationNode[]; }
+export interface SearchFacetDefinition { key: string; label: string; description: string; }
 export interface ExchangeFilters { geography?: string; relationship: RecordRelationshipFilter; mappedOnly: boolean; featuredOnly: boolean; metadata: string[]; }
 export interface ExchangeMapState { displayMode: MapDisplayMode; geolocationStatus: GeolocationStatus; viewerLocation?: Coordinates; viewportDirty: boolean; resetKey: number; }
-
-export interface ExchangeViewState {
-  lens: ExchangeLens; search: ExchangeSearchState; filtersByLens: Record<ExchangeLens, ExchangeFilters>;
-  drawer: DrawerState; drawerQuery?: DrawerQueryState; map: MapViewState;
-  selectedRecordId?: string; detailRecordId?: string; menuOpen: boolean;
-}
+export interface ExchangeViewState { lens: ExchangeLens; search: ExchangeSearchState; filtersByLens: Record<ExchangeLens, ExchangeFilters>; drawer: DrawerState; drawerQuery?: DrawerQueryState; map: MapViewState; selectedRecordId?: string; detailRecordId?: string; menuOpen: boolean; }
