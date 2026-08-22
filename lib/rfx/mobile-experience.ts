@@ -68,7 +68,10 @@ function stringValue(value: RfxWorkspaceValue | undefined) {
 }
 
 export function nodeRequiredFieldsComplete(node: RfxWorkflowNode, workspace: RfxWorkspace) {
-  return (node.fields ?? []).filter((field) => field.required).every((field) => stringValue(workspace.values[field.id]).length > 0);
+  return (node.fields ?? []).filter((field) => field.required).every((field) => {
+    const current = workspace.values[field.id];
+    return field.type === "boolean" ? current === true : stringValue(current).length > 0;
+  });
 }
 
 export function nodeChecklistComplete(node: RfxWorkflowNode, workspace: RfxWorkspace) {
