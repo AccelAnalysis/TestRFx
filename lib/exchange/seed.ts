@@ -1,6 +1,8 @@
 import type { ExchangeRecord } from "./contracts";
+import { resourceProviderPreviewSeed } from "../resources/provider-preview";
 
 export const exchangeSeed: ExchangeRecord[] = [
+  ...resourceProviderPreviewSeed,
   {
     id: "rfx-001", type: "rfx", title: "Regional Facilities Maintenance IDIQ", organization: "City of Chesapeake",
     summary: "Multi-trade maintenance and repair services across municipal facilities.", geography: "Chesapeake, VA",
