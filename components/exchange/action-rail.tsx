@@ -2,6 +2,7 @@
 
 import type { LensAction } from "@/lib/exchange/contracts";
 import { getLensActionUnavailableReason, isLensActionEnabled } from "@/lib/exchange/action-registry";
+import { ExchangeIcon } from "./exchange-nav-icon";
 import styles from "./action-rail.module.css";
 
 function statusLabel(action: LensAction, active: boolean) {
@@ -15,6 +16,11 @@ function statusLabel(action: LensAction, active: boolean) {
   if (!action.prerequisitesSatisfied) return "Setup";
   if (action.toggle) return action.toggle === "save" ? "Save" : action.toggle === "watch" ? "Watch" : action.toggle === "track" ? "Track" : "Follow";
   return "";
+}
+
+function actionIcon(action: LensAction, active: boolean) {
+  if (action.id === "show-mine") return <ExchangeIcon icon="my-records" size={19} />;
+  return active && action.toggle ? "★" : action.icon;
 }
 
 export function ActionRail({
@@ -54,7 +60,7 @@ export function ActionRail({
               aria-pressed={active ? true : undefined}
               onClick={() => onAction?.(item)}
             >
-              <span className={styles.icon} aria-hidden>{active && item.toggle ? "★" : item.icon}</span>
+              <span className={styles.icon} aria-hidden>{actionIcon(item, active)}</span>
               <span className={styles.label}>{item.label}</span>
               <span className={styles.state} aria-hidden>{statusLabel(item, active)}</span>
             </button>
