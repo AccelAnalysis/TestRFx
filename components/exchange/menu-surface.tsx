@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import {
   canNavigateMenuNode,
-  describeMenuDestination,
-  destructiveImpactChecks,
   isMenuNodeOperational,
   menuNodeById,
   menuSectionById,
@@ -19,8 +18,9 @@ import { ReferralTrackingPanel } from "./referral-tracking-panel";
 import styles from "./menu-surface.module.css";
 
 const sectionGroups: { label: string; ids: MenuSectionId[] }[] = [
-  { label: "Identity & organization", ids: ["organization", "profile", "security", "settings"] },
-  { label: "Exchange activity", ids: ["referrals", "communications", "saved"] },
+  { label: "Organization", ids: ["organization"] },
+  { label: "Account", ids: ["profile", "security", "settings"] },
+  { label: "Activity", ids: ["referrals", "communications", "saved"] },
   { label: "Membership & data", ids: ["billing", "privacy"] },
   { label: "Support", ids: ["support", "about"] },
 ];
@@ -29,25 +29,20 @@ function menuIcon(node: MenuNode) {
   return isExchangeUiIconId(node.icon) ? <ExchangeIcon icon={node.icon} size={19} /> : node.icon;
 }
 
-function scopeLabel(scope: string) {
-  if (scope === "cross-lens") return "Cross-lens";
-  if (scope === "organization") return "Organization";
-  if (scope === "user") return "Personal";
-  return "Platform";
+function destinationHref(node: MenuNode) {
+  const destination = node.destination;
+  if (!destination) return undefined;
+  if (destination.type === "public-shell" && destination.target.startsWith("/")) return destination.target;
+  if (destination.type === "exchange") return `/exchange/${destination.target.replace(/^\/+/, "")}`;
+  if (destination.type === "identity-shell" && destination.target === "login") return "/login";
+  return undefined;
 }
 
-function kindLabel(node: MenuNode) {
-  if (node.kind === "workflow") return "Workflow";
-  if (node.kind === "confirmation") return "Confirmation";
-  if (node.kind === "handoff") return "Connected handoff";
-  if (node.kind === "submenu") return "Submenu";
-  if (node.kind === "section") return "Menu section";
-  return "Task surface";
-}
-
-function childStatus(node: MenuNode) {
-  if (node.children?.length) return node.kind === "workflow" ? `${node.children.length} steps` : `${node.children.length} options`;
-  return isMenuNodeOperational(node) ? "Available" : "Defined";
+function leafActionLabel(node: MenuNode) {
+  if (!isMenuNodeOperational(node) && node.destination?.type === "service") return "Coming soon";
+  if (node.kind === "confirmation") return "Confirm";
+  if (node.kind === "handoff") return "Open";
+  return "Continue";
 }
 
 export function MenuSurface({
@@ -61,10 +56,6 @@ export function MenuSurface({
 }) {
   const [navigationStack, setNavigationStack] = useState<string[]>(() => initialSectionId ? [initialSectionId] : []);
   const activeNode = navigationStack.length ? menuNodeById[navigationStack[navigationStack.length - 1]] : undefined;
-  const breadcrumbNodes = useMemo(
-    () => navigationStack.map((id) => menuNodeById[id]).filter(Boolean),
-    [navigationStack],
-  );
 
   useEffect(() => {
     if (initialSectionId) setNavigationStack([initialSectionId]);
@@ -79,7 +70,6 @@ export function MenuSurface({
       }
       onClose();
     }
-
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigationStack.length, onClose]);
@@ -93,89 +83,93 @@ export function MenuSurface({
     setNavigationStack((stack) => stack.slice(0, -1));
   }
 
-  const title = activeNode?.label ?? "Menu";
-  const eyebrow = activeNode ? `${scopeLabel(activeNode.scope)} · ${kindLabel(activeNode)}` : "Cross-lens utilities";
+  function renderRow(node: MenuNode) {
+    return (
+      <button
+        className={node.destructive ? `${styles.row} ${styles.destructiveRow}` : styles.row}
+        type="button"
+        key={node.id}
+        onClick={() => navigate(node)}
+      >
+        <span className={styles.icon} aria-hidden>{menuIcon(node)}</span>
+        <span className={styles.rowLabel}>{node.label}</span>
+        <span className={styles.chevron} aria-hidden>›</span>
+      </button>
+    );
+  }
+
+  const href = activeNode ? destinationHref(activeNode) : undefined;
+  const executeEnabled = Boolean(activeNode && (isMenuNodeOperational(activeNode) || href));
 
   return (
     <div className={styles.backdrop} role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
       <section className={styles.surface} role="dialog" aria-modal="true" aria-labelledby="exchange-menu-title">
         <header className={styles.header}>
-          {activeNode ? <button className={styles.backButton} type="button" onClick={goBack} aria-label="Back one Menu level">← Back</button> : null}
-          <div className={styles.heading}><p className={styles.eyebrow}>{eyebrow}</p><h2 id="exchange-menu-title">{title}</h2></div>
-          <button className={styles.headerButton} type="button" onClick={onClose} aria-label="Close Menu">×</button>
+          {activeNode ? (
+            <button className={styles.backButton} type="button" onClick={goBack} aria-label="Back">
+              <span aria-hidden>‹</span>
+            </button>
+          ) : <span className={styles.headerSpacer} />}
+          <h2 id="exchange-menu-title">{activeNode?.label ?? "Menu"}</h2>
+          <button className={styles.closeButton} type="button" onClick={onClose} aria-label="Close Menu">×</button>
         </header>
-
-        {breadcrumbNodes.length > 1 ? (
-          <div className={styles.breadcrumbs} aria-label="Menu location">
-            <button type="button" onClick={() => setNavigationStack([])}>Menu</button>
-            {breadcrumbNodes.map((node, index) => (
-              <span key={node.id}>
-                <span aria-hidden>›</span>
-                <button type="button" aria-current={index === breadcrumbNodes.length - 1 ? "page" : undefined} onClick={() => setNavigationStack((stack) => stack.slice(0, index + 1))}>{node.label}</button>
-              </span>
-            ))}
-          </div>
-        ) : null}
 
         <div className={styles.scroll}>
           {!activeNode ? (
             <>
-              <div className={styles.contextCard}>
+              <div className={styles.identityRow}>
                 <span className={styles.avatar} aria-hidden>{context.organizationInitials}</span>
-                <div className={styles.contextCopy}><strong>{context.organizationName}</strong><span>{context.organizationRole}</span><small>{context.membershipLabel}</small></div>
-                <button className={styles.contextAction} type="button" disabled={context.organizationCount < 2} title={context.organizationCount < 2 ? "Organization switching becomes available when the member belongs to multiple organizations." : undefined} onClick={() => { if (context.organizationCount > 1) navigate(menuNodeById["switch-active-organization"]); }}>{context.organizationCount > 1 ? "Switch" : "Active org"}</button>
+                <div>
+                  <strong>{context.organizationName}</strong>
+                  <span>{context.userName}</span>
+                </div>
+                {context.organizationCount > 1 ? (
+                  <button type="button" className={styles.switchButton} onClick={() => navigate(menuNodeById["switch-active-organization"])}>Switch</button>
+                ) : null}
               </div>
 
-              <div className={styles.memberRow}><span><strong>{context.userName}</strong> · {context.userEmail}</span><span>{context.organizationCount} org{context.organizationCount === 1 ? "" : "s"}</span></div>
-
               {sectionGroups.map((group) => (
-                <div key={group.label}>
-                  <p className={styles.groupLabel}>{group.label}</p>
-                  <div className={styles.sectionList}>
-                    {group.ids.map((id) => {
-                      const section = menuSectionById[id];
-                      return <button className={styles.sectionButton} type="button" key={section.id} onClick={() => navigate(section)}><span className={styles.icon} aria-hidden>{menuIcon(section)}</span><span className={styles.sectionCopy}><strong>{section.label}</strong><small>{section.description}</small></span><span className={styles.chevron} aria-hidden>›</span></button>;
-                    })}
+                <section className={styles.group} key={group.label} aria-labelledby={`menu-${group.label.replace(/\W+/g, "-").toLowerCase()}`}>
+                  <h3 id={`menu-${group.label.replace(/\W+/g, "-").toLowerCase()}`}>{group.label}</h3>
+                  <div className={styles.rows}>
+                    {group.ids.map((id) => renderRow(menuSectionById[id]))}
                   </div>
-                </div>
+                </section>
               ))}
 
-              <button className={styles.signOutButton} type="button" onClick={() => navigate(menuSignOutNode)}><span className={styles.icon} aria-hidden>{menuIcon(menuSignOutNode)}</span><span className={styles.sectionCopy}><strong>{menuSignOutNode.label}</strong><small>{menuSignOutNode.description}</small></span><span className={styles.chevron} aria-hidden>›</span></button>
-              <p className={styles.notice}>Menu is a utility overlay, not an Exchange lens. Opening and closing it leaves the active lens, map, search, drawer, selection, and detail state mounted underneath.</p>
+              <button className={styles.signOutRow} type="button" onClick={() => navigate(menuSignOutNode)}>
+                <span className={styles.icon} aria-hidden>{menuIcon(menuSignOutNode)}</span>
+                <span className={styles.rowLabel}>{menuSignOutNode.label}</span>
+                <span className={styles.chevron} aria-hidden>›</span>
+              </button>
             </>
           ) : null}
 
-          {activeNode ? (
-            <>
-              <div className={activeNode.destructive ? `${styles.sectionIntro} ${styles.dangerIntro}` : styles.sectionIntro}>
-                <div className={styles.introMeta}><span className={styles.scope}>{scopeLabel(activeNode.scope)}</span><span className={styles.kind}>{kindLabel(activeNode)}</span>{activeNode.requiredRole ? <span className={styles.role}>{activeNode.requiredRole}</span> : null}</div>
-                <p>{activeNode.description}</p>
-              </div>
+          {activeNode?.id === "referrals" ? <ReferralTrackingPanel /> : null}
 
-              {activeNode.id === "referrals" ? <ReferralTrackingPanel /> : null}
+          {activeNode?.children?.length ? (
+            <div className={styles.rows}>
+              {activeNode.children.map(renderRow)}
+            </div>
+          ) : null}
 
-              {activeNode.children?.length ? (
-                <div className={styles.actionList}>
-                  {activeNode.children.map((child) => (
-                    <button className={child.destructive ? `${styles.actionButton} ${styles.destructive}` : styles.actionButton} type="button" key={child.id} onClick={() => navigate(child)}>
-                      <span className={styles.icon} aria-hidden>{menuIcon(child)}</span>
-                      <span className={styles.actionCopy}><strong>{child.label}</strong><small>{child.description}</small></span>
-                      <span className={child.children?.length ? `${styles.status} ${styles.statusOpen}` : styles.status}>{childStatus(child)}</span>
-                    </button>
-                  ))}
-                </div>
+          {activeNode && !activeNode.children?.length ? (
+            <div className={activeNode.destructive ? `${styles.leaf} ${styles.leafDanger}` : styles.leaf}>
+              <div className={styles.leafIcon} aria-hidden>{menuIcon(activeNode)}</div>
+              <h3>{activeNode.label}</h3>
+              {activeNode.description ? <p>{activeNode.description}</p> : null}
+              {activeNode.details?.length ? (
+                <ul>
+                  {activeNode.details.map((detail) => <li key={detail}>{detail}</li>)}
+                </ul>
+              ) : null}
+
+              {href ? (
+                <Link className={styles.primaryAction} href={href}>{leafActionLabel(activeNode)}</Link>
               ) : (
-                <div className={styles.destinationCard}>
-                  <div className={styles.destinationHeading}><span className={styles.icon} aria-hidden>{menuIcon(activeNode)}</span><div><span className={styles.scope}>{kindLabel(activeNode)}</span><h3>{activeNode.label}</h3></div></div>
-                  {activeNode.details?.length ? <ul className={styles.detailList}>{activeNode.details.map((detail) => <li key={detail}>{detail}</li>)}</ul> : <p className={styles.destinationCopy}>{activeNode.description}</p>}
-                  <div className={styles.destinationMeta}><span>{describeMenuDestination(activeNode)}</span><span>{isMenuNodeOperational(activeNode) ? "Operational" : "Production integration point"}</span></div>
-                  {activeNode.destructive ? <div className={styles.impactChecks}><strong>Shared destructive-action checks</strong><ul>{destructiveImpactChecks.map((check) => <li key={check}>{check}</li>)}</ul></div> : null}
-                  <div className={styles.destinationActions}><button type="button" onClick={goBack}>Back</button><button type="button" disabled={!isMenuNodeOperational(activeNode)} title={!isMenuNodeOperational(activeNode) ? "The destination is structurally defined; connect the production service to execute it." : undefined}>{activeNode.kind === "handoff" ? "Open destination" : activeNode.kind === "confirmation" ? "Confirm" : "Continue"}</button></div>
-                </div>
+                <button className={styles.primaryAction} type="button" disabled={!executeEnabled}>{leafActionLabel(activeNode)}</button>
               )}
-
-              <p className={styles.notice}>Structural navigation stays available even while a downstream service is not operational. The final execution control remains disabled until the server-backed service, authorization, and dependency checks are connected.</p>
-            </>
+            </div>
           ) : null}
         </div>
       </section>
