@@ -34,10 +34,10 @@ function textFromJson(value: unknown, preferredKeys: string[] = []) {
   return "";
 }
 
-function listFromJson(value: unknown) {
-  if (!Array.isArray(value)) return [] as Array<{ label: string; note?: string }>;
-  return value.flatMap((item) => {
-    if (typeof item === "string") return [{ label: item }];
+function listFromJson(value: unknown): Array<{ label: string; note?: string }> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): Array<{ label: string; note?: string }> => {
+    if (typeof item === "string") return [{ label: item, note: undefined }];
     if (!item || typeof item !== "object") return [];
     const record = item as Record<string, unknown>;
     const label = [record.label, record.name, record.text, record.requirement].find((candidate): candidate is string => typeof candidate === "string" && candidate.trim().length > 0);

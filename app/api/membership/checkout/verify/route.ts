@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
 
     const checkout = await retrieveCheckoutSession(sessionId);
     const organizationMatches = checkout.client_reference_id === identity.activeOrganizationId;
-    const foundingPlan = checkout.metadata?.rfxchange_plan_key === "founding";
+    const foundingPlan = checkout.metadata?.rfxchange_plan_code === "founding";
     const completed = checkout.status === "complete";
     const paymentConfirmed =
       checkout.payment_status === "paid" ||

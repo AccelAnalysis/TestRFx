@@ -11,7 +11,7 @@ async function write(relativePath, content) {
 
 // GitHub Pages cannot execute Stripe, PostgreSQL, signed organization context,
 // or webhook reconciliation. These files are a clearly labeled static projection
-// of the source-approved membership flow, not a mock production service.
+// of the source-approved membership/completion flow, not a mock production service.
 await write(
   "app/founding/page.tsx",
   `import Link from "next/link";
@@ -113,4 +113,51 @@ export default function MembershipCompletePreview() {
 `,
 );
 
-console.log("Prepared Pricing / Membership static preview projection.");
+await write(
+  "app/onboarding/completion/activate/page.tsx",
+  `import Link from "next/link";
+import styles from "@/components/onboarding/completion-transition.module.css";
+
+export default function CompletionActivationPreview() {
+  return (
+    <main className={styles.shell}>
+      <div className={styles.frame}>
+        <header className={styles.topbar}><span className={styles.brand}>RFxchange</span><span className={styles.step}>Static preview · activation</span></header>
+        <section className={styles.card}>
+          <h1>Exchange activation requires the server runtime</h1>
+          <p>This static preview cannot authenticate a member, re-read canonical onboarding records, or write an Exchange-ready activation audit. It intentionally does not simulate success.</p>
+          <div className={styles.notice}><strong>No fake activation.</strong> Production revalidates identity, organization membership, geography, profile, capabilities, visibility, and participation immediately before activation.</div>
+          <Link className={styles.secondaryLink} href="/onboarding/completion">← Back to readiness preview</Link>
+        </section>
+      </div>
+    </main>
+  );
+}
+`,
+);
+
+await write(
+  "app/onboarding/completion/success/page.tsx",
+  `import Link from "next/link";
+import styles from "@/components/onboarding/completion-transition.module.css";
+
+export default function CompletionSuccessPreview() {
+  return (
+    <main className={styles.shell}>
+      <div className={styles.frame}>
+        <header className={styles.topbar}><span className={styles.brand}>RFxchange</span><span className={styles.step}>Static preview · Step 10</span></header>
+        <section className={styles.card}>
+          <div className={styles.successMark} aria-hidden="true">!</div>
+          <h1>Exchange-ready success is runtime verified</h1>
+          <p>GitHub Pages cannot read a persisted activation record, so this preview does not claim that an organization has completed Step 10.</p>
+          <div className={styles.notice}>The production success route renders only after the authenticated organization has a durable Exchange-ready activation record.</div>
+          <Link className={styles.primaryLink} href="/onboarding/completion">Return to readiness preview</Link>
+        </section>
+      </div>
+    </main>
+  );
+}
+`,
+);
+
+console.log("Prepared Pricing / Membership / Completion static preview projection.");

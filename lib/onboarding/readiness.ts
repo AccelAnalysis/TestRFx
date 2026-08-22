@@ -17,6 +17,7 @@ export interface ReadinessItem {
   classification: ReadinessClassification;
   status: ReadinessStatus;
   blocking: boolean;
+  href: string;
   value?: string;
 }
 
@@ -49,7 +50,29 @@ export interface ExchangeActivation {
   status: "exchange_active";
   destination: string;
   activatedAt: string;
+  successPath: string;
   events: string[];
+}
+
+export interface AuthoritativeReadinessFacts {
+  accountVerified: boolean;
+  organizationEstablished: boolean;
+  organizationAffiliation: boolean;
+  organizationId: string;
+  organizationName: string;
+  geographyEstablished: boolean;
+  geography?: string;
+  organizationProfileComplete: boolean;
+  visibilitySelected: boolean;
+  visibilityLabel?: string;
+  mapPresence: MapPresence;
+  capabilityProfileComplete: boolean;
+  capabilitySummary: string[];
+  acceptedAmacsCount: number;
+  evidenceCount: number;
+  discoverabilityTermCount: number;
+  entitlementResolved: boolean;
+  entitlementSummary?: string;
 }
 
 const completeStatuses = new Set<ReadinessStatus>(["complete", "not_applicable"]);
@@ -84,109 +107,175 @@ export function evaluateExchangeReadiness(
   };
 }
 
-const referenceItems: ReadinessItem[] = [
-  {
-    id: "account_verified",
-    label: "Account verified",
-    description: "The person-level identity boundary has been verified.",
+function requiredItem(
+  id: string,
+  label: string,
+  description: string,
+  href: string,
+  complete: boolean,
+  value?: string,
+): ReadinessItem {
+  return {
+    id,
+    label,
+    description,
+    href,
     classification: "required",
-    status: "complete",
+    status: complete ? "complete" : "needs_attention",
     blocking: true,
-  },
-  {
-    id: "organization_established",
-    label: "Organization established",
-    description: "An organization has been selected, claimed, invited, or created.",
-    classification: "required",
-    status: "complete",
-    blocking: true,
-  },
-  {
-    id: "organization_affiliation",
-    label: "Organization affiliation confirmed",
-    description: "The user has an active role or membership relationship with the organization.",
-    classification: "required",
-    status: "complete",
-    blocking: true,
-  },
-  {
-    id: "geography",
-    label: "Geography established",
-    description: "A primary market or operating geography is available for Exchange context.",
-    classification: "required",
-    status: "complete",
-    blocking: true,
-    value: "Isle of Wight, VA",
-  },
-  {
-    id: "capability_profile",
-    label: "Capability profile initialized",
-    description: "At least one usable organization capability is available to the Exchange.",
-    classification: "required",
-    status: "complete",
-    blocking: true,
-    value: "Business Intelligence & Market Analysis",
-  },
-  {
-    id: "visibility",
-    label: "Visibility selected",
-    description: "The organization has an explicit Exchange visibility state.",
-    classification: "required",
-    status: "complete",
-    blocking: true,
-    value: "Exchange visible",
-  },
-  {
-    id: "entitlement",
-    label: "Participation entitlement resolved",
-    description: "The selected free or paid participation path has a valid access state.",
-    classification: "required",
-    status: "complete",
-    blocking: true,
-    value: "Access eligible",
-  },
-  {
-    id: "amacs_alignment",
-    label: "Review AMACS alignment",
-    description: "Continue mapping capabilities to the AMACS structure to improve discovery and matching.",
-    classification: "recommended",
-    status: "recommended",
-    blocking: false,
-    value: "Enrichment started",
-  },
-  {
-    id: "evidence",
-    label: "Add evidence and certifications",
-    description: "Supporting evidence can deepen trust without blocking Exchange entry.",
-    classification: "recommended",
-    status: "recommended",
-    blocking: false,
-    value: "Can continue later",
-  },
-  {
-    id: "keywords",
-    label: "Add keywords and specialties",
-    description: "Additional specialties and tags improve discoverability over time.",
-    classification: "optional",
-    status: "recommended",
-    blocking: false,
-    value: "Optional enrichment",
-  },
-];
+    value,
+  };
+}
 
-const referenceOrganization: OrganizationPresence = {
-  id: "org-reference-viewer",
-  name: "Your Organization",
-  geography: "Isle of Wight, VA",
-  visibility: "Exchange visible",
-  mapPresence: "marker_ready",
-  capabilitySummary: ["Business Intelligence & Market Analysis"],
-  amacsSummary: "AMACS-aligned enrichment started",
-  entitlementSummary: "Participation entitlement resolved",
-};
+function enrichmentItem(
+  id: string,
+  label: string,
+  description: string,
+  href: string,
+  complete: boolean,
+  classification: "recommended" | "optional" = "recommended",
+  value?: string,
+): ReadinessItem {
+  return {
+    id,
+    label,
+    description,
+    href,
+    classification,
+    status: complete ? "complete" : "recommended",
+    blocking: false,
+    value,
+  };
+}
 
-export function getReferenceExchangeReadiness() {
-  return evaluateExchangeReadiness(referenceItems, referenceOrganization);
+export function buildExchangeReadiness(facts: AuthoritativeReadinessFacts): ExchangeReadinessSnapshot {
+  const items: ReadinessItem[] = [
+    requiredItem(
+      "account_verified",
+      "Account verified",
+      "The person-level email identity boundary has been verified.",
+      "/onboarding/account-verification",
+      facts.accountVerified,
+    ),
+    requiredItem(
+      "organization_established",
+      "Organization established",
+      "A canonical organization has been selected, claimed, joined, or created.",
+      "/onboarding/organization",
+      facts.organizationEstablished,
+      facts.organizationEstablished ? facts.organizationName : undefined,
+    ),
+    requiredItem(
+      "organization_affiliation",
+      "Organization affiliation confirmed",
+      "The authenticated user has an active organization membership or authority relationship.",
+      "/onboarding/organization",
+      facts.organizationAffiliation,
+    ),
+    requiredItem(
+      "geography",
+      "Geography established",
+      "The organization has a canonical primary Exchange geography.",
+      "/onboarding/geography",
+      facts.geographyEstablished,
+      facts.geography,
+    ),
+    requiredItem(
+      "organization_profile",
+      "Organization profile complete",
+      "The canonical organization profile has completed its required profile workflow.",
+      "/onboarding/organization-profile",
+      facts.organizationProfileComplete,
+    ),
+    requiredItem(
+      "capability_profile",
+      "Capability profile initialized",
+      "At least one non-archived capability claim is available for Exchange discovery and enrichment.",
+      "/onboarding/capabilities",
+      facts.capabilityProfileComplete,
+      facts.capabilitySummary[0],
+    ),
+    requiredItem(
+      "visibility",
+      "Visibility selected",
+      "The organization profile has an explicit Exchange visibility configuration.",
+      "/onboarding/organization-profile",
+      facts.visibilitySelected,
+      facts.visibilityLabel,
+    ),
+    requiredItem(
+      "entitlement",
+      "Participation entitlement resolved",
+      "The organization has an active RFxchange participation entitlement; payment state never substitutes for identity or authority.",
+      "/onboarding/membership",
+      facts.entitlementResolved,
+      facts.entitlementSummary,
+    ),
+    enrichmentItem(
+      "amacs_alignment",
+      "Review AMACS alignment",
+      "Accepted AMACS mappings improve governed discovery and matching without becoming an entry gate.",
+      "/onboarding/capabilities?stage=amacs",
+      facts.acceptedAmacsCount > 0,
+      "recommended",
+      facts.acceptedAmacsCount > 0 ? `${facts.acceptedAmacsCount} accepted mapping${facts.acceptedAmacsCount === 1 ? "" : "s"}` : undefined,
+    ),
+    enrichmentItem(
+      "evidence",
+      "Add evidence and certifications",
+      "Supporting evidence can deepen trust without blocking an otherwise-ready organization.",
+      "/onboarding/capabilities?stage=evidence",
+      facts.evidenceCount > 0,
+      "recommended",
+      facts.evidenceCount > 0 ? `${facts.evidenceCount} evidence item${facts.evidenceCount === 1 ? "" : "s"}` : undefined,
+    ),
+    enrichmentItem(
+      "keywords",
+      "Add keywords and specialties",
+      "Additional discoverability terms improve search while AMACS remains the governed taxonomy authority.",
+      "/onboarding/capabilities?stage=discoverability",
+      facts.discoverabilityTermCount > 0,
+      "optional",
+      facts.discoverabilityTermCount > 0 ? `${facts.discoverabilityTermCount} discoverability term${facts.discoverabilityTermCount === 1 ? "" : "s"}` : undefined,
+    ),
+  ];
+
+  return evaluateExchangeReadiness(items, {
+    id: facts.organizationId,
+    name: facts.organizationName,
+    geography: facts.geography ?? "Not established",
+    visibility: facts.visibilityLabel ?? "Not selected",
+    mapPresence: facts.mapPresence,
+    capabilitySummary: facts.capabilitySummary,
+    amacsSummary: facts.acceptedAmacsCount > 0 ? `${facts.acceptedAmacsCount} accepted AMACS mapping${facts.acceptedAmacsCount === 1 ? "" : "s"}` : "AMACS enrichment can continue",
+    entitlementSummary: facts.entitlementSummary ?? "Participation not resolved",
+  });
+}
+
+/**
+ * Static GitHub Pages preview compatibility only. It deliberately returns a
+ * blocked snapshot so a static host never fabricates authenticated readiness.
+ * Production routes use loadAuthoritativeReadiness() instead.
+ */
+export function getReferenceExchangeReadiness(): ExchangeReadinessSnapshot {
+  return buildExchangeReadiness({
+    accountVerified: false,
+    organizationEstablished: false,
+    organizationAffiliation: false,
+    organizationId: "preview-unavailable",
+    organizationName: "Sign in to evaluate your organization",
+    geographyEstablished: false,
+    organizationProfileComplete: false,
+    visibilitySelected: false,
+    mapPresence: "off_map",
+    capabilityProfileComplete: false,
+    capabilitySummary: [],
+    acceptedAmacsCount: 0,
+    evidenceCount: 0,
+    discoverabilityTermCount: 0,
+    entitlementResolved: false,
+    entitlementSummary: "Runtime session required",
+  });
 }
 
 const exchangeDestinationPattern = /^\/exchange(?:\/(?:rfx|resources|intelligence|capabilities)(?:\/[A-Za-z0-9._-]+)?)?$/;
@@ -198,7 +287,7 @@ export function resolveExchangeDestination(candidate?: string | null) {
   return normalized;
 }
 
-export function createReferenceExchangeActivation(
+export function createExchangeActivation(
   readiness: ExchangeReadinessSnapshot,
   requestedDestination?: string | null,
   activatedAt = new Date().toISOString(),
@@ -207,17 +296,17 @@ export function createReferenceExchangeActivation(
     throw new Error("Exchange activation requires all blocking readiness items to be satisfied.");
   }
 
+  const destination = resolveExchangeDestination(requestedDestination);
   return {
     status: "exchange_active",
-    destination: resolveExchangeDestination(requestedDestination),
+    destination,
     activatedAt,
+    successPath: `/onboarding/completion/success?returnTo=${encodeURIComponent(destination)}`,
     events: [
       "OnboardingReadinessEvaluated",
       "OrganizationExchangeReady",
-      "OrganizationPublished",
       "ExchangeAccessEnabled",
       readiness.organization.mapPresence === "marker_ready" ? "OrganizationMarkerActivated" : "OrganizationOffMapPresenceActivated",
-      "CapabilityProfileInitialized",
       "OnboardingCompleted",
     ],
   };
