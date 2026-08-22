@@ -1,11 +1,20 @@
-import { NextResponse } from "next/server";
-import { getReferenceExchangeReadiness } from "@/lib/onboarding/readiness";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  loadAuthoritativeReadiness,
+  readinessHttpStatus,
+} from "@/lib/server/onboarding/readiness-service";
 
-export async function GET() {
-  return NextResponse.json({
-    mode: "reference",
-    readiness: getReferenceExchangeReadiness(),
-    productionBoundary:
-      "Replace the reference evaluator with authenticated identity, organization, geography, capability, visibility, and entitlement repositories without changing the UI contract.",
-  });
+export const dynamic = "force-dynamic";
+
+export async function GET(request: NextRequest) {
+  try {
+    const readiness = await loadAuthoritativeReadiness(request.headers.get("cookie"));
+    return NextResponse.json({ mode: "authoritative", readiness });
+  } catch (error) {
+    const status = readinessHttpStatus(error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : "Exchange readiness could not be evaluated." },
+      { status },
+    );
+  }
 }
