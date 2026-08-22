@@ -325,8 +325,8 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
   const [selectedTemplate, setSelectedTemplate] = useState<string>();
   const [marketPreview, setMarketPreview] = useState<{ loading: boolean; potential: number; criteria: number; geography: number; ready: number; error?: string }>();
   const [externalOpened, setExternalOpened] = useState(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
-  const recognition = useRef<RecognitionInstance>();
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const recognition = useRef<RecognitionInstance | undefined>(undefined);
   const detail = getRfxDetail(record.id);
 
   useEffect(() => {
@@ -714,7 +714,7 @@ export function RfxWorkflowSurface({ record, entry, onClose, onOpenDetail, onTog
   }
 
   function renderPreview() {
-    const previewType = detail?.rfxType ?? valueAsString(workspace.values["mobile.recommendedType"]) || "RFx";
+    const previewType = (detail?.rfxType ?? valueAsString(workspace.values["mobile.recommendedType"])) || "RFx";
     return <div className={styles.previewPhone}><div className={styles.previewLabel}><Eye size={18} />Responder preview</div><article className={styles.previewCard}><div><span>{previewType}</span><span>{dueLabel(detail?.closesAt)}</span></div><h3>{record.title}</h3><p>{record.organization}</p><div className={styles.previewMeta}><span><MapPin size={15} />{detail?.performanceGeography ?? record.geography}</span>{detail?.estimatedValue ? <span>{detail.estimatedValue}</span> : null}</div><p>{needStatement || detail?.scope || record.summary}</p><div className={styles.previewRequirements}>{(detail?.requirements ?? []).slice(0, 4).map((requirement) => <span key={requirement.id}>{requirement.label}</span>)}</div></article><p className={styles.previewHint}>This is the compact first impression responders receive. Full requirements, response instructions, evaluation, and attachments remain available below it.</p></div>;
   }
 
