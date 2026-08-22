@@ -26,6 +26,11 @@ function writeLocal(workspace: RfxWorkspace) {
   window.localStorage.setItem(`${prefix}${workspace.recordId}:${workspace.perspective}`, JSON.stringify(workspace));
 }
 
+function removeLocal(workspace: RfxWorkspace) {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(`${prefix}${workspace.recordId}:${workspace.perspective}`);
+}
+
 function hasMeaningfulLocalWork(workspace: RfxWorkspace) {
   return workspace.version > 1 || Object.keys(workspace.values).length > 0 || workspace.items.length > 0 || workspace.completedNodeIds.length > 0;
 }
@@ -63,7 +68,10 @@ export async function loadRfxWorkspace(recordId: string, entry: RfxWorkflowEntry
       const remote = withWorkspaceEntry(coerceRfxWorkspace(payload.workspace, recordId, entry), entry);
       if (isLocalNewer(local, remote)) {
         const promoted = await putShared({ ...local, entry, activePath: local.activePath.length ? local.activePath : remote.activePath });
-        if (promoted) return { workspace: withWorkspaceEntry(coerceRfxWorkspace(promoted.workspace, recordId, entry), entry), persistence: "postgres" };
+        if (promoted) {
+          removeLocal(local);
+          return { workspace: withWorkspaceEntry(coerceRfxWorkspace(promoted.workspace, recordId, entry), entry), persistence: "postgres" };
+        }
       }
       return { workspace: remote, persistence: "postgres" };
     }
@@ -75,9 +83,15 @@ export async function loadRfxWorkspace(recordId: string, entry: RfxWorkflowEntry
 }
 
 export async function saveRfxWorkspace(workspace: RfxWorkspace, persistence: RfxWorkspaceEnvelope["persistence"]): Promise<RfxWorkspaceEnvelope> {
-  if (persistence === "postgres") {
+  // Every save may opportunistically promote the device draft. This means a
+  // phone that regains connectivity while the Task Canvas is still open does
+  // not need to close/reopen before shared persistence resumes.
+  if (persistence === "postgres" || (typeof navigator === "undefined" || navigator.onLine)) {
     const saved = await putShared(workspace);
-    if (saved) return saved;
+    if (saved) {
+      removeLocal(workspace);
+      return saved;
+    }
   }
   writeLocal(workspace);
   return { workspace, persistence: "local-device" };
