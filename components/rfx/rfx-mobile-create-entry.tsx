@@ -64,11 +64,12 @@ export function RfxMobileCreationEntry(props: RfxTaskCanvasProps) {
 
   if (props.entry !== "create-rfx" || readyForCanvas) return <RfxMobileTaskCanvas {...props} />;
   if (!envelope) return <div className={styles.backdrop}><section className={styles.canvas}><div className={styles.loading}><span /><strong>Opening RFx draft</strong><small>{message || "Preparing your creation workspace."}</small></div></section></div>;
+  const activeEnvelope = envelope;
 
   async function persist(next: RfxWorkspace) {
     setSaving(true);
     try {
-      const saved = await saveRfxWorkspace(next, envelope.persistence);
+      const saved = await saveRfxWorkspace(next, activeEnvelope.persistence);
       setEnvelope(saved);
       return saved.workspace;
     } finally {
@@ -88,13 +89,13 @@ export function RfxMobileCreationEntry(props: RfxTaskCanvasProps) {
     const statement = need.trim();
     if (!statement) { setMessage("Describe what you need before continuing."); return; }
     const recommendation = recommendRfxType(statement);
-    let next = setWorkspaceValues(envelope.workspace, {
+    let next = setWorkspaceValues(activeEnvelope.workspace, {
       "mobile.needStatement": statement,
       "need.statement": statement,
       "need.startingPoint": selectedTemplate ? "Template" : "Guided drafting",
-      "mobile.recommendedType": selectedTemplate ? value(envelope.workspace.values["mobile.recommendedType"]) || recommendation.type : recommendation.type,
-      "need.rfxType": selectedTemplate ? value(envelope.workspace.values["need.rfxType"]) || recommendation.type : recommendation.type,
-      "experience.mode": envelope.workspace.values["experience.mode"] ?? recommendation.mode,
+      "mobile.recommendedType": selectedTemplate ? value(activeEnvelope.workspace.values["mobile.recommendedType"]) || recommendation.type : recommendation.type,
+      "need.rfxType": selectedTemplate ? value(activeEnvelope.workspace.values["need.rfxType"]) || recommendation.type : recommendation.type,
+      "experience.mode": activeEnvelope.workspace.values["experience.mode"] ?? recommendation.mode,
     });
     next = completeWorkspaceNode(completeWorkspaceNode(next, "need"), "starting-point");
     next = { ...next, activePath: ["create", "define-need", "select-rfx-type"], version: next.version + 1, updatedAt: new Date().toISOString() };
@@ -104,14 +105,14 @@ export function RfxMobileCreationEntry(props: RfxTaskCanvasProps) {
 
   async function addAttachments(event: ChangeEvent<HTMLInputElement>) {
     if (!event.target.files?.length) return;
-    const items = [...envelope.workspace.items];
+    const items = [...activeEnvelope.workspace.items];
     for (const file of Array.from(event.target.files)) {
       try {
-        const stored = await storeDeviceAttachment(envelope.workspace.id, "need", file);
+        const stored = await storeDeviceAttachment(activeEnvelope.workspace.id, "need", file);
         items.push({ id: `attachment-${stored.id}`, nodeId: "need", label: stored.name, note: `${stored.type} · ${formatAttachmentSize(stored.size)} · stored on this device`, status: `device-attachment:${stored.id}`, createdAt: stored.createdAt });
       } catch { setMessage("This browser could not store the selected attachment on this device."); }
     }
-    await persist({ ...envelope.workspace, items, version: envelope.workspace.version + 1, updatedAt: new Date().toISOString() });
+    await persist({ ...activeEnvelope.workspace, items, version: activeEnvelope.workspace.version + 1, updatedAt: new Date().toISOString() });
     event.target.value = "";
   }
 
