@@ -2,6 +2,10 @@ import { getDatabase } from "@/lib/server/database";
 import { censusGeocodeAddress } from "@/lib/server/resources/census-geocoder";
 import { geocodeCoordinatesAreUsable, type ProviderGeocodeResult } from "@/lib/resources/provider-geocoding";
 import { ProviderIngestionError } from "@/lib/server/resources/provider-ingestion-service";
+import { resolveCensusCoordinateProfile } from "@/lib/server/geography/census-profile-resolver";
+import { persistLocationGeographyProfile } from "@/lib/server/geography/geography-repository";
+import { getMarketSeedPack } from "@/lib/resources/market-seed-packs";
+import type { GeographyReference } from "@/lib/geography/contracts";
 
 // Keep this structural so root postgres.js and transaction Sql instances both work.
 type QueryExecutor = any;
@@ -52,6 +56,23 @@ function requestedAddress(candidate: GeocodeCandidateRow) {
   };
 }
 
+function marketReference(marketKey: string): GeographyReference | undefined {
+  const pack = getMarketSeedPack(marketKey);
+  if (!pack) return undefined;
+  return {
+    key: `rfxchange_market:region_market:${pack.key}`,
+    type: "region_market",
+    name: pack.geography.marketLabel,
+    countryCode: pack.geography.country,
+    stateCode: pack.geography.state,
+    externalId: pack.key,
+    source: "rfxchange_market",
+    sourceLayer: "market-seed-pack",
+    vintage: "current",
+    metadata: { seedPackKey: pack.key },
+  };
+}
+
 async function applyAcceptedCanonicalPoint(sql: QueryExecutor, candidate: GeocodeCandidateRow, result: ProviderGeocodeResult) {
   if (!candidate.promoted_exchange_record_id || !geocodeCoordinatesAreUsable(result)) return undefined;
 
@@ -68,7 +89,8 @@ async function applyAcceptedCanonicalPoint(sql: QueryExecutor, candidate: Geocod
   if (locationId) {
     await sql`
       UPDATE locations
-      SET point = ST_SetSRID(ST_MakePoint(${result.longitude}, ${result.latitude}), 4326)::geography
+      SET point = ST_SetSRID(ST_MakePoint(${result.longitude}, ${result.latitude}), 4326)::geography,
+          verification_status = ${result.provider === "manual" ? "manual-verified" : "census-matched"}
       WHERE id = ${locationId}::uuid
     `;
   } else {
@@ -76,15 +98,17 @@ async function applyAcceptedCanonicalPoint(sql: QueryExecutor, candidate: Geocod
       line1: candidate.address_line_1,
       city: candidate.locality,
       region: candidate.region,
+      state: candidate.region,
       postalCode: candidate.postal_code,
     };
     const locationRows = await sql<{ id: string }[]>`
-      INSERT INTO locations (organization_id, label, address, point)
+      INSERT INTO locations (organization_id, label, address, point, verification_status)
       VALUES (
         ${exchange.organization_id}::uuid,
         'Seeded provider location',
         ${sql.json(address)},
-        ST_SetSRID(ST_MakePoint(${result.longitude}, ${result.latitude}), 4326)::geography
+        ST_SetSRID(ST_MakePoint(${result.longitude}, ${result.latitude}), 4326)::geography,
+        ${result.provider === "manual" ? "manual-verified" : "census-matched"}
       )
       RETURNING id::text
     `;
@@ -126,7 +150,13 @@ async function applyAcceptedCanonicalPoint(sql: QueryExecutor, candidate: Geocod
     WHERE exchange_record_id = ${candidate.promoted_exchange_record_id}::uuid
   `;
 
-  return locationId;
+  const censusProfile = await resolveCensusCoordinateProfile({ latitude: result.latitude!, longitude: result.longitude! });
+  const geographyProfile = await persistLocationGeographyProfile(locationId, censusProfile, {
+    market: marketReference(candidate.market_key),
+    sql,
+  });
+
+  return { locationId, geographyProfile };
 }
 
 async function persistGeocode(sql: QueryExecutor, candidate: GeocodeCandidateRow, result: ProviderGeocodeResult) {
@@ -147,13 +177,15 @@ async function persistGeocode(sql: QueryExecutor, candidate: GeocodeCandidateRow
     WHERE id = ${candidate.id}::uuid
   `;
 
-  const locationId = accepted ? await applyAcceptedCanonicalPoint(sql, candidate, result) : undefined;
+  const canonical = accepted ? await applyAcceptedCanonicalPoint(sql, candidate, result) : undefined;
   return {
     candidateId: candidate.id,
     sourceRecordId: candidate.source_record_id,
     candidateState: candidate.candidate_state,
-    canonicalLocationUpdated: Boolean(locationId),
-    locationId,
+    canonicalLocationUpdated: Boolean(canonical?.locationId),
+    geographyProfileUpdated: Boolean(canonical?.geographyProfile),
+    locationId: canonical?.locationId,
+    geographyProfile: canonical?.geographyProfile,
     result,
   };
 }

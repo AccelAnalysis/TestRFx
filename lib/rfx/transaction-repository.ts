@@ -3,6 +3,7 @@ import "server-only";
 import { neon } from "@neondatabase/serverless";
 import type { RfxActorContext } from "./runtime-actor";
 import type { RfxWorkspace } from "./contracts";
+import { buildRfxPerformanceScope, persistRfxPerformanceScope } from "./performance-geography";
 
 function database() {
   const url = process.env.DATABASE_URL?.trim();
@@ -33,7 +34,9 @@ export async function publishCanonicalRfx(actor: RfxActorContext, recordId: stri
   const summary = value(workspace, "mobile.needStatement") || value(workspace, "need.statement") || title;
   const scope = value(workspace, "scope.summary") || summary;
   const dueAt = value(workspace, "schedule.responseDeadline");
-  const geography = value(workspace, "capabilities.geography");
+  const geography = value(workspace, "capabilities.geography") || value(workspace, "scope.serviceLocations");
+  const performanceScope = await buildRfxPerformanceScope(workspace);
+  const performanceGeography = performanceScope ?? { label: geography || null };
   const estimatedValue = value(workspace, "commercial.estimatedValue");
   const rfxType = requestedType?.trim() || value(workspace, "mobile.recommendedType") || value(workspace, "need.rfxType") || "RFP";
   const deliverables = jsonArray(workspace, "deliverables");
@@ -71,7 +74,7 @@ export async function publishCanonicalRfx(actor: RfxActorContext, recordId: stri
          external_submission_required
        )
        SELECT id, $5, NULLIF($6, '')::timestamptz, $7::jsonb,
-              'rfxchange', 'open', now(), jsonb_build_object('label', NULLIF($8, '')),
+              'rfxchange', 'open', now(), $8::jsonb,
               jsonb_build_object('label', NULLIF($9, '')), jsonb_build_object('text', $10),
               $11::jsonb, '[]'::jsonb, false
          FROM updated_exchange
@@ -95,13 +98,14 @@ export async function publishCanonicalRfx(actor: RfxActorContext, recordId: stri
          FROM upsert_rfx
        RETURNING id, occurred_at
      )
-     SELECT u.id::text AS rfx_id, a.id::text AS activity_id, a.occurred_at
+     SELECT u.id::text AS rfx_id, u.exchange_record_id::text AS exchange_record_id, a.id::text AS activity_id, a.occurred_at
        FROM upsert_rfx u CROSS JOIN activity a`,
-    [recordId, actor.organizationId, title, summary, rfxType, dueAt, JSON.stringify(requirements), geography, estimatedValue, scope, JSON.stringify(deliverables), actor.userId, workspace.version],
-  ) as Array<{ rfx_id: string; activity_id: string; occurred_at: string }>;
+    [recordId, actor.organizationId, title, summary, rfxType, dueAt, JSON.stringify(requirements), JSON.stringify(performanceGeography), estimatedValue, scope, JSON.stringify(deliverables), actor.userId, workspace.version],
+  ) as Array<{ rfx_id: string; exchange_record_id: string; activity_id: string; occurred_at: string }>;
 
   if (!rows.length) throw new Error("RFx publication could not be committed. Confirm that the active organization owns this RFx.");
-  return { receiptId: `PUB-${rows[0].activity_id}`, committedAt: rows[0].occurred_at, state: "open" };
+  if (performanceScope) await persistRfxPerformanceScope(rows[0].exchange_record_id, performanceScope);
+  return { receiptId: `PUB-${rows[0].activity_id}`, committedAt: rows[0].occurred_at, state: "open", performanceArea: performanceScope };
 }
 
 async function targetRfx(recordId: string) {

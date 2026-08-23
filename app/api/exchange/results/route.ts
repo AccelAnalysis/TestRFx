@@ -8,6 +8,7 @@ import { searchExchangeRecords, searchStateFromParams } from "@/lib/exchange/sea
 import { CapabilityCatalogUnavailableError, listCanonicalCapabilityExchangeRecords } from "@/lib/server/capabilities/exchange-records";
 import { DatabaseServiceUnavailableError } from "@/lib/server/database";
 import { listSeededResourceProviderRecords } from "@/lib/server/resources/provider-ingestion-service";
+import { enrichExchangeRecordsWithGeography } from "@/lib/server/geography/exchange-record-geography";
 
 const lenses = new Set<ExchangeLens>(["rfx", "resources", "intelligence", "capabilities"]);
 
@@ -24,14 +25,14 @@ function boundsFromRequest(request: NextRequest): MapBounds | undefined {
 async function recordsForLens(lens: ExchangeLens) {
   if (lens === "capabilities") {
     const records = await listCanonicalCapabilityExchangeRecords();
-    return { records, catalogMode: "database" as const };
+    return { records: await enrichExchangeRecordsWithGeography(records), catalogMode: "database" as const };
   }
   if (lens !== "resources") return { records: exchangeSeed, catalogMode: "reference" as const };
   try {
     const seeded = await listSeededResourceProviderRecords();
     const existingIds = new Set(exchangeSeed.map((record) => record.id));
     const merged: ExchangeRecord[] = [...exchangeSeed, ...seeded.filter((record) => !existingIds.has(record.id))];
-    return { records: merged, catalogMode: seeded.length ? "database+reference" as const : "reference" as const };
+    return { records: await enrichExchangeRecordsWithGeography(merged), catalogMode: seeded.length ? "database+reference" as const : "reference" as const };
   } catch (error) {
     if (!(error instanceof DatabaseServiceUnavailableError)) console.error("Seeded Resource Provider read failed", error);
     return { records: exchangeSeed, catalogMode: "reference" as const };
@@ -65,9 +66,6 @@ export async function GET(request: NextRequest) {
     bounds,
     catalogMode: catalog.catalogMode,
     records,
-    // Compatibility projection for bounded consumers such as the RFx mobile
-    // market preview. It contains the same canonical records and match data;
-    // it is not a second search implementation.
     results: visibleResults,
     matches: visibleResults.map((result) => ({ id: result.record.id, ...result.match })),
     summary: { total: records.length, mapped, offMap: records.length - mapped },
