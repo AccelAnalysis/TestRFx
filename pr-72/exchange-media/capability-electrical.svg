@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">Industrial electrical capability preview</title>
+  <desc id="desc">Abstract electrical schematic used only as TestRFx reference capability media.</desc>
+  <rect width="960" height="540" fill="#e9ecef"/>
+  <rect x="70" y="62" width="820" height="416" rx="34" fill="#252932"/>
+  <g stroke="#aeb7c3" stroke-width="7" fill="none" stroke-linecap="round"><path d="M150 190h160v-72h142v154h150v-90h180"/><path d="M150 356h112v-88h162v122h126v-58h232"/></g>
+  <g fill="#d6a23a"><circle cx="310" cy="190" r="18"/><circle cx="452" cy="118" r="18"/><circle cx="602" cy="272" r="18"/><circle cx="262" cy="356" r="18"/><circle cx="424" cy="268" r="18"/><circle cx="550" cy="390" r="18"/></g>
+  <path d="M506 150l-78 135h70l-42 108 118-156h-75z" fill="#f7f3ea"/>
+  <text x="104" y="116" fill="#f7f3ea" font-family="Arial, sans-serif" font-size="28" font-weight="700" letter-spacing="2">INDUSTRIAL ELECTRICAL</text>
+  <text x="104" y="444" fill="#d0d5db" font-family="Arial, sans-serif" font-size="20">TestRFx reference capability media</text>
+</svg>

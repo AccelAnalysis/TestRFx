@@ -1,0 +1,1 @@
+(globalThis.TURBOPACK||(globalThis.TURBOPACK=[])).push(["object"==typeof document?document.currentScript:void 0,18186,t=>{"use strict";var i=t.i(43476),o=t.i(91423);t.s(["RegistrationForm",0,function({initialContext:t}){return(0,i.jsx)(o.RegistrationWorkflow,{initialPath:["create-account","name"],initialContext:t})}])}]);
