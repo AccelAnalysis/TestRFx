@@ -72,8 +72,9 @@ export async function buildRfxPerformanceScope(workspace: RfxWorkspace): Promise
     state: value(workspace, "performance.state"),
     postalCode: value(workspace, "performance.postalCode"),
   };
-  const legacy = value(workspace, "capabilities.geography") || value(workspace, "scope.serviceLocations");
-  const parsedLegacyAddress = !mode ? parseUsAddress(legacy) : undefined;
+  const serviceLocations = value(workspace, "scope.serviceLocations");
+  const legacy = value(workspace, "capabilities.geography") || serviceLocations;
+  const parsedLegacyAddress = !mode ? parseUsAddress(serviceLocations) : undefined;
   const address = explicitAddress.address1 && explicitAddress.city && explicitAddress.state
     ? explicitAddress
     : parsedLegacyAddress;

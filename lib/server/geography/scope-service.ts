@@ -120,7 +120,8 @@ export async function setGeographicScope(input: {
     if (!geographies.length) throw new GeographicScopeError("Select at least one canonical geography for this scope.", 422, "geography_required");
     scope = { ...scope, geographies };
   } else if (input.mode === "radius") {
-    if (!input.point || !Number.isFinite(input.point.latitude) || !Number.isFinite(input.point.longitude) || !Number.isFinite(input.radiusMeters) || Number(input.radiusMeters) <= 0) {
+    const radius = input.radiusMeters;
+    if (!input.point || !Number.isFinite(input.point.latitude) || !Number.isFinite(input.point.longitude) || typeof radius !== "number" || !Number.isFinite(radius) || radius <= 0) {
       throw new GeographicScopeError("Radius scopes require a valid center point and positive radiusMeters.");
     }
   }

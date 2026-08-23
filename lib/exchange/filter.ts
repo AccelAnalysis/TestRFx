@@ -15,11 +15,19 @@ export function createExchangeFilters(): ExchangeFilters {
   };
 }
 
+function geographyIds(filters: ExchangeFilters) {
+  return filters.geographyIds ?? [];
+}
+
+function geographyTypes(filters: ExchangeFilters) {
+  return filters.geographyTypes ?? [];
+}
+
 export function countActiveFilters(filters: ExchangeFilters) {
   return [
     Boolean(filters.geography),
-    filters.geographyIds.length > 0,
-    filters.geographyTypes.length > 0,
+    geographyIds(filters).length > 0,
+    geographyTypes(filters).length > 0,
     filters.relationship !== "all",
     filters.mappedOnly,
     filters.featuredOnly,
@@ -51,10 +59,12 @@ export function getLensFilterOptions(records: ExchangeRecord[], lens: ExchangeLe
 }
 
 export function applyExchangeFilters(records: ExchangeRecord[], filters: ExchangeFilters) {
+  const ids = geographyIds(filters);
+  const types = geographyTypes(filters);
   return records.filter((record) => {
     if (filters.geography && record.geography !== filters.geography && !recordGeographies(record).some((ref) => ref.name === filters.geography)) return false;
-    if (filters.geographyIds.length && !filters.geographyIds.every((id) => recordGeographies(record).some((ref) => ref.key === id || ref.geoid === id || ref.externalId === id))) return false;
-    if (filters.geographyTypes.length && !filters.geographyTypes.every((type) => recordGeographies(record).some((ref) => ref.type === type))) return false;
+    if (ids.length && !ids.every((id) => recordGeographies(record).some((ref) => ref.key === id || ref.geoid === id || ref.externalId === id))) return false;
+    if (types.length && !types.every((type) => recordGeographies(record).some((ref) => ref.type === type))) return false;
     if (filters.relationship === "mine" && !record.ownedByViewer) return false;
     if (filters.relationship === "others" && record.ownedByViewer) return false;
     if (filters.mappedOnly && !record.location) return false;

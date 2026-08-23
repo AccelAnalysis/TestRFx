@@ -11,12 +11,28 @@ import {
   type GeographyProfile,
   type GeographyReference,
 } from "@/lib/geography/contracts";
+import { getMarketSeedPack } from "@/lib/resources/market-seed-packs";
 import { resolveCensusCoordinateProfile } from "./census-profile-resolver";
 
 // postgres.js exposes root and transaction handles as distinct TS types. These
 // helpers intentionally depend only on the tagged-template/json surface shared
 // by both.
 type QueryExecutor = any;
+type CanonicalOverlay = GeographyReference & { canonicalId: string };
+type SpatialOverlayRow = {
+  id: string;
+  geography_type: GeographyReference["type"];
+  name: string;
+  country_code: string;
+  state_code: string | null;
+  fips_code: string | null;
+  geography_system: GeographyReference["source"];
+  external_id: string | null;
+  vintage: string | null;
+  source_layer: string | null;
+  is_economic_development_zone: boolean;
+  metadata: Record<string, string | number | boolean | null>;
+};
 
 function jsonSafe(value: unknown) {
   return JSON.parse(JSON.stringify(value ?? {}));
@@ -24,6 +40,24 @@ function jsonSafe(value: unknown) {
 
 function geometryPoint(latitude: number, longitude: number) {
   return { latitude, longitude };
+}
+
+function marketReference(marketKey?: string | null): GeographyReference | undefined {
+  if (!marketKey) return undefined;
+  const pack = getMarketSeedPack(marketKey);
+  if (!pack) return undefined;
+  return {
+    key: `rfxchange_market:region_market:${pack.key}`,
+    type: "region_market",
+    name: pack.geography.marketLabel,
+    countryCode: pack.geography.country,
+    stateCode: pack.geography.state,
+    externalId: pack.key,
+    source: "rfxchange_market",
+    sourceLayer: "market-seed-pack",
+    vintage: "current",
+    metadata: { seedPackKey: pack.key },
+  };
 }
 
 async function geographyByExternal(sql: QueryExecutor, ref: GeographyReference) {
@@ -94,21 +128,8 @@ async function addRelationship(
   `;
 }
 
-export async function spatialOverlayGeographies(sql: QueryExecutor, latitude: number, longitude: number) {
-  const rows = await sql<{
-    id: string;
-    geography_type: GeographyReference["type"];
-    name: string;
-    country_code: string;
-    state_code: string | null;
-    fips_code: string | null;
-    geography_system: GeographyReference["source"];
-    external_id: string | null;
-    vintage: string | null;
-    source_layer: string | null;
-    is_economic_development_zone: boolean;
-    metadata: Record<string, string | number | boolean | null>;
-  }[]>`
+export async function spatialOverlayGeographies(sql: QueryExecutor, latitude: number, longitude: number): Promise<CanonicalOverlay[]> {
+  const rows = await sql`
     SELECT id::text, geography_type, name, country_code, state_code, fips_code,
            geography_system, external_id, vintage, source_layer,
            is_economic_development_zone, metadata
@@ -123,8 +144,8 @@ export async function spatialOverlayGeographies(sql: QueryExecutor, latitude: nu
         'economic_development_district', 'redevelopment_zone', 'industrial_development_zone',
         'tax_increment_financing_zone', 'custom_economic_development_zone'
       )
-  `;
-  return rows.map((row): GeographyReference & { canonicalId: string } => ({
+  ` as SpatialOverlayRow[];
+  return rows.map((row: SpatialOverlayRow): CanonicalOverlay => ({
     key: `${row.geography_system}:${row.geography_type}:${row.external_id ?? row.id}:${row.vintage ?? ""}`,
     type: row.geography_type,
     name: row.name,
@@ -148,16 +169,16 @@ export async function persistLocationGeographyProfile(
 ) {
   const root = options.sql ?? getDatabase();
   const execute = async (sql: QueryExecutor) => {
-    const overlays = profile.point
+    const overlays: CanonicalOverlay[] = profile.point
       ? await spatialOverlayGeographies(sql, profile.point.latitude, profile.point.longitude)
       : [];
     const market = options.market;
-    const regionMarket = market ?? overlays.find((ref) => ref.type === "region_market");
-    const parallel = [
+    const regionMarket = market ?? overlays.find((ref: CanonicalOverlay) => ref.type === "region_market");
+    const parallel: GeographyReference[] = [
       ...profile.parallel,
-      ...overlays.filter((ref) => ref.type !== "region_market"),
+      ...overlays.filter((ref: CanonicalOverlay) => ref.type !== "region_market"),
     ];
-    const uniqueParallel = [...new Map(parallel.map((ref) => [ref.key, ref])).values()];
+    const uniqueParallel = [...new Map(parallel.map((ref: GeographyReference) => [ref.key, ref])).values()];
     const enriched: GeographyProfile = {
       ...profile,
       hierarchy: { ...profile.hierarchy, ...(regionMarket ? { regionMarket } : {}) },
@@ -425,7 +446,7 @@ export async function backfillLocationGeographies(input: { limit?: number; marke
   for (const row of rows) {
     try {
       const profile = await resolveCensusCoordinateProfile({ latitude: Number(row.latitude), longitude: Number(row.longitude) });
-      const enriched = await persistLocationGeographyProfile(row.id, profile);
+      const enriched = await persistLocationGeographyProfile(row.id, profile, { market: marketReference(row.market_key) });
       results.push({ locationId: row.id, status: "resolved", label: geographyDisplayLabel(enriched) });
     } catch (error) {
       results.push({ locationId: row.id, status: "failed", error: error instanceof Error ? error.message : "Geography resolution failed." });

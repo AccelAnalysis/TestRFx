@@ -39,6 +39,14 @@ function normalized(value: string) {
   return value.trim().toLowerCase();
 }
 
+function structuredIds(filters: ExchangeSearchFilters) {
+  return filters.geographyIds ?? [];
+}
+
+function structuredTypes(filters: ExchangeSearchFilters) {
+  return filters.geographyTypes ?? [];
+}
+
 export function recordGeographies(record: ExchangeRecord): GeographyReference[] {
   const refs: GeographyReference[] = [...allProfileGeographies(record.geographyProfile)];
   for (const scope of record.geographicScopes ?? []) {
@@ -98,11 +106,13 @@ function matchRecord(record: ExchangeRecord, query: string) {
 }
 
 function matchesStructuredGeography(record: ExchangeRecord, filters: ExchangeSearchFilters) {
-  if (!filters.geographyIds.length && !filters.geographyTypes.length) return true;
+  const ids = structuredIds(filters);
+  const types = structuredTypes(filters);
+  if (!ids.length && !types.length) return true;
   const geographies = recordGeographies(record);
   if (!geographies.length) return false;
-  const idsMatch = !filters.geographyIds.length || filters.geographyIds.every((id) => geographies.some((ref) => ref.key === id || ref.geoid === id || ref.externalId === id));
-  const typesMatch = !filters.geographyTypes.length || filters.geographyTypes.every((type) => geographies.some((ref) => ref.type === type));
+  const idsMatch = !ids.length || ids.every((id) => geographies.some((ref) => ref.key === id || ref.geoid === id || ref.externalId === id));
+  const typesMatch = !types.length || types.every((type) => geographies.some((ref) => ref.type === type));
   return idsMatch && typesMatch;
 }
 
@@ -187,8 +197,8 @@ export function searchStateToParams(state: ExchangeSearchState) {
   const params = new URLSearchParams();
   if (state.query.trim()) params.set("q", state.query.trim());
   if (state.filters.geography.trim()) params.set("geo", state.filters.geography.trim());
-  for (const id of state.filters.geographyIds) if (id.trim()) params.append("geo_id", id.trim());
-  for (const type of state.filters.geographyTypes) params.append("geo_type", type);
+  for (const id of structuredIds(state.filters)) if (id.trim()) params.append("geo_id", id.trim());
+  for (const type of structuredTypes(state.filters)) params.append("geo_type", type);
   if (state.filters.location !== "all") params.set("location", state.filters.location);
   if (state.filters.ownership !== "all") params.set("ownership", state.filters.ownership);
   for (const tag of state.filters.metadata) if (tag.trim()) params.append("tag", tag.trim());
@@ -198,8 +208,8 @@ export function searchStateToParams(state: ExchangeSearchState) {
 
 export function activeFilterCount(state: ExchangeSearchState) {
   return Number(Boolean(state.filters.geography.trim()))
-    + state.filters.geographyIds.length
-    + state.filters.geographyTypes.length
+    + structuredIds(state.filters).length
+    + structuredTypes(state.filters).length
     + Number(state.filters.location !== "all")
     + Number(state.filters.ownership !== "all")
     + state.filters.metadata.length

@@ -98,7 +98,8 @@ export async function persistOrganizationGeography(input: {
     const primaryId = await ensureGeography(tx, primaryRef);
     await tx`
       DELETE FROM organization_geographies
-      WHERE organization_id = ${input.organizationId}::uuid AND relationship_type = 'primary'
+      WHERE organization_id = ${input.organizationId}::uuid
+        AND relationship_type IN ('primary', 'service')
     `;
     await tx`
       INSERT INTO organization_geographies (organization_id, geography_id, relationship_type)
@@ -107,6 +108,15 @@ export async function persistOrganizationGeography(input: {
     `;
 
     const serviceRefs = input.serviceGeographies.map(onboardingGeographyReference);
+    for (const ref of serviceRefs) {
+      const serviceId = await ensureGeography(tx, ref);
+      await tx`
+        INSERT INTO organization_geographies (organization_id, geography_id, relationship_type)
+        VALUES (${input.organizationId}::uuid, ${serviceId}::uuid, 'service')
+        ON CONFLICT DO NOTHING
+      `;
+    }
+
     await upsertOrganizationGeographicScope({
       organizationId: input.organizationId,
       sql: tx,

@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS location_geographies (
   location_id uuid NOT NULL REFERENCES locations(id) ON DELETE CASCADE,
   geography_id uuid NOT NULL REFERENCES geographies(id) ON DELETE CASCADE,
   relation_role text NOT NULL CHECK (relation_role IN ('core', 'parallel', 'market', 'economic_zone')),
-  derivation text NOT NULL CHECK (derivation IN ('address', 'coordinates', 'spatial', 'declared', 'imported')),
+  derivation text NOT NULL CHECK (derivation IN ('address', 'coordinates', 'spatial', 'declared', 'imported', 'source')),
   source text NOT NULL,
   confidence numeric(5,4) NOT NULL DEFAULT 1.0000 CHECK (confidence >= 0 AND confidence <= 1),
   created_at timestamptz NOT NULL DEFAULT now(),
