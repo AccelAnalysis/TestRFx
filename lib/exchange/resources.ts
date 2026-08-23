@@ -4,6 +4,7 @@ import type {
   ResourceProjection,
   ResourceVisibility,
 } from "./contracts";
+import type { GeographicScope, GeographyProfile } from "@/lib/geography/contracts";
 
 export type ResourceSort = "relevance" | "availability" | "organization";
 export type ResourceOwnership = "all" | "mine";
@@ -21,10 +22,12 @@ export interface ResourceDraft {
   category: string;
   summary: string;
   geography: string;
+  geographyProfile?: GeographyProfile;
   availability: ResourceAvailabilityState;
   availabilityLabel: string;
   capacity: string;
   serviceArea: string;
+  serviceScope?: GeographicScope;
   visibility: ResourceVisibility;
   terms: string;
 }

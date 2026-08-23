@@ -1,3 +1,5 @@
+import type { GeographicScope, GeographyProfile, PlatformGeographyType } from "@/lib/geography/contracts";
+
 export type ExchangeLens = "rfx" | "resources" | "intelligence" | "capabilities";
 export type ExchangeLensIconId = "opportunity-document" | "resource-ecosystem" | "intelligence-signal" | "capability-stack";
 export type DrawerState = "peek" | "mid" | "expanded";
@@ -67,6 +69,7 @@ export interface ResourceProjection {
   availabilityLabel: string;
   capacity?: string;
   serviceArea?: string;
+  serviceScope?: GeographicScope;
   visibility: ResourceVisibility;
   terms?: string;
   status: ResourceStatus;
@@ -77,7 +80,7 @@ export interface MapHighlight { reason: MapHighlightReason; priority?: number; a
 export interface ExchangeRecord {
   id: string; type: ExchangeRecordType; title: string; organization: string; summary: string; geography: string; metadata: string[];
   location?: Coordinates; ownedByViewer?: boolean; featured?: boolean; saved?: boolean; card?: ExchangeCardProjection; resource?: ResourceProjection;
-  mapHighlight?: MapHighlight;
+  geographyProfile?: GeographyProfile; geographicScopes?: GeographicScope[]; mapHighlight?: MapHighlight;
 }
 
 export interface ExchangeOrganizationAnchor {
@@ -114,7 +117,14 @@ export interface ExchangeLensDefinition {
   recordActions: (record: ExchangeRecord, viewer: ExchangeViewerContext) => LensAction[];
 }
 
-export interface ExchangeSearchFilters { geography: string; location: SearchLocationMode; ownership: SearchOwnership; metadata: string[]; }
+export interface ExchangeSearchFilters {
+  geography: string;
+  geographyIds: string[];
+  geographyTypes: PlatformGeographyType[];
+  location: SearchLocationMode;
+  ownership: SearchOwnership;
+  metadata: string[];
+}
 export interface ExchangeSearchState { query: string; filters: ExchangeSearchFilters; sort: SearchSort; }
 export interface ExchangeSearchMatch { score: number; matchedFields: string[]; }
 export interface ExchangeSearchResult { record: ExchangeRecord; match: ExchangeSearchMatch; }
@@ -122,7 +132,15 @@ export interface ExchangeSearchResponse { lens: ExchangeLens; state: ExchangeSea
 export interface SearchSuggestion { id: string; kind: SearchSuggestionKind; label: string; description: string; query: string; }
 export interface SavedSearch { id: string; name: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
 export interface RecentSearch { id: string; lens: ExchangeLens; state: ExchangeSearchState; createdAt: string; }
-export interface ExchangeFilters { geography?: string; relationship: RecordRelationshipFilter; mappedOnly: boolean; featuredOnly: boolean; metadata: string[]; }
+export interface ExchangeFilters {
+  geography?: string;
+  geographyIds: string[];
+  geographyTypes: PlatformGeographyType[];
+  relationship: RecordRelationshipFilter;
+  mappedOnly: boolean;
+  featuredOnly: boolean;
+  metadata: string[];
+}
 export interface ExchangeMapState { displayMode: MapDisplayMode; geolocationStatus: GeolocationStatus; viewerLocation?: Coordinates; viewportDirty: boolean; resetKey: number; }
 
 export interface ExchangeViewState {

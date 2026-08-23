@@ -1,10 +1,13 @@
 import type { ExchangeFilters, ExchangeLens, ExchangeRecord } from "./contracts";
-import { defaultSearchState, searchExchangeRecords, typeByLens } from "./search";
+import { defaultSearchState, recordGeographies, searchExchangeRecords, typeByLens } from "./search";
+import { geographyTypeLabels } from "@/lib/geography/contracts";
 
 export { typeByLens };
 
 export function createExchangeFilters(): ExchangeFilters {
   return {
+    geographyIds: [],
+    geographyTypes: [],
     relationship: "all",
     mappedOnly: false,
     featuredOnly: false,
@@ -15,6 +18,8 @@ export function createExchangeFilters(): ExchangeFilters {
 export function countActiveFilters(filters: ExchangeFilters) {
   return [
     Boolean(filters.geography),
+    filters.geographyIds.length > 0,
+    filters.geographyTypes.length > 0,
     filters.relationship !== "all",
     filters.mappedOnly,
     filters.featuredOnly,
@@ -24,8 +29,22 @@ export function countActiveFilters(filters: ExchangeFilters) {
 
 export function getLensFilterOptions(records: ExchangeRecord[], lens: ExchangeLens) {
   const lensRecords = records.filter((record) => record.type === typeByLens[lens]);
+  const structured = new Map<string, { id: string; type: ReturnType<typeof recordGeographies>[number]["type"]; label: string; detail: string }>();
+  for (const record of lensRecords) {
+    for (const geography of recordGeographies(record)) {
+      if (!structured.has(geography.key)) {
+        structured.set(geography.key, {
+          id: geography.key,
+          type: geography.type,
+          label: geography.name,
+          detail: geography.geoid ?? geography.externalId ?? geographyTypeLabels[geography.type],
+        });
+      }
+    }
+  }
   return {
     geographies: [...new Set(lensRecords.map((record) => record.geography))].sort(),
+    geographyFacets: [...structured.values()].sort((a, b) => geographyTypeLabels[a.type].localeCompare(geographyTypeLabels[b.type]) || a.label.localeCompare(b.label)),
     metadata: [...new Set(lensRecords.flatMap((record) => record.metadata))].sort(),
     supportsFeatured: lensRecords.some((record) => record.featured),
   };
@@ -33,7 +52,9 @@ export function getLensFilterOptions(records: ExchangeRecord[], lens: ExchangeLe
 
 export function applyExchangeFilters(records: ExchangeRecord[], filters: ExchangeFilters) {
   return records.filter((record) => {
-    if (filters.geography && record.geography !== filters.geography) return false;
+    if (filters.geography && record.geography !== filters.geography && !recordGeographies(record).some((ref) => ref.name === filters.geography)) return false;
+    if (filters.geographyIds.length && !filters.geographyIds.every((id) => recordGeographies(record).some((ref) => ref.key === id || ref.geoid === id || ref.externalId === id))) return false;
+    if (filters.geographyTypes.length && !filters.geographyTypes.every((type) => recordGeographies(record).some((ref) => ref.type === type))) return false;
     if (filters.relationship === "mine" && !record.ownedByViewer) return false;
     if (filters.relationship === "others" && record.ownedByViewer) return false;
     if (filters.mappedOnly && !record.location) return false;

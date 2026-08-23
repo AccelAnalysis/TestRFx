@@ -6,6 +6,14 @@ import type {
   ExchangeSearchState,
   SearchSuggestion,
 } from "./contracts";
+import {
+  allProfileGeographies,
+  coreGeographyLevels,
+  geographyTypeLabels,
+  parallelGeographyTypes,
+  type GeographyReference,
+  type PlatformGeographyType,
+} from "@/lib/geography/contracts";
 
 export const typeByLens: Record<ExchangeLens, ExchangeRecord["type"]> = {
   rfx: "rfx",
@@ -16,17 +24,32 @@ export const typeByLens: Record<ExchangeLens, ExchangeRecord["type"]> = {
 
 export const defaultSearchFilters: ExchangeSearchFilters = {
   geography: "",
+  geographyIds: [],
+  geographyTypes: [],
   location: "all",
   ownership: "all",
   metadata: [],
 };
 
 export function defaultSearchState(query = ""): ExchangeSearchState {
-  return { query, filters: { ...defaultSearchFilters }, sort: "relevance" };
+  return { query, filters: { ...defaultSearchFilters, geographyIds: [], geographyTypes: [], metadata: [] }, sort: "relevance" };
 }
 
 function normalized(value: string) {
   return value.trim().toLowerCase();
+}
+
+export function recordGeographies(record: ExchangeRecord): GeographyReference[] {
+  const refs: GeographyReference[] = [...allProfileGeographies(record.geographyProfile)];
+  for (const scope of record.geographicScopes ?? []) {
+    refs.push(...(scope.geographies ?? []));
+    refs.push(...allProfileGeographies(scope.derivedProfile));
+  }
+  if (record.resource?.serviceScope) {
+    refs.push(...(record.resource.serviceScope.geographies ?? []));
+    refs.push(...allProfileGeographies(record.resource.serviceScope.derivedProfile));
+  }
+  return [...new Map(refs.map((ref) => [ref.key, ref])).values()];
 }
 
 function searchableFields(record: ExchangeRecord) {
@@ -36,11 +59,19 @@ function searchableFields(record: ExchangeRecord) {
     ...(record.card?.classifications ?? []),
     ...(record.card?.relationships ?? []),
   ].filter((value): value is string => Boolean(value));
+  const geographyTerms = recordGeographies(record).flatMap((ref) => [
+    ref.name,
+    ref.geoid,
+    ref.externalId,
+    ref.code,
+    geographyTypeLabels[ref.type],
+  ].filter((value): value is string => Boolean(value)));
   return [
     { name: "title", value: record.title, weight: 5 },
     { name: "organization", value: record.organization, weight: 4 },
     { name: "summary", value: record.summary, weight: 3 },
     { name: "geography", value: record.geography, weight: 2 },
+    ...geographyTerms.map((value) => ({ name: "geography", value, weight: 2 })),
     ...record.metadata.map((value) => ({ name: "metadata", value, weight: 2 })),
     ...cardTerms.map((value) => ({ name: "card", value, weight: 2 })),
   ];
@@ -66,9 +97,19 @@ function matchRecord(record: ExchangeRecord, query: string) {
   return { matches: true, score, matchedFields: [...matchedFields] };
 }
 
+function matchesStructuredGeography(record: ExchangeRecord, filters: ExchangeSearchFilters) {
+  if (!filters.geographyIds.length && !filters.geographyTypes.length) return true;
+  const geographies = recordGeographies(record);
+  if (!geographies.length) return false;
+  const idsMatch = !filters.geographyIds.length || filters.geographyIds.every((id) => geographies.some((ref) => ref.key === id || ref.geoid === id || ref.externalId === id));
+  const typesMatch = !filters.geographyTypes.length || filters.geographyTypes.every((type) => geographies.some((ref) => ref.type === type));
+  return idsMatch && typesMatch;
+}
+
 function passesFilters(record: ExchangeRecord, filters: ExchangeSearchFilters) {
   const geography = normalized(filters.geography);
-  if (geography && !normalized(record.geography).includes(geography)) return false;
+  if (geography && !normalized(record.geography).includes(geography) && !recordGeographies(record).some((ref) => normalized(ref.name).includes(geography))) return false;
+  if (!matchesStructuredGeography(record, filters)) return false;
   if (filters.location === "mapped" && !record.location) return false;
   if (filters.location === "off-map" && record.location) return false;
   if (filters.ownership === "mine" && !record.ownedByViewer) return false;
@@ -107,7 +148,7 @@ export function getSearchSuggestions(records: ExchangeRecord[], lens: ExchangeLe
   const lensRecords = records.filter((record) => record.type === typeByLens[lens]);
   const suggestions = new Map<string, SearchSuggestion>();
   function add(kind: SearchSuggestion["kind"], label: string, description: string) {
-    const key = `${kind}:${normalized(label)}`;
+    const key = `${kind}:${normalized(label)}:${normalized(description)}`;
     if (suggestions.has(key)) return;
     if (typed && !normalized(`${label} ${description}`).includes(typed)) return;
     suggestions.set(key, { id: key, kind, label, description, query: label });
@@ -116,10 +157,13 @@ export function getSearchSuggestions(records: ExchangeRecord[], lens: ExchangeLe
     add("record", record.title, `${record.organization} · ${record.geography}`);
     add("organization", record.organization, `Organization · ${record.geography}`);
     add("geography", record.geography, "Geography");
+    for (const ref of recordGeographies(record)) add("geography", ref.name, geographyTypeLabels[ref.type]);
     for (const metadata of [...record.metadata, ...(record.card?.classifications ?? [])]) add("metadata", metadata, `${record.organization} · ${record.type}`);
   }
   return [...suggestions.values()].slice(0, limit);
 }
+
+const validGeographyTypes = new Set<PlatformGeographyType>([...coreGeographyLevels, ...parallelGeographyTypes]);
 
 export function searchStateFromParams(params: URLSearchParams): ExchangeSearchState {
   const location = params.get("location");
@@ -129,6 +173,8 @@ export function searchStateFromParams(params: URLSearchParams): ExchangeSearchSt
     query: params.get("q") ?? "",
     filters: {
       geography: params.get("geo") ?? "",
+      geographyIds: params.getAll("geo_id").filter(Boolean),
+      geographyTypes: params.getAll("geo_type").filter((value): value is PlatformGeographyType => validGeographyTypes.has(value as PlatformGeographyType)),
       location: location === "mapped" || location === "off-map" ? location : "all",
       ownership: ownership === "mine" || ownership === "others" ? ownership : "all",
       metadata: params.getAll("tag").filter(Boolean),
@@ -141,6 +187,8 @@ export function searchStateToParams(state: ExchangeSearchState) {
   const params = new URLSearchParams();
   if (state.query.trim()) params.set("q", state.query.trim());
   if (state.filters.geography.trim()) params.set("geo", state.filters.geography.trim());
+  for (const id of state.filters.geographyIds) if (id.trim()) params.append("geo_id", id.trim());
+  for (const type of state.filters.geographyTypes) params.append("geo_type", type);
   if (state.filters.location !== "all") params.set("location", state.filters.location);
   if (state.filters.ownership !== "all") params.set("ownership", state.filters.ownership);
   for (const tag of state.filters.metadata) if (tag.trim()) params.append("tag", tag.trim());
@@ -150,6 +198,8 @@ export function searchStateToParams(state: ExchangeSearchState) {
 
 export function activeFilterCount(state: ExchangeSearchState) {
   return Number(Boolean(state.filters.geography.trim()))
+    + state.filters.geographyIds.length
+    + state.filters.geographyTypes.length
     + Number(state.filters.location !== "all")
     + Number(state.filters.ownership !== "all")
     + state.filters.metadata.length
