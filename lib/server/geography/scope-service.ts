@@ -1,6 +1,6 @@
 import "server-only";
 
-import type { ExchangeServerActor } from "@/lib/server/exchange/actor";
+import { assertExchangeWrite, type ExchangeServerActor } from "@/lib/server/exchange/actor";
 import { getDatabase } from "@/lib/server/database";
 import type { GeographicScope, GeographicScopeKind, GeographyReference } from "@/lib/geography/contracts";
 import { resolveCensusAddressProfile } from "./census-profile-resolver";
@@ -77,6 +77,13 @@ function allowedKindForRecordType(recordType: string, kind: GeographicScopeKind)
   return false;
 }
 
+function writePermissionForRecordType(recordType: string) {
+  if (recordType === "resource") return "resources:write";
+  if (recordType === "capability") return "capabilities:write";
+  if (recordType === "intelligence") return "intelligence:write";
+  return "exchange:write";
+}
+
 export async function setGeographicScope(input: {
   actor: ExchangeServerActor;
   target: "organization" | "record";
@@ -128,6 +135,7 @@ export async function setGeographicScope(input: {
 
   if (input.target === "organization") {
     if (input.kind !== "organization_service_area") throw new GeographicScopeError("Organization targets only support organization_service_area.");
+    assertExchangeWrite(input.actor);
     const scopeId = await upsertOrganizationGeographicScope({ organizationId: input.actor.organizationId, scope });
     return { scopeId, target: "organization" as const, organizationId: input.actor.organizationId, scope };
   }
@@ -137,6 +145,7 @@ export async function setGeographicScope(input: {
   const record = await ownedExchangeRecord(input.actor, publicId);
   if (!record) throw new GeographicScopeError("The Exchange record was not found for the active organization.", 404, "record_not_found");
   if (!allowedKindForRecordType(record.record_type, input.kind)) throw new GeographicScopeError("The requested geographic scope kind does not apply to this record type.", 409, "scope_kind_mismatch");
+  assertExchangeWrite(input.actor, writePermissionForRecordType(record.record_type));
   const scopeId = await upsertExchangeRecordGeographicScope({ exchangeRecordId: record.id, scope });
   return { scopeId, target: "record" as const, recordId: publicId, scope };
 }
