@@ -20,10 +20,33 @@ export function LoginFlow({ initialReturnTo, registrationHref = "/register" }: L
   const [expiresInSeconds, setExpiresInSeconds] = useState(15 * 60);
 
   const maskedEmail = useMemo(() => maskEmail(email), [email]);
+  const isPagesPreview = process.env.NEXT_PUBLIC_RFXCHANGE_PAGES_PREVIEW === "1";
 
   function resetEmail() {
     setFlowState("idle");
     setMessage("");
+  }
+
+  if (isPagesPreview) {
+    return (
+      <section className={styles.statusPanel} aria-live="polite">
+        <div className={styles.statusIcon} aria-hidden="true">↗</div>
+        <h2>TestRFx preview access</h2>
+        <p>
+          Open the Exchange directly for testing. This preview does not create an account, establish an authenticated session,
+          purchase a membership, or write onboarding progress.
+        </p>
+        <Link className={styles.primaryButton} href={initialReturnTo || "/exchange/rfx"}>
+          Enter TestRFx
+        </Link>
+        <p className={styles.securityNote}>
+          Production sign-in and readiness checks remain unchanged. Use Registration separately when you want to review the onboarding experience itself.
+        </p>
+        <p className={styles.registerPrompt}>
+          <Link href={registrationHref}>View registration and onboarding</Link>
+        </p>
+      </section>
+    );
   }
 
   async function requestMagicLink() {
