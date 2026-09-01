@@ -21,7 +21,7 @@ function getStripe(): Stripe {
   const secretKey = process.env.STRIPE_SECRET_KEY?.trim();
   if (!secretKey) throw new StripeMembershipConfigurationError();
   if (!stripeClient) {
-    stripeClient = new Stripe(secretKey, { apiVersion: "2026-07-29.dahlia" });
+    stripeClient = new Stripe(secretKey, { apiVersion: "2026-08-26.dahlia" });
   }
   return stripeClient;
 }
